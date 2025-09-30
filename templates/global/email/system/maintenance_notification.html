@@ -1,0 +1,85 @@
+{% extends "global/email/base/global_base_email.html" %}
+
+{% block title %}System Maintenance Notification{% endblock %}
+
+{% block header_title %}
+🔧 Scheduled Maintenance
+{% endblock %}
+
+{% block email_body %}
+<div style="padding: 30px;">
+    <p style="margin: 15px 0; line-height: 1.6; font-size: 16px;">
+        We're performing scheduled maintenance to improve your experience. Here's what you need to know:
+    </p>
+
+    <!-- Maintenance Schedule -->
+    <div style="background-color: #d4edda; border: 1px solid #c3e6cb; border-radius: 6px; padding: 20px; margin: 20px 0;">
+        <h3 style="margin: 0 0 15px 0; color: #155724;">📅 Maintenance Schedule</h3>
+        <table style="width: 100%;">
+            <tr>
+                <td style="padding: 5px 0; color: #155724;"><strong>Start Time:</strong></td>
+                <td style="padding: 5px 0; color: #155724;">{{ maintenance_start|default:"January 20, 2024 at 2:00 AM UTC" }}</td>
+            </tr>
+            <tr>
+                <td style="padding: 5px 0; color: #155724;"><strong>End Time:</strong></td>
+                <td style="padding: 5px 0; color: #155724;">{{ maintenance_end|default:"January 20, 2024 at 4:00 AM UTC" }}</td>
+            </tr>
+            <tr>
+                <td style="padding: 5px 0; color: #155724;"><strong>Duration:</strong></td>
+                <td style="padding: 5px 0; color: #155724;">{{ maintenance_duration|default:"Approximately 2 hours" }}</td>
+            </tr>
+        </table>
+    </div>
+
+    <h2 style="color: #333; margin: 25px 0 15px 0; font-size: 20px;">What to expect during maintenance</h2>
+
+    {% if expected_downtime %}
+        <p style="line-height: 1.6;">{{ expected_downtime }}</p>
+    {% else %}
+        <ul style="margin: 10px 0; padding-left: 20px; line-height: 1.6;">
+            <li style="margin-bottom: 8px;">The platform may be temporarily unavailable</li>
+            <li style="margin-bottom: 8px;">Some features may be limited or disabled</li>
+            <li style="margin-bottom: 8px;">You may experience slower response times</li>
+            <li>Data and account information will remain secure</li>
+        </ul>
+    {% endif %}
+
+    {% if improvements %}
+    <h2 style="color: #333; margin: 25px 0 15px 0; font-size: 20px;">🚀 What we're improving</h2>
+    <ul style="margin: 10px 0; padding-left: 20px; line-height: 1.6;">
+        {% for improvement in improvements %}
+            <li style="margin-bottom: 8px;">{{ improvement }}</li>
+        {% endfor %}
+    </ul>
+    {% endif %}
+
+    <!-- Status Page Button -->
+    {% if status_page_url %}
+    <table role="presentation" cellspacing="0" cellpadding="0" border="0" style="margin: 30px 0;">
+        <tr>
+            <td style="background-color: #007bff; border-radius: 6px;">
+                <a href="{{ status_page_url }}" style="display: inline-block; padding: 12px 30px; color: #ffffff; text-decoration: none; font-weight: bold; font-size: 16px; text-align: center;">
+                    View Status Page
+                </a>
+            </td>
+        </tr>
+    </table>
+    {% endif %}
+
+    <!-- Contact Info -->
+    <div style="background-color: #f8f9fa; padding: 20px; border-radius: 8px; border-left: 4px solid #17a2b8; margin: 20px 0;">
+        <p style="margin: 0; color: #495057; line-height: 1.4;">
+            <strong>📞 Need Help?</strong> If you experience issues after maintenance is complete, please contact our support team. We'll be standing by to assist you.
+        </p>
+    </div>
+
+    <!-- Thank You -->
+    <p style="margin: 20px 0; line-height: 1.6; text-align: center; font-size: 16px; color: #6c757d;">
+        Thank you for your patience as we work to improve your experience. We appreciate your understanding and will have everything back to normal as quickly as possible.
+    </p>
+</div>
+{% endblock %}
+
+{% block footer_text %}
+This maintenance notification was sent to keep you informed about scheduled system updates.
+{% endblock %}

@@ -1,0 +1,51 @@
+{% extends "content/email/base/base_email.html" %}
+
+{% block email_title %}{{ commenter.username }} commented on your post - Homey Platform{% endblock %}
+
+{% block preheader %}{{ commenter.username }} commented on your post on Homey Platform{% endblock %}
+
+{% block header_content %}
+    <h1 style="color: #ffffff; font-size: 24px; font-weight: 600; margin: 20px 0 0 0;">
+        💬 New Comment!
+    </h1>
+{% endblock %}
+
+{% block email_heading %}Hello {{ user.username }}!{% endblock %}
+
+{% block content %}
+    <p style="color: #555555; font-size: 16px; margin: 0 0 20px 0; line-height: 1.6;">
+        <strong>{{ commenter.username }}</strong> left a comment on your post on <strong>Homey Platform</strong>.
+    </p>
+
+    <!-- User Info Component -->
+    {% include "content/components/user_info.html" with user=commenter action="commented:" %}
+
+    <!-- Comment Quote Component -->
+    {% include "content/components/content_quote.html" with content=comment.content %}
+
+    <h4 style="color: #333333; font-size: 16px; font-weight: 600; margin: 25px 0 10px 0;">
+        Original Post:
+    </h4>
+
+    <!-- Original Post Content -->
+    <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="margin: 10px 0 25px 0;">
+        <tr>
+            <td style="background-color: #fafbfc; border: 1px solid #e9ecef; padding: 15px; border-radius: 6px;">
+                <p style="margin: 0; color: #555555; font-size: 15px; line-height: 1.5;">
+                    {{ post.content|truncatechars:150 }}
+                </p>
+            </td>
+        </tr>
+    </table>
+
+    <!-- View Post Button -->
+    {% include "content/components/button.html" with url=post_url text="View Full Conversation" type="primary" %}
+
+    <p style="color: #6c757d; font-size: 14px; margin: 30px 0 0 0; line-height: 1.4;">
+        Join the conversation and engage with your community on Homey Platform!
+    </p>
+{% endblock %}
+
+{% block footer_text %}
+    This comment notification was sent because someone replied to your content.
+{% endblock %}

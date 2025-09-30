@@ -1,0 +1,475 @@
+/* Styles pour ChatSidebar */
+.sidebar {
+    width: 360px;
+    min-width: 300px;
+    background: white;
+    border-right: 1px solid #e3e6ea;
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    /* Changé de 100vh à 100% pour s'adapter au modal */
+    flex-shrink: 0;
+    /* Empêche le rétrécissement trop important */
+}
+
+/* Header */
+.header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 16px 20px;
+    border-bottom: 1px solid #e3e6ea;
+    background: white;
+}
+
+.title {
+    font-size: 24px;
+    font-weight: 700;
+    color: #1c1e21;
+    margin: 0;
+}
+
+.headerActions {
+    display: flex;
+    gap: 8px;
+}
+
+.newChatButton,
+.moreButton {
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    border: none;
+    background: #f0f2f5;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    color: #65676b;
+}
+
+.newChatButton:hover,
+.moreButton:hover {
+    background: #e4e6ea;
+    transform: scale(1.05);
+}
+
+/* Barre de recherche */
+.searchContainer {
+    padding: 16px 20px;
+    background: white;
+}
+
+.searchBox {
+    position: relative;
+    display: flex;
+    align-items: center;
+    background: #f0f2f5;
+    border-radius: 20px;
+    padding: 8px 16px;
+    transition: all 0.2s ease;
+}
+
+.searchBox:focus-within {
+    background: #e3e6ea;
+    box-shadow: 0 0 0 2px #1877f2;
+}
+
+.searchIcon {
+    color: #65676b;
+    margin-right: 8px;
+    font-size: 20px;
+}
+
+.searchInput {
+    border: none;
+    background: transparent;
+    outline: none;
+    flex: 1;
+    font-size: 15px;
+    color: #1c1e21;
+}
+
+.searchInput::placeholder {
+    color: #65676b;
+}
+
+/* Liste des conversations */
+.conversationsList {
+    flex: 1;
+    overflow-y: auto;
+    scrollbar-width: thin;
+    scrollbar-color: #bcc0c4 transparent;
+}
+
+.conversationsList::-webkit-scrollbar {
+    width: 6px;
+}
+
+.conversationsList::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.conversationsList::-webkit-scrollbar-thumb {
+    background: #bcc0c4;
+    border-radius: 3px;
+}
+
+.conversationItem {
+    display: flex;
+    align-items: center;
+    padding: 12px 20px;
+    cursor: pointer;
+    transition: background-color 0.2s ease;
+    position: relative;
+}
+
+.conversationItem:hover {
+    background: #f0f2f5;
+}
+
+.conversationItem.selected {
+    background: #e7f3ff;
+    border-right: 3px solid #1877f2;
+}
+
+.avatarContainer {
+    position: relative;
+    margin-right: 12px;
+    flex-shrink: 0;
+}
+
+.avatar {
+    width: 56px;
+    height: 56px;
+    border-radius: 50%;
+    object-fit: cover;
+    border: 2px solid #e3e6ea;
+}
+
+.onlineIndicator {
+    position: absolute;
+    bottom: 2px;
+    right: 2px;
+    width: 16px !important;
+    height: 16px !important;
+    color: #42b883;
+    background: white;
+    border-radius: 50%;
+    border: 2px solid white;
+}
+
+.conversationContent {
+    flex: 1;
+    min-width: 0;
+}
+
+.conversationHeader {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 4px;
+}
+
+.name {
+    font-size: 16px;
+    font-weight: 600;
+    color: #1c1e21;
+    margin: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.timestamp {
+    font-size: 13px;
+    color: #65676b;
+    flex-shrink: 0;
+    margin-left: 8px;
+}
+
+.conversationPreview {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 4px;
+}
+
+.lastMessage {
+    font-size: 14px;
+    color: #65676b;
+    margin: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    flex: 1;
+}
+
+.conversationItem.selected .lastMessage {
+    color: #1877f2;
+}
+
+.unreadBadge {
+    background: #1877f2;
+    color: white;
+    font-size: 12px;
+    font-weight: 600;
+    padding: 4px 8px;
+    border-radius: 12px;
+    min-width: 20px;
+    height: 20px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-left: 8px;
+    flex-shrink: 0;
+}
+
+.municipality {
+    font-size: 12px;
+    color: #65676b;
+    font-style: italic;
+}
+
+.emptyState {
+    padding: 40px 20px;
+    text-align: center;
+    color: #65676b;
+}
+
+/* Modal pour nouveau chat */
+.modalOverlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.5);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+    backdrop-filter: blur(4px);
+}
+
+.modal {
+    background: white;
+    border-radius: 12px;
+    width: 90%;
+    max-width: 500px;
+    max-height: 80vh;
+    overflow: hidden;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+    animation: modalAppear 0.3s ease;
+}
+
+@keyframes modalAppear {
+    from {
+        opacity: 0;
+        transform: scale(0.8);
+    }
+
+    to {
+        opacity: 1;
+        transform: scale(1);
+    }
+}
+
+.modalHeader {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 20px 24px;
+    border-bottom: 1px solid #e3e6ea;
+}
+
+.modalHeader h3 {
+    margin: 0;
+    font-size: 20px;
+    font-weight: 600;
+    color: #1c1e21;
+}
+
+.closeButton {
+    background: none;
+    border: none;
+    font-size: 24px;
+    color: #65676b;
+    cursor: pointer;
+    padding: 0;
+    width: 32px;
+    height: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    transition: background-color 0.2s ease;
+}
+
+.closeButton:hover {
+    background: #f0f2f5;
+}
+
+.modalContent {
+    padding: 20px 24px;
+}
+
+.modalDescription {
+    margin: 0 0 20px 0;
+    color: #65676b;
+    font-size: 14px;
+}
+
+.usersList {
+    max-height: 300px;
+    overflow-y: auto;
+}
+
+.userItem {
+    display: flex;
+    align-items: center;
+    padding: 12px;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: background-color 0.2s ease;
+}
+
+.userItem:hover {
+    background: #f0f2f5;
+}
+
+.userInfo {
+    flex: 1;
+    margin-left: 12px;
+}
+
+.userName {
+    margin: 0 0 4px 0;
+    font-size: 16px;
+    font-weight: 600;
+    color: #1c1e21;
+}
+
+.userMunicipality {
+    margin: 0;
+    font-size: 12px;
+    color: #65676b;
+}
+
+.userStatus {
+    font-size: 12px;
+    font-weight: 500;
+}
+
+.onlineText {
+    color: #42b883;
+}
+
+.offlineText {
+    color: #65676b;
+}
+
+/* Responsive Design */
+@media (max-width: 1024px) {
+    .sidebar {
+        width: 320px;
+        min-width: 280px;
+    }
+
+    .conversationItem {
+        padding: 10px 16px;
+    }
+
+    .avatar {
+        width: 52px;
+        height: 52px;
+    }
+}
+
+@media (max-width: 768px) {
+    .sidebar {
+        width: 100%;
+        min-width: 100%;
+        height: 40%;
+        /* Prend 40% de la hauteur sur mobile */
+        border-right: none;
+        border-bottom: 1px solid #e3e6ea;
+        flex-shrink: 0;
+    }
+
+    .conversationItem {
+        padding: 8px 16px;
+    }
+
+    .avatar {
+        width: 48px;
+        height: 48px;
+    }
+
+    .name {
+        font-size: 15px;
+    }
+
+    .lastMessage {
+        font-size: 13px;
+    }
+
+    .modal {
+        width: 95%;
+        margin: 20px;
+        max-height: 85vh;
+    }
+
+    .header {
+        padding: 12px 16px;
+    }
+
+    .title {
+        font-size: 20px;
+    }
+
+    .searchContainer {
+        padding: 12px 16px;
+    }
+}
+
+@media (max-width: 480px) {
+    .sidebar {
+        height: 35%;
+        /* Réduction pour très petits écrans */
+    }
+
+    .conversationItem {
+        padding: 6px 12px;
+    }
+
+    .avatar {
+        width: 44px;
+        height: 44px;
+    }
+
+    .name {
+        font-size: 14px;
+    }
+
+    .lastMessage {
+        font-size: 12px;
+    }
+
+    .timestamp {
+        font-size: 11px;
+    }
+
+    .header {
+        padding: 10px 12px;
+    }
+
+    .title {
+        font-size: 18px;
+    }
+
+    .searchContainer {
+        padding: 10px 12px;
+    }
+}

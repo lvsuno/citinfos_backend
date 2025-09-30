@@ -1,0 +1,120 @@
+{% extends "messaging/base/base_email.html" %}
+
+{% block email_title %}Thread Update - Homey Platform{% endblock %}
+
+{% block preheader %}New activity in {{ thread.title|default:"your conversation" }}{% endblock %}
+
+{% block header_content %}
+    <h1 style="color: #ffffff; font-size: 24px; font-weight: 600; margin: 20px 0 0 0; text-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);">
+        🔄 Thread Update
+    </h1>
+{% endblock %}
+
+{% block email_heading %}
+    Activity in your conversation
+{% endblock %}
+
+{% block content %}
+    <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="margin: 0 0 30px 0;">
+        <tr>
+            <td style="text-align: center;">
+                <p style="color: #6c757d; font-size: 16px; line-height: 1.5; margin: 0 0 25px 0;">
+                    There has been new activity in your conversation. Here's what happened:
+                </p>
+            </td>
+        </tr>
+    </table>
+
+    <!-- Thread info -->
+    {% include "messaging/components/chat_thread.html" with conversation=thread %}
+
+    <!-- Update type notification -->
+    <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="margin: 25px 0;">
+        <tr>
+            <td style="background-color: #e8f4fd; padding: 20px; border-radius: 8px; border-left: 4px solid #667eea;">
+                <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%">
+                    <tr>
+                        <td>
+                            <h4 style="color: #333333; font-size: 16px; font-weight: 600; margin: 0 0 5px 0;">
+                                {% if update_type == 'new_message' %}
+                                    📩 New Message
+                                {% elif update_type == 'user_joined' %}
+                                    👋 User Joined
+                                {% elif update_type == 'user_left' %}
+                                    👋 User Left
+                                {% else %}
+                                    🔄 Thread Updated
+                                {% endif %}
+                            </h4>
+                            <p style="color: #6c757d; font-size: 14px; margin: 0;">
+                                {% if update_type == 'new_message' %}
+                                    Someone posted a new message in the conversation.
+                                {% elif update_type == 'user_joined' %}
+                                    A new participant joined the conversation.
+                                {% elif update_type == 'user_left' %}
+                                    A participant left the conversation.
+                                {% else %}
+                                    The conversation was updated.
+                                {% endif %}
+                            </p>
+                        </td>
+                    </tr>
+                </table>
+            </td>
+        </tr>
+    </table>
+
+    <!-- Latest message if available -->
+    {% if latest_message %}
+        <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="margin: 25px 0;">
+            <tr>
+                <td>
+                    <h4 style="color: #333333; font-size: 16px; font-weight: 600; margin: 0 0 15px 0;">
+                        Latest message:
+                    </h4>
+                    {% include "messaging/components/user_info.html" with user=latest_message.sender compact=True %}
+                    {% include "messaging/components/message_bubble.html" with message=latest_message %}
+                </td>
+            </tr>
+        </table>
+    {% endif %}
+
+    <!-- Action buttons -->
+    <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="margin: 30px 0;">
+        <tr>
+            <td style="text-align: center;">
+                {% include "messaging/components/button.html" with url=thread_url text="Join Conversation" style="primary" %}
+
+                <table role="presentation" cellspacing="0" cellpadding="0" border="0" style="margin: 15px auto 0 auto;">
+                    <tr>
+                        <td style="text-align: center;">
+                            <a href="{{ mute_url }}" style="color: #6c757d; text-decoration: none; font-size: 14px;">
+                                Mute this conversation
+                            </a>
+                        </td>
+                    </tr>
+                </table>
+            </td>
+        </tr>
+    </table>
+
+    <!-- Thread stats -->
+    {% if thread.participant_count %}
+        {% include "messaging/components/message_stats.html" with total_messages=thread.message_count total_conversations=1 %}
+    {% endif %}
+
+    <!-- Settings tip -->
+    <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="margin-top: 30px;">
+        <tr>
+            <td style="background-color: #f8f9fa; padding: 20px; border-radius: 8px; border-left: 4px solid #ffc107;">
+                <p style="color: #495057; font-size: 14px; line-height: 1.4; margin: 0;">
+                    <strong>⚙️ Manage Notifications:</strong> You can adjust thread update notifications in your messaging settings to control how often you receive these updates.
+                </p>
+            </td>
+        </tr>
+    </table>
+{% endblock %}
+
+{% block footer_text %}
+    This thread update was sent to keep you informed of activity in your conversations on the Homey Platform.
+{% endblock %}

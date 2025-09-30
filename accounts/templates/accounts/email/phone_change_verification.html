@@ -1,0 +1,37 @@
+{% extends "accounts/base/base_email.html" %}
+
+{% block email_title %}Verify Phone Number Change - Homey Platform{% endblock %}
+
+{% block preheader %}Verify your new phone number to complete the change{% endblock %}
+
+{% block header_content %}
+    <h1 style="color: #ffffff; font-size: 24px; font-weight: 600; margin: 20px 0 0 0;">
+        Phone Number Verification
+    </h1>
+{% endblock %}
+
+{% block email_heading %}Hello {{ user.username }}!{% endblock %}
+
+{% block content %}
+    <p style="color: #555555; font-size: 16px; margin: 0 0 20px 0; line-height: 1.6;">
+        You requested to change your phone number on <strong>Homey Platform</strong>.
+    </p>
+
+    <p style="color: #555555; font-size: 16px; margin: 0 0 20px 0; line-height: 1.6;">
+        To complete this change, please use the verification code below:
+    </p>
+
+    <!-- Verification Code Component -->
+    {% include "accounts/components/verification_code.html" with verification_code=code expiry_time=expires_at %}
+
+    <p style="color: #555555; font-size: 16px; margin: 20px 0; line-height: 1.6;">
+        <strong>New Phone Number:</strong> {{ new_phone }}
+    </p>
+
+    <!-- Warning Box -->
+    {% include "accounts/components/warning_box.html" with title="Security Notice" message="If you didn't request this phone number change, please ignore this email and contact our support team immediately." %}
+{% endblock %}
+
+{% block footer_text %}
+    This phone verification email was sent to confirm your phone number change request.
+{% endblock %}

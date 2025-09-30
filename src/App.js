@@ -1,0 +1,49 @@
+import React from 'react';
+import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
+import { ThemeProvider } from '@mui/material/styles';
+import CssBaseline from '@mui/material/CssBaseline';
+import theme from './theme';
+import { AuthProvider } from './contexts/AuthContext';
+import { MunicipalityProvider } from './contexts/MunicipalityContext';
+import LandingPage from './pages/LandingPage';
+import SignUpPage from './pages/SignUpPage';
+import LoginPage from './pages/LoginPage';
+import Dashboard from './pages/Dashboard';
+import MunicipalityDashboard from './pages/MunicipalityDashboard';
+import MapPage from './pages/MapPage';
+import UserSettingsPage from './pages/UserSettingsPage';
+import UserProfile from './pages/UserProfile';
+import PrivacyPage from './pages/PrivacyPage';
+import TermsPage from './pages/TermsPage';
+
+function App() {
+  return (
+    <ThemeProvider theme={theme}>
+      <CssBaseline />
+      <AuthProvider>
+        <MunicipalityProvider>
+          <Router>
+            <Routes>
+              <Route path="/" element={<LandingPage />} />
+              <Route path="/signup" element={<SignUpPage />} />
+              <Route path="/login" element={<LoginPage />} />
+              <Route path="/dashboard" element={<Dashboard />} />
+              <Route path="/carte-municipalites" element={<MapPage />} />
+              <Route path="/profil" element={<UserProfile />} />
+              <Route path="/parametres" element={<UserSettingsPage />} />
+              <Route path="/politique-confidentialite" element={<PrivacyPage />} />
+              <Route path="/privacy" element={<PrivacyPage />} />
+              <Route path="/conditions-utilisation" element={<TermsPage />} />
+              <Route path="/terms" element={<TermsPage />} />
+              {/* Route dynamique pour les municipalités */}
+              <Route path="/municipality/:municipalitySlug" element={<MunicipalityDashboard />} />
+              <Route path="/municipality/:municipalitySlug/:section" element={<MunicipalityDashboard />} />
+            </Routes>
+          </Router>
+        </MunicipalityProvider>
+      </AuthProvider>
+    </ThemeProvider>
+  );
+}
+
+export default App;

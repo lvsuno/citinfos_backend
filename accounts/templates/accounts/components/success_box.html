@@ -1,0 +1,17 @@
+<!-- Success Box Component -->
+<table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="margin: 20px 0;">
+    <tr>
+        <td style="background-color: #d4edda; border: 1px solid #c3e6cb; color: #155724; border-radius: 6px; padding: 15px;">
+            {% if title %}
+            <h4 style="margin: 0 0 10px 0; color: #155724; font-size: 18px; font-weight: 600;">
+                {{ title }}
+            </h4>
+            {% endif %}
+            {% if message %}
+            <p style="margin: 0; color: #155724; font-size: 16px; line-height: 1.4;">
+                {{ message|safe }}
+            </p>
+            {% endif %}
+        </td>
+    </tr>
+</table>

@@ -1,0 +1,455 @@
+/* UserSettingsPage.module.css */
+
+.settingsContainer {
+    max-width: 800px;
+    margin: 0 auto;
+    padding: 0;
+}
+
+/* Messages */
+.successMessage {
+    background: linear-gradient(90deg, #10b981 0%, #059669 100%);
+    color: white;
+    padding: 16px 20px;
+    border-radius: 12px;
+    margin-bottom: 24px;
+    font-weight: 500;
+    box-shadow: 0 4px 12px rgba(16, 185, 129, 0.2);
+    animation: slideIn 0.3s ease;
+}
+
+.errorMessage {
+    background: linear-gradient(90deg, #ef4444 0%, #dc2626 100%);
+    color: white;
+    padding: 16px 20px;
+    border-radius: 12px;
+    margin-bottom: 24px;
+    font-weight: 500;
+    box-shadow: 0 4px 12px rgba(239, 68, 68, 0.2);
+    animation: slideIn 0.3s ease;
+}
+
+@keyframes slideIn {
+    from {
+        opacity: 0;
+        transform: translateY(-10px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* Sections */
+.section {
+    background: white;
+    border-radius: 16px;
+    padding: 32px;
+    margin-bottom: 24px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+    border: 1px solid #f1f5f9;
+    transition: all 0.2s ease;
+}
+
+.section:hover {
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08);
+    transform: translateY(-2px);
+}
+
+.sectionHeader {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 24px;
+}
+
+.sectionTitle {
+    font-size: 24px;
+    font-weight: 700;
+    color: #1e293b;
+    margin: 0;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.subsectionTitle {
+    font-size: 18px;
+    font-weight: 600;
+    color: #374151;
+    margin: 0 0 16px 0;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding-top: 24px;
+    border-top: 1px solid #f1f5f9;
+}
+
+.sectionIcon {
+    color: #6366f1;
+    font-size: 28px;
+}
+
+.editButton {
+    background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
+    color: white;
+    border: none;
+    padding: 10px 20px;
+    border-radius: 8px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    box-shadow: 0 2px 8px rgba(99, 102, 241, 0.2);
+}
+
+.editButton:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 16px rgba(99, 102, 241, 0.3);
+}
+
+/* Formulaire */
+.form {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+}
+
+.formRow {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 20px;
+}
+
+.formGroup {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.label {
+    font-weight: 600;
+    color: #374151;
+    font-size: 14px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.inputIcon {
+    color: #6b7280;
+    font-size: 20px;
+}
+
+.input {
+    padding: 12px 16px;
+    border: 2px solid #e5e7eb;
+    border-radius: 8px;
+    font-size: 16px;
+    transition: all 0.2s ease;
+    background: white;
+}
+
+.input:focus {
+    outline: none;
+    border-color: #6366f1;
+    box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);
+}
+
+.input:disabled {
+    background: #f9fafb;
+    color: #6b7280;
+    cursor: not-allowed;
+}
+
+.inputError {
+    border-color: #ef4444;
+    background: #fef2f2;
+}
+
+.errorText {
+    color: #ef4444;
+    font-size: 12px;
+    font-weight: 500;
+}
+
+/* Section Avatar */
+.avatarSection {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 16px;
+    padding: 20px;
+    background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
+    border-radius: 12px;
+    border: 2px dashed #cbd5e1;
+}
+
+.avatarContainer {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 120px;
+    min-height: 120px;
+}
+
+.avatar {
+    width: 120px;
+    height: 120px;
+    border-radius: 50%;
+    object-fit: cover;
+    border: 4px solid white;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
+    position: absolute;
+    top: 0;
+    left: 0;
+}
+
+.avatarPlaceholder {
+    width: 120px;
+    height: 120px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #e5e7eb 0%, #d1d5db 100%);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: 4px solid white;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.1);
+    position: absolute;
+    top: 0;
+    left: 0;
+}
+
+.avatarIcon {
+    color: #9ca3af;
+    font-size: 48px;
+}
+
+.avatarChangeButton {
+    position: absolute;
+    bottom: 8px;
+    right: 8px;
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
+    color: white;
+    border: none;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 4px 12px rgba(99, 102, 241, 0.3);
+    transition: all 0.2s ease;
+}
+
+.avatarChangeButton:hover:not(:disabled) {
+    transform: scale(1.1);
+    box-shadow: 0 6px 16px rgba(99, 102, 241, 0.4);
+}
+
+.avatarChangeButton:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+/* Section mot de passe */
+.passwordSection {
+    margin-top: 24px;
+}
+
+.passwordInputContainer {
+    position: relative;
+}
+
+.passwordToggle {
+    position: absolute;
+    right: 12px;
+    top: 50%;
+    transform: translateY(-50%);
+    background: none;
+    border: none;
+    color: #6b7280;
+    cursor: pointer;
+    padding: 4px;
+    border-radius: 4px;
+    transition: color 0.2s ease;
+}
+
+.passwordToggle:hover {
+    color: #374151;
+}
+
+/* Actions du formulaire */
+.formActions {
+    display: flex;
+    gap: 12px;
+    justify-content: flex-end;
+    padding-top: 24px;
+    border-top: 1px solid #f1f5f9;
+}
+
+.cancelButton {
+    padding: 12px 24px;
+    border: 2px solid #e5e7eb;
+    background: white;
+    color: #6b7280;
+    border-radius: 8px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.cancelButton:hover:not(:disabled) {
+    border-color: #d1d5db;
+    background: #f9fafb;
+}
+
+.saveButton {
+    padding: 12px 24px;
+    background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+    color: white;
+    border: none;
+    border-radius: 8px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    box-shadow: 0 4px 12px rgba(16, 185, 129, 0.2);
+}
+
+.saveButton:hover:not(:disabled) {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 16px rgba(16, 185, 129, 0.3);
+}
+
+.saveButton:disabled {
+    opacity: 0.7;
+    cursor: not-allowed;
+}
+
+.buttonIcon {
+    font-size: 20px;
+}
+
+/* Informations du compte */
+.accountInfo {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+.infoItem {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 16px;
+    background: #f8fafc;
+    border-radius: 8px;
+    border: 1px solid #e2e8f0;
+}
+
+.infoLabel {
+    font-weight: 600;
+    color: #374151;
+    min-width: 140px;
+}
+
+.infoValue {
+    color: #6b7280;
+    font-family: 'JetBrains Mono', monospace;
+}
+
+.roleBadge {
+    padding: 6px 16px;
+    border-radius: 20px;
+    font-size: 12px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.roleBadge.administrator {
+    background: linear-gradient(135deg, #84cc16 0%, #65a30d 100%);
+    color: white;
+}
+
+.roleBadge.moderator {
+    background: linear-gradient(135deg, #06b6d4 0%, #0891b2 100%);
+    color: white;
+}
+
+.roleBadge.user {
+    background: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%);
+    color: white;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+    .settingsContainer {
+        padding: 16px;
+    }
+
+    .section {
+        padding: 20px 16px;
+    }
+
+    .sectionTitle {
+        font-size: 20px;
+    }
+
+    .formRow {
+        grid-template-columns: 1fr;
+        gap: 16px;
+    }
+
+    .sectionHeader {
+        flex-direction: column;
+        gap: 16px;
+        align-items: stretch;
+    }
+
+    .formActions {
+        flex-direction: column;
+    }
+
+    .avatar,
+    .avatarPlaceholder {
+        width: 100px;
+        height: 100px;
+    }
+
+    .avatarIcon {
+        font-size: 40px;
+    }
+}
+
+@media (max-width: 480px) {
+    .section {
+        padding: 16px 12px;
+    }
+
+    .sectionTitle {
+        font-size: 18px;
+    }
+
+    .avatar,
+    .avatarPlaceholder {
+        width: 80px;
+        height: 80px;
+    }
+
+    .avatarIcon {
+        font-size: 32px;
+    }
+
+    .avatarChangeButton {
+        width: 32px;
+        height: 32px;
+        bottom: 4px;
+        right: 4px;
+    }
+}

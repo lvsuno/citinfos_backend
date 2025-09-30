@@ -1,0 +1,279 @@
+/* Messaging App Email Template Base Styles */
+/* Optimized for email clients with messaging-specific design */
+
+/* Reset and base styles */
+body, table, td, p, a {
+    -webkit-text-size-adjust: 100%;
+    -ms-text-size-adjust: 100%;
+    margin: 0;
+    padding: 0;
+}
+
+body {
+    width: 100% !important;
+    height: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    background-color: #f8f9fa !important;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif !important;
+}
+
+/* Email wrapper */
+.email-container {
+    max-width: 600px;
+    margin: 0 auto;
+    background-color: #ffffff;
+    border-radius: 12px;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+    overflow: hidden;
+}
+
+/* Header styles - messaging theme */
+.email-header {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    padding: 30px 20px;
+    text-align: center;
+}
+
+.email-header h1 {
+    color: #ffffff !important;
+    font-size: 28px !important;
+    font-weight: 700 !important;
+    margin: 0 !important;
+    text-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+}
+
+/* Content area */
+.email-content {
+    padding: 40px 30px;
+    background-color: #ffffff;
+}
+
+.email-heading {
+    color: #2c3e50 !important;
+    font-size: 24px !important;
+    font-weight: 600 !important;
+    margin: 0 0 20px 0 !important;
+    line-height: 1.3 !important;
+}
+
+.email-text {
+    color: #4a5568 !important;
+    font-size: 16px !important;
+    line-height: 1.6 !important;
+    margin: 0 0 20px 0 !important;
+}
+
+/* Messaging-specific components */
+.message-bubble {
+    background-color: #f7fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+    padding: 20px;
+    margin: 20px 0;
+    border-left: 4px solid #667eea;
+}
+
+.message-author {
+    color: #667eea !important;
+    font-weight: 600 !important;
+    font-size: 14px !important;
+    margin: 0 0 8px 0 !important;
+}
+
+.message-content {
+    color: #2d3748 !important;
+    font-size: 15px !important;
+    line-height: 1.5 !important;
+    margin: 0 !important;
+}
+
+.message-timestamp {
+    color: #a0aec0 !important;
+    font-size: 12px !important;
+    margin: 8px 0 0 0 !important;
+}
+
+/* Chat thread styles */
+.chat-thread {
+    background-color: #f8f9fa;
+    border: 1px solid #dee2e6;
+    border-radius: 8px;
+    padding: 15px;
+    margin: 15px 0;
+}
+
+.thread-title {
+    color: #495057 !important;
+    font-size: 14px !important;
+    font-weight: 600 !important;
+    margin: 0 0 10px 0 !important;
+}
+
+/* Digest/batch styling */
+.digest-section {
+    border-bottom: 1px solid #e9ecef;
+    padding: 20px 0;
+    margin: 0 0 20px 0;
+}
+
+.digest-section:last-child {
+    border-bottom: none;
+    margin-bottom: 0;
+}
+
+.digest-header {
+    color: #6c757d !important;
+    font-size: 14px !important;
+    font-weight: 600 !important;
+    text-transform: uppercase !important;
+    letter-spacing: 0.5px !important;
+    margin: 0 0 12px 0 !important;
+}
+
+/* Button styles - messaging theme */
+.email-button {
+    display: inline-block;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: #ffffff !important;
+    text-decoration: none !important;
+    padding: 14px 28px;
+    border-radius: 8px;
+    font-size: 16px !important;
+    font-weight: 600 !important;
+    text-align: center;
+    border: none;
+    box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
+    transition: all 0.2s ease;
+}
+
+.email-button:hover {
+    box-shadow: 0 6px 16px rgba(102, 126, 234, 0.4);
+    transform: translateY(-1px);
+}
+
+/* Secondary button */
+.email-button-secondary {
+    background: transparent !important;
+    color: #667eea !important;
+    border: 2px solid #667eea !important;
+    box-shadow: none !important;
+}
+
+/* Statistics/counts */
+.message-stats {
+    background-color: #edf2f7;
+    border-radius: 8px;
+    padding: 15px 20px;
+    margin: 20px 0;
+}
+
+.stat-item {
+    display: inline-block;
+    margin-right: 25px;
+    color: #4a5568 !important;
+    font-size: 14px !important;
+}
+
+.stat-number {
+    color: #667eea !important;
+    font-weight: 700 !important;
+    font-size: 18px !important;
+}
+
+/* Footer */
+.email-footer {
+    background-color: #f8f9fa;
+    padding: 30px 20px;
+    text-align: center;
+    border-top: 1px solid #e9ecef;
+}
+
+.footer-text {
+    color: #6c757d !important;
+    font-size: 13px !important;
+    line-height: 1.5 !important;
+    margin: 0 !important;
+}
+
+.footer-link {
+    color: #667eea !important;
+    text-decoration: none !important;
+}
+
+.footer-link:hover {
+    text-decoration: underline !important;
+}
+
+/* Responsive design */
+@media screen and (max-width: 600px) {
+    .email-container {
+        margin: 10px !important;
+        border-radius: 8px !important;
+    }
+
+    .email-content {
+        padding: 25px 20px !important;
+    }
+
+    .email-header {
+        padding: 20px 15px !important;
+    }
+
+    .email-header h1 {
+        font-size: 24px !important;
+    }
+
+    .email-button {
+        display: block !important;
+        width: 100% !important;
+        box-sizing: border-box !important;
+        margin: 15px 0 !important;
+    }
+}
+
+/* Dark mode support */
+@media (prefers-color-scheme: dark) {
+    .email-container {
+        background-color: #1a202c !important;
+    }
+
+    .email-content {
+        background-color: #1a202c !important;
+    }
+
+    .email-heading {
+        color: #f7fafc !important;
+    }
+
+    .email-text {
+        color: #e2e8f0 !important;
+    }
+
+    .message-bubble {
+        background-color: #2d3748 !important;
+        border-color: #4a5568 !important;
+    }
+
+    .message-content {
+        color: #e2e8f0 !important;
+    }
+}
+
+/* Microsoft Outlook specific styles */
+/*[if mso]>
+<style type="text/css">
+    .email-container {
+        width: 600px !important;
+    }
+    .email-button {
+        border: none !important;
+        padding: 14px 28px !important;
+    }
+    table {
+        border-collapse: collapse !important;
+        mso-table-lspace: 0pt !important;
+        mso-table-rspace: 0pt !important;
+    }
+</style>
+<![endif]*/

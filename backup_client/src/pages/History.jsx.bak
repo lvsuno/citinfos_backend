@@ -1,0 +1,2196 @@
+import React, { useState, useCallback, useRef, useEffect } from 'react';
+import {
+  PlayIcon,
+  PauseIcon,
+  BackwardIcon,
+  ForwardIcon,
+  MagnifyingGlassIcon,
+  CalendarIcon,
+  GlobeAltIcon,
+  ClockIcon,
+  MapPinIcon,
+  AdjustmentsHorizontalIcon,
+  EyeIcon,
+  InformationCircleIcon,
+  StarIcon,
+  CogIcon,
+} from '@heroicons/react/24/outline';
+import MapEditorSimple from '../components/map/MapEditorSimple';
+import MapEditorReal from '../components/map/MapEditorReal';
+import MapEditorTest from '../components/map/MapEditorTest';
+import OpenSourceMap from '../components/map/OpenSourceMap';
+import LeafletMap from '../components/map/LeafletMap';
+
+const HistoryBasic = () => {
+  const cesiumContainerRef = useRef();
+  const viewerRef = useRef();
+  const leafletMapRef = useRef(); // Add ref for LeafletMap
+
+  const [selectedDate, setSelectedDate] = useState(new Date().getFullYear());
+  const [granularity, setGranularity] = useState('year');
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [isBC, setIsBC] = useState(false);
+  const [selectedEvent, setSelectedEvent] = useState(null);
+  const [showSettings, setShowSettings] = useState(false);
+  const [terrainEnabled, setTerrainEnabled] = useState(true);
+  const [lighting, setLighting] = useState(true);
+  const [mousePosition, setMousePosition] = useState({ lat: 0, lon: 0, alt: 0 });
+  const [cameraHeight, setCameraHeight] = useState(0);
+  const [cesiumLoaded, setCesiumLoaded] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [loadingProgress, setLoadingProgress] = useState(0);
+  const [loadingMessage, setLoadingMessage] = useState('Initializing 3D Globe...');
+
+  // Add 2D/3D mode toggle state
+  const [mapViewMode, setMapViewMode] = useState('3D'); // '3D', '2D', or '2D-simple'
+  const [isMapEditor, setIsMapEditor] = useState(true);
+  const [drawnItems, setDrawnItems] = useState([]);
+
+  // Track last processed event to prevent unnecessary updates
+  const [lastProcessedEventId, setLastProcessedEventId] = useState(null);
+
+  // Enhanced navigation state for multi-level transitions
+  const [currentCameraPosition, setCurrentCameraPosition] = useState(null);
+  const [navigationLevel, setNavigationLevel] = useState('globe'); // 'globe', 'continent', 'country', 'map'
+  const [isTransitioning, setIsTransitioning] = useState(false);
+  const [targetEvent, setTargetEvent] = useState(null);
+
+  // Visual notification when reaching new event
+  const [eventNotification, setEventNotification] = useState(null);
+
+  // Stable map state to prevent unnecessary re-renders
+  const [stableMapCenter, setStableMapCenter] = useState([46.2044, 6.1432]);
+  const [stableMapZoom, setStableMapZoom] = useState(6);
+  
+  // Debug map center changes
+  useEffect(() => {
+    console.log(`🗺️ 2D Map center changed to: [${stableMapCenter[0].toFixed(4)}, ${stableMapCenter[1].toFixed(4)}] zoom: ${stableMapZoom}`);
+  }, [stableMapCenter, stableMapZoom]);
+
+  // Previous event tracking for common administrative region calculation
+  const [previousEvent, setPreviousEvent] = useState(null);
+  
+  // Function to determine the lowest common administrative region
+  const getLowestCommonRegion = useCallback((prevEvent, currentEvent) => {
+    if (!prevEvent || !currentEvent) return 'globe';
+    
+    const distance = calculateDistance(prevEvent.lat, prevEvent.lon, currentEvent.lat, currentEvent.lon);
+    
+    console.log(`🌍 Calculating common region between "${prevEvent.title}" and "${currentEvent.title}"`);
+    console.log(`📏 Distance between events: ${distance.toFixed(0)}km`);
+    
+    // Determine common administrative level based on distance and geography
+    if (distance > 5000) {
+      console.log('🌍 → Different continents: Globe level');
+      return 'globe';
+    } else if (distance > 1500) {
+      console.log('🗺️ → Different regions/continents: Continental level'); 
+      return 'continent';
+    } else if (distance > 200) {
+      console.log('🏛️ → Different countries/regions: Country level');
+      return 'country';
+    } else {
+      console.log('🌆 → Same country/region: Regional level');
+      return 'region';
+    }
+  }, [calculateDistance]);
+  const calculateDistance = useCallback((lat1, lon1, lat2, lon2) => {
+    const R = 6371; // Earth's radius in kilometers
+    const dLat = (lat2 - lat1) * Math.PI / 180;
+    const dLon = (lon2 - lon1) * Math.PI / 180;
+    const a =
+      Math.sin(dLat/2) * Math.sin(dLat/2) +
+      Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+      Math.sin(dLon/2) * Math.sin(dLon/2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+    return R * c; // Distance in kilometers
+  }, []);
+
+  // Determine navigation level based on distance
+  const determineNavigationLevel = useCallback((distanceKm) => {
+    if (distanceKm > 5000) return 'globe'; // Intercontinental (> 5000km)
+    if (distanceKm > 1500) return 'continent'; // Continental (1500-5000km)
+    if (distanceKm > 500) return 'country'; // Country level (500-1500km)
+    return 'map'; // City/local level (< 500km)
+  }, []);
+
+  // Get zoom level for each navigation level
+  const getZoomLevel = useCallback((level) => {
+    switch(level) {
+      case 'globe': return 15000000; // Very high altitude
+      case 'continent': return 3000000; // Continental view
+      case 'country': return 500000; // Country view
+      case 'map': return 50000; // City view (transition to 2D)
+    }
+  }, []);
+
+  // Multi-level navigation function (Google Earth style)
+  const navigateToEvent = useCallback(async (targetEvent, currentLat = 0, currentLon = 0) => {
+    if (!viewerRef.current || !window.Cesium) return;
+
+    // If already transitioning, queue this transition or skip if it's the same event
+    if (isTransitioning) {
+      console.log('⚠️ Navigation already in progress, skipping:', targetEvent.title);
+      console.log('🔄 Current transition state:', isTransitioning, '| Target event:', targetEvent?.title);
+      return;
+    }
+
+    console.log('🎬 Starting new navigation transition to:', targetEvent.title);
+    setIsTransitioning(true);
+    setTargetEvent(targetEvent);
+
+    const Cesium = window.Cesium;
+    const viewer = viewerRef.current;
+    const camera = viewer.camera;
+
+    // Get current camera position for calculations
+    let actualCurrentLat = currentLat;
+    let actualCurrentLon = currentLon;
+
+    try {
+      const cartographic = Cesium.Cartographic.fromCartesian(camera.position);
+      actualCurrentLat = Cesium.Math.toDegrees(cartographic.latitude);
+      actualCurrentLon = Cesium.Math.toDegrees(cartographic.longitude);
+    } catch (e) {
+      console.warn('Using provided coordinates for calculations');
+    }
+
+    // Use administrative region-based transition logic
+    const commonRegion = getLowestCommonRegion(previousEvent, targetEvent);
+    console.log(`🏛️ Common administrative region: ${commonRegion}`);
+    
+    // Get distance for logging purposes (still useful for debugging)
+    const distance = previousEvent ? 
+      calculateDistance(previousEvent.lat, previousEvent.lon, targetEvent.lat, targetEvent.lon) : 0;
+    
+    // Update previous event tracking
+    setPreviousEvent(targetEvent);
+
+    // Determine zoom out level based on common administrative region
+    const requiredLevel = commonRegion;
+
+    console.log(`🚀 Multi-level navigation: ${targetEvent.title}`);
+    console.log(`� From: (${actualCurrentLat.toFixed(2)}, ${actualCurrentLon.toFixed(2)}) → To: (${targetEvent.lat.toFixed(2)}, ${targetEvent.lon.toFixed(2)})`);
+    console.log(`�📏 Distance: ${distance.toFixed(0)}km | Strategy: ${requiredLevel}`);
+    console.log(`🎬 Starting cinematic transition...`);
+    console.log('⚠️ WATCH FOR ZOOM OUT EFFECT NOW!');
+
+    try {
+      // ALWAYS perform a zoom-out sequence based on administrative region
+
+      console.log('🎬 Phase 1: Zooming out to common administrative region');
+      setMapViewMode('3D');
+
+      // Zoom out to the determined common administrative level
+      // This ensures smooth cinematic transitions like Google Earth
+      console.log(`🏛️ Zooming to administrative level: ${requiredLevel}`);
+
+      let overviewAltitude;
+      let overviewLat, overviewLon;
+
+      if (effectiveDistance > 5000) {
+        // Intercontinental - zoom to global view
+        console.log('🌍 Intercontinental journey - Global overview');
+        setNavigationLevel('globe');
+        overviewAltitude = getZoomLevel('globe');
+        overviewLat = 0; // Center of Earth
+        overviewLon = 0;
+      } else if (effectiveDistance > 1000) {
+        // Continental - zoom to continental view
+        console.log('🗺️ Continental journey - Continental overview');
+        setNavigationLevel('continent');
+        overviewAltitude = getZoomLevel('continent');
+        overviewLat = (actualCurrentLat + targetEvent.lat) / 2; // Midpoint
+        overviewLon = (actualCurrentLon + targetEvent.lon) / 2;
+      } else if (distance > 100) {
+        // Country level - zoom to country view
+        console.log('�️ Country journey - Country overview');
+        setNavigationLevel('country');
+        overviewAltitude = getZoomLevel('country');
+        overviewLat = (actualCurrentLat + targetEvent.lat) / 2; // Midpoint
+        overviewLon = (actualCurrentLon + targetEvent.lon) / 2;
+      } else {
+        // Local journey - brief regional overview
+        console.log('🌆 Local journey - Regional overview');
+        setNavigationLevel('country');
+        overviewAltitude = getZoomLevel('country') * 0.3;
+        overviewLat = (actualCurrentLat + targetEvent.lat) / 2; // Midpoint
+        overviewLon = (actualCurrentLon + targetEvent.lon) / 2;
+      }
+
+      // ZOOM OUT to overview
+      console.log(`🔍 ZOOMING OUT to overview: (${overviewLon.toFixed(2)}, ${overviewLat.toFixed(2)}) at altitude ${overviewAltitude}`);
+
+      await new Promise(resolve => {
+        camera.flyTo({
+          destination: Cesium.Cartesian3.fromDegrees(overviewLon, overviewLat, overviewAltitude),
+          orientation: distance > 5000 ? {
+            heading: 0.0,
+            pitch: -Cesium.Math.PI_OVER_TWO,
+            roll: 0.0
+          } : undefined,
+          duration: 3.0, // Slower to make zoom out more visible
+          complete: resolve
+        });
+      });
+
+      // Pause to show the overview
+      console.log('⏸️ Showing overview - LOOK NOW!');
+      await new Promise(resolve => setTimeout(resolve, 2000)); // Longer pause to see effect
+
+      console.log('🎯 Phase 2: Zooming into target');
+
+      // If intercontinental, add intermediate continental step
+      if (effectiveDistance > 5000) {
+        console.log('🗺️ Intermediate: Continental zoom');
+        setNavigationLevel('continent');
+
+        await new Promise(resolve => {
+          camera.flyTo({
+            destination: Cesium.Cartesian3.fromDegrees(
+              targetEvent.lon,
+              targetEvent.lat,
+              getZoomLevel('continent')
+            ),
+            duration: 2.0,
+            complete: resolve
+          });
+        });
+
+        await new Promise(resolve => setTimeout(resolve, 800));
+      }
+
+      // If continental or intercontinental, add country step
+      if (effectiveDistance > 1000) {
+        console.log('🏛️ Intermediate: Country zoom');
+        setNavigationLevel('country');
+
+        await new Promise(resolve => {
+          camera.flyTo({
+            destination: Cesium.Cartesian3.fromDegrees(
+              targetEvent.lon,
+              targetEvent.lat,
+              getZoomLevel('country')
+            ),
+            duration: 1.8,
+            complete: resolve
+          });
+        });
+
+        await new Promise(resolve => setTimeout(resolve, 600));
+      }
+
+      // Final step: Transition to detailed 2D view
+      console.log('🗺️ Phase 3: Final transition to detailed 2D view');
+      setNavigationLevel('map');
+
+      // Final zoom in 3D before switching to 2D
+      await new Promise(resolve => {
+        camera.flyTo({
+          destination: Cesium.Cartesian3.fromDegrees(
+            targetEvent.lon,
+            targetEvent.lat,
+            getZoomLevel('map')
+          ),
+          duration: 1.5,
+          complete: resolve
+        });
+      });
+
+      // Switch to 2D mode and show marker
+      console.log(`🔄 Switching to 2D mode with final position: [${targetEvent.lat}, ${targetEvent.lon}]`);
+      setMapViewMode('2D');
+      setStableMapCenter([targetEvent.lat, targetEvent.lon]);
+      setStableMapZoom(15); // Street level zoom
+
+      // Update current position
+      setCurrentCameraPosition({ lat: targetEvent.lat, lon: targetEvent.lon });
+
+      // Show notification
+      setEventNotification(`📍 Arrived: ${targetEvent.title}`);
+      setTimeout(() => setEventNotification(null), 4000);
+
+      // Reset transition state immediately
+      setIsTransitioning(false);
+      console.log('✅ Multi-level navigation completed - ready for next transition');
+
+    } catch (error) {
+      console.error('❌ Navigation error:', error);
+      setIsTransitioning(false);
+    }
+  }, [calculateDistance, determineNavigationLevel, getZoomLevel, isTransitioning, setStableMapCenter, setStableMapZoom]);
+
+  // Enhanced historical events data
+  const [historicalEvents] = useState([
+    {
+      id: 1,
+      title: "Fall of the Roman Empire",
+      year: 476,
+      isBC: false,
+      lat: 41.9028,
+      lon: 12.4964,
+      description: "The Western Roman Empire falls to Germanic tribes, marking the end of ancient Rome.",
+      category: "Political",
+      importance: 5,
+      icon: "🏛️",
+    },
+    {
+      id: 2,
+      title: "Great Wall of China Construction",
+      year: 221,
+      isBC: true,
+      lat: 40.4319,
+      lon: 116.5704,
+      description: "Emperor Qin Shi Huang begins construction of the Great Wall to defend against northern invasions.",
+      category: "Architecture",
+      importance: 5,
+      icon: "🏯",
+    },
+    {
+      id: 3,
+      title: "Birth of Jesus Christ",
+      year: 1,
+      isBC: true,
+      lat: 31.7683,
+      lon: 35.2137,
+      description: "Traditional date for the birth of Jesus Christ in Bethlehem.",
+      category: "Religious",
+      importance: 5,
+      icon: "✝️",
+    },
+    {
+      id: 4,
+      title: "Discovery of America",
+      year: 1492,
+      isBC: false,
+      lat: 25.0343,
+      lon: -77.3963,
+      description: "Christopher Columbus reaches the Americas, connecting two worlds.",
+      category: "Exploration",
+      importance: 5,
+      icon: "⛵",
+    },
+    {
+      id: 5,
+      title: "World War II Ends",
+      year: 1945,
+      isBC: false,
+      lat: 35.6762,
+      lon: 139.6503,
+      description: "World War II officially ends with Japan's surrender.",
+      category: "Military",
+      importance: 5,
+      icon: "🕊️",
+    },
+    {
+      id: 6,
+      title: "Pyramids of Giza Built",
+      year: 2580,
+      isBC: true,
+      lat: 29.9792,
+      lon: 31.1342,
+      description: "The Great Pyramid of Giza is constructed, one of the Seven Wonders of the Ancient World.",
+      category: "Architecture",
+      importance: 4,
+      icon: "🔺",
+    },
+    {
+      id: 7,
+      title: "First Moon Landing",
+      year: 1969,
+      isBC: false,
+      lat: 28.5721,
+      lon: -80.648,
+      description: "Apollo 11 launches from Kennedy Space Center, leading to the first human moon landing.",
+      category: "Science",
+      importance: 5,
+      icon: "🚀",
+    },
+    {
+      id: 8,
+      title: "Renaissance Begins in Florence",
+      year: 1400,
+      isBC: false,
+      lat: 43.7696,
+      lon: 11.2558,
+      description: "The Renaissance movement begins in Florence, marking a rebirth of art, science, and culture.",
+      category: "Cultural",
+      importance: 4,
+      icon: "🎨",
+    }
+  ]);
+
+  // Timeline configuration
+  const timelineRange = { start: -3000, end: 2025 };
+  const [timelinePosition, setTimelinePosition] = useState(85);
+
+  // Convert year to timeline position percentage
+  const yearToPercentage = useCallback((year, isBCYear) => {
+    const actualYear = isBCYear ? -Math.abs(year) : year;
+    const range = timelineRange.end - timelineRange.start;
+    return ((actualYear - timelineRange.start) / range) * 100;
+  }, [timelineRange]);
+
+  // Convert percentage to year
+  const percentageToYear = useCallback((percentage) => {
+    const range = timelineRange.end - timelineRange.start;
+    const year = timelineRange.start + (percentage / 100) * range;
+    return {
+      year: Math.abs(Math.round(year)),
+      isBC: year < 0
+    };
+  }, [timelineRange]);
+
+  // Filter events based on selected date and granularity
+  const filteredEvents = historicalEvents.filter(event => {
+    const eventYear = event.isBC ? -event.year : event.year;
+    const selectedYear = isBC ? -selectedDate : selectedDate;
+
+    switch (granularity) {
+      case 'year':
+        return Math.abs(eventYear - selectedYear) <= 50;
+      case 'month':
+        return Math.abs(eventYear - selectedYear) <= 10;
+      case 'day':
+        return Math.abs(eventYear - selectedYear) <= 1;
+      default:
+        return true;
+    }
+  });
+
+  // Handle event selection
+  const handleEventSelect = useCallback((event) => {
+    setSelectedEvent(event);
+    setSelectedDate(event.year);
+    setIsBC(event.isBC);
+    setTimelinePosition(yearToPercentage(event.year, event.isBC));
+
+    // Use multi-level navigation for manual event selection too
+    if (cesiumLoaded && viewerRef.current && window.Cesium) {
+      console.log('🎯 Manual event selection - using multi-level navigation');
+
+      // Get current camera position
+      let currentLat = 0, currentLon = 0;
+      try {
+        const camera = viewerRef.current.camera;
+        const cartographic = window.Cesium.Cartographic.fromCartesian(camera.position);
+        currentLat = window.Cesium.Math.toDegrees(cartographic.latitude);
+        currentLon = window.Cesium.Math.toDegrees(cartographic.longitude);
+      } catch (e) {
+        console.warn('Could not get current position for manual selection');
+      }
+
+      navigateToEvent(event, currentLat, currentLon);
+    }
+  }, [yearToPercentage, cesiumLoaded, navigateToEvent]);
+
+  // Dynamic Cesium loader and initialization
+  useEffect(() => {
+    // Only initialize Cesium when in 3D mode
+    console.log('🔍 useEffect triggered, mapViewMode:', mapViewMode);
+    if (mapViewMode !== '3D') {
+      console.log('❌ Not in 3D mode, skipping Cesium initialization');
+      return;
+    }
+
+    console.log('✅ Starting 3D Cesium initialization...');
+    let viewer = null;
+    let mounted = true;
+    let initTimeout = null;
+
+    // Dynamic Cesium loader with improved error handling
+    const loadCesium = () => {
+      return new Promise((resolve, reject) => {
+        // Check if already loaded
+        if (window.Cesium) {
+          resolve(window.Cesium);
+          return;
+        }
+
+        setLoadingProgress(10);
+        setLoadingMessage('Loading Cesium library...');
+
+        // Load CSS first
+        const cssLink = document.createElement('link');
+        cssLink.rel = 'stylesheet';
+        cssLink.href = '/cesium/Widgets/widgets.css';
+        cssLink.onerror = () => console.warn('Cesium CSS failed to load');
+        document.head.appendChild(cssLink);
+
+        // Load JavaScript with better error handling
+        const script = document.createElement('script');
+        script.src = '/cesium/Cesium.js';
+        script.async = true;
+
+        // Set CESIUM_BASE_URL before loading
+        window.CESIUM_BASE_URL = '/cesium/';
+
+        // Completely disable source map support at the global level
+        if (typeof window !== 'undefined') {
+          // Override DevTools source map functionality
+          const originalError = window.Error;
+          const originalConsoleError = console.error;
+
+          // Add global error handler for WASM source map errors
+          const originalWindowError = window.onerror;
+          window.onerror = function(message, source, lineno, colno, error) {
+            if (typeof message === 'string' && (
+              message.includes('source-map') ||
+              message.includes('sourcemap') ||
+              message.includes('URL constructor') ||
+              message.includes('is not a valid URL') ||
+              message.includes('WebAssembly') ||
+              message.includes('wasm:') ||
+              message.includes('resolveSourceMapURL') ||
+              message.includes('fetchSourceMap') ||
+              message.includes('getOriginalURLs') ||
+              message.includes('Erreur dans les liens source') ||
+              message.includes('buildModuleUrl') ||
+              message.includes('getter-only property') ||
+              message.includes('setting getter-only property') ||
+              message.includes('maximumTextureSize') ||
+              message.includes('maximumRenderbufferSize') ||
+              message.includes('drawElementsInstanced') ||
+              message.includes('texSubImage') ||
+              message.includes('Tex image TEXTURE_2D') ||
+              message.includes('lazy initialization') ||
+              message.includes('partial upload') ||
+              message.includes('destination rect smaller') ||
+              message.includes('viewport rect') ||
+              message.includes('ExtensionMessagingService') ||
+              message.includes('INVALID_TOKEN') ||
+              message.includes('Invalid access token') ||
+              message.includes('statusCode: 401') ||
+              message.includes('Ion')
+            )) {
+              return true; // Prevent error from being displayed
+            }
+            return originalWindowError ? originalWindowError.call(this, message, source, lineno, colno, error) : false;
+          };
+
+          // Add unhandled promise rejection handler for source map errors
+          const originalUnhandledRejection = window.onunhandledpromiserejection;
+          window.onunhandledpromiserejection = function(event) {
+            if (event.reason && typeof event.reason === 'object' && event.reason.message) {
+              const message = event.reason.message;
+              if (message.includes('source-map') ||
+                  message.includes('URL constructor') ||
+                  message.includes('WebAssembly') ||
+                  message.includes('wasm:') ||
+                  message.includes('resolveSourceMapURL')) {
+                event.preventDefault(); // Prevent unhandled promise rejection
+                return;
+              }
+            }
+            return originalUnhandledRejection ? originalUnhandledRejection.call(this, event) : undefined;
+          };
+
+          // Suppress specific source map errors
+          console.error = function(...args) {
+            const message = args.join(' ');
+            if (
+              message.includes('source map') ||
+              message.includes('sourcemap') ||
+              message.includes('URL constructor') ||
+              message.includes('WebAssembly.instantiate') ||
+              message.includes('resolveSourceMapURL') ||
+              message.includes('getOriginalURLs') ||
+              message.includes('is not a valid URL') ||
+              message.includes('wasm:http') ||
+              message.includes('URL du lien source') ||
+              message.includes('Erreur dans les liens source') ||
+              message.includes('fetchSourceMap.js') ||
+              message.includes('source-map-loader') ||
+              message.includes('drawElementsInstanced') ||
+              message.includes('texSubImage') ||
+              message.includes('Tex image TEXTURE_2D') ||
+              message.includes('lazy initialization') ||
+              message.includes('partial upload') ||
+              message.includes('destination rect smaller') ||
+              message.includes('viewport rect') ||
+              message.includes('ExtensionMessagingService') ||
+              message.includes('workerHandler') ||
+              message.includes('URL de la ressource') ||
+              message.includes('line%206093') ||
+              message.includes('%20%3E%20WebAssembly') ||
+              message.includes('buildModuleUrl') ||
+              message.includes('getter-only property') ||
+              message.includes('setting getter-only property') ||
+              message.includes('maximumTextureSize') ||
+              message.includes('maximumRenderbufferSize') ||
+              message.includes('INVALID_TOKEN') ||
+              message.includes('Invalid access token') ||
+              message.includes('statusCode: 401') ||
+              message.includes('Ion')
+            ) {
+              return; // Silently ignore source map errors
+            }
+            originalConsoleError.apply(console, args);
+          };
+
+          // Override fetch to prevent source map requests
+          if (window.fetch) {
+            const originalFetch = window.fetch;
+            window.fetch = function(url, options) {
+              if (typeof url === 'string' && (
+                url.includes('.map') ||
+                url.includes('sourcemap') ||
+                url.includes('source-map') ||
+                url.includes('wasm:http') ||
+                url.includes('WebAssembly.instantiate')
+              )) {
+                // Return empty response for source map requests
+                return Promise.resolve(new Response('', {
+                  status: 404,
+                  statusText: 'Source map request blocked'
+                }));
+              }
+              return originalFetch.call(this, url, options);
+            };
+          }
+
+          // Override XMLHttpRequest to prevent source map requests
+          if (window.XMLHttpRequest) {
+            const OriginalXHR = window.XMLHttpRequest;
+            window.XMLHttpRequest = function() {
+              const xhr = new OriginalXHR();
+              const originalOpen = xhr.open;
+              xhr.open = function(method, url, ...args) {
+                if (typeof url === 'string' && (
+                  url.includes('.map') ||
+                  url.includes('sourcemap') ||
+                  url.includes('source-map') ||
+                  url.includes('wasm:http')
+                )) {
+                  // Block source map requests
+                  return;
+                }
+                return originalOpen.call(this, method, url, ...args);
+              };
+              return xhr;
+            };
+          }
+        }
+
+        script.onload = () => {
+          // Wait a bit for Cesium to fully initialize
+          setTimeout(() => {
+            if (window.Cesium && typeof window.Cesium.Viewer === 'function') {
+              console.log('Cesium loaded successfully, version:', window.Cesium.VERSION);
+
+              // Configure Cesium to handle WASM and source map issues
+              try {
+                // Set base URL for Cesium modules (proper way)
+                if (window.Cesium.buildModuleUrl) {
+                  window.Cesium.buildModuleUrl.setBaseUrl('/cesium/');
+                }
+
+                // Disable WebAssembly source maps if possible
+                if (window.Cesium.WebAssemblyLoaderVersion) {
+                  window.Cesium.WebAssemblyLoaderVersion.sourceMapEnabled = false;
+                }
+
+                // Comprehensive WASM source map disabling
+                if (window.Cesium.TaskProcessor) {
+                  window.Cesium.TaskProcessor.disableSourceMaps = true;
+                }
+
+                // Override WebAssembly module loading to prevent source map issues
+                if (window.WebAssembly && window.WebAssembly.instantiateStreaming) {
+                  const originalInstantiateStreaming = window.WebAssembly.instantiateStreaming;
+                  window.WebAssembly.instantiateStreaming = function(source, importObject) {
+                    try {
+                      return originalInstantiateStreaming.call(this, source, importObject);
+                    } catch (error) {
+                      // Suppress WASM source map related errors
+                      if (error.message && (
+                        error.message.includes('source') ||
+                        error.message.includes('URL') ||
+                        error.message.includes('instantiate')
+                      )) {
+                        console.warn('WASM source map error suppressed:', error.message);
+                        return originalInstantiateStreaming.call(this, source, importObject);
+                      }
+                      throw error;
+                    }
+                  };
+                }
+
+                // Disable Ion completely to avoid token issues
+                if (window.Cesium.Ion) {
+                  // Clear default access token to prevent Ion requests
+                  window.Cesium.Ion.defaultAccessToken = undefined;
+                }
+
+                // Configure request scheduler for better performance
+                if (window.Cesium.RequestScheduler) {
+                  window.Cesium.RequestScheduler.maximumRequests = 6;
+                  window.Cesium.RequestScheduler.maximumRequestsPerServer = 6;
+                }
+
+                console.log('Cesium configuration completed');
+              } catch (configError) {
+                console.warn('Cesium configuration warning:', configError);
+              }
+
+              resolve(window.Cesium);
+            } else {
+              reject(new Error('Cesium loaded but Viewer not available'));
+            }
+          }, 1000);
+        };
+
+        script.onerror = (error) => {
+          console.error('Script loading error:', error);
+          reject(new Error('Failed to load Cesium script'));
+        };
+
+        // Timeout for loading
+        const timeout = setTimeout(() => {
+          reject(new Error('Cesium loading timeout (10s)'));
+        }, 10000);
+
+        // Clear timeout on success
+        const originalResolve = resolve;
+        resolve = (value) => {
+          clearTimeout(timeout);
+          originalResolve(value);
+        };
+
+        const originalReject = reject;
+        reject = (error) => {
+          clearTimeout(timeout);
+          originalReject(error);
+        };
+
+        document.head.appendChild(script);
+      });
+    };
+
+    const initializeCesium = async () => {
+      try {
+        console.log('🚀 Starting Cesium initialization process...');
+        setLoadingProgress(5);
+        setLoadingMessage('Starting 3D globe initialization...');
+
+        // Load Cesium dynamically
+        console.log('📦 Loading Cesium library...');
+        const Cesium = await loadCesium();
+
+        if (!cesiumContainerRef.current || !mounted) {
+          console.log('❌ Container not ready or component unmounted');
+          console.log('Container ref:', cesiumContainerRef.current);
+          console.log('Mounted:', mounted);
+          return;
+        }
+
+        console.log('✅ Cesium loaded, container ready, creating viewer...');
+
+        // Check container dimensions before creating viewer
+        const container = cesiumContainerRef.current;
+        console.log('📦 Container check:', {
+          exists: !!container,
+          clientWidth: container?.clientWidth,
+          clientHeight: container?.clientHeight,
+          offsetWidth: container?.offsetWidth,
+          offsetHeight: container?.offsetHeight,
+          computedStyle: container ? window.getComputedStyle(container) : null
+        });
+
+        if (container && (container.clientWidth === 0 || container.clientHeight === 0)) {
+          console.warn('⚠️ Container has zero dimensions! Applying fixes...');
+          container.style.width = '100%';
+          container.style.height = '100%';
+          container.style.minHeight = '400px';
+          container.style.display = 'block';
+          container.style.position = 'relative';
+          console.log('🔧 Applied container sizing fixes');
+        }
+
+        setLoadingProgress(40);
+        setLoadingMessage('Cesium loaded, creating viewer...');
+
+        // Simple check - if Cesium exists, use it, otherwise fail fast
+        if (Cesium && cesiumContainerRef.current && mounted) {
+          console.log('Cesium object available:', !!Cesium);
+          console.log('Cesium.Viewer type:', typeof Cesium.Viewer);
+          console.log('Available Cesium properties:', Object.keys(Cesium).slice(0, 10));
+
+          setLoadingProgress(60);
+          setLoadingMessage('Configuring Cesium...');
+          console.log('⚙️ Starting Cesium configuration...');
+
+          // Check WebGL support before proceeding
+          console.log('🔍 Checking WebGL support...');
+          const testCanvas = document.createElement('canvas');
+          const gl = testCanvas.getContext('webgl') || testCanvas.getContext('experimental-webgl');
+          if (!gl) {
+            console.error('❌ WebGL not supported!');
+            throw new Error('WebGL is not supported by this browser');
+          } else {
+            console.log('✅ WebGL is supported');
+            console.log('WebGL capabilities:', {
+              vendor: gl.getParameter(gl.VENDOR),
+              renderer: gl.getParameter(gl.RENDERER),
+              version: gl.getParameter(gl.VERSION),
+              maxTextureSize: gl.getParameter(gl.MAX_TEXTURE_SIZE),
+              maxViewportDims: gl.getParameter(gl.MAX_VIEWPORT_DIMS)
+            });
+          }
+
+          // Configure Cesium globally for better WebGL performance
+          if (Cesium.RequestScheduler) {
+            Cesium.RequestScheduler.maximumRequests = 6;
+            Cesium.RequestScheduler.maximumRequestsPerServer = 6;
+          }
+
+          // Configure texture and tile settings globally
+          if (Cesium.TileMapServiceImageryProvider) {
+            Cesium.TileMapServiceImageryProvider.defaultMaximumLevel = 18;
+          }
+
+          // Configure WebGL context for better texture handling
+          // Note: Avoid setting getter-only properties like maximumTextureSize
+          if (Cesium.ContextLimits) {
+            console.log('📏 Cesium ContextLimits available, but skipping getter-only properties');
+          }
+
+          // Configure global WebGL settings to prevent texture warnings
+          // Note: Avoid overriding Context.create as it may cause issues
+          if (Cesium.Context && typeof Cesium.Context === 'function') {
+            console.log('🔧 Cesium Context available for configuration');
+          }
+
+          // Disable Ion completely - use offline approach
+          if (Cesium.Ion) {
+            // Clear any existing Ion token to prevent requests
+            Cesium.Ion.defaultAccessToken = undefined;
+            console.log('� Ion disabled - using offline imagery');
+          }
+
+          console.log('🧹 Cleaning up existing viewer...');
+          // Destroy existing viewer
+          if (viewerRef.current) {
+            try {
+              viewerRef.current.destroy();
+            } catch (e) {
+              console.warn('Error destroying viewer:', e);
+            }
+            viewerRef.current = null;
+          }
+
+          // Create viewer with minimal configuration
+          setLoadingProgress(80);
+          setLoadingMessage('Creating 3D viewer...');
+          console.log('🌍 Creating Cesium viewer with options...');
+
+          // Configure Cesium for better compatibility and WASM handling
+          if (Cesium.RequestScheduler) {
+            Cesium.RequestScheduler.maximumRequests = 6;
+          }
+
+          // Ensure base URL is properly set for WASM files
+          if (Cesium.buildModuleUrl) {
+            Cesium.buildModuleUrl.setBaseUrl('/cesium/');
+          }
+
+          // Create simple offline imagery provider
+          console.log('🌍 Creating offline imagery provider...');
+
+          let imageryProvider;
+          try {
+            console.log('🔄 Attempting OpenStreetMap provider...');
+            // Try a different OpenStreetMap configuration
+            imageryProvider = new Cesium.UrlTemplateImageryProvider({
+              url: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+              maximumLevel: 18,
+              minimumLevel: 0,
+              credit: '© OpenStreetMap contributors'
+            });
+            console.log('✅ OpenStreetMap imagery provider created');
+
+            // Test if the provider can make requests
+            if (imageryProvider.ready) {
+              console.log('🎯 Provider is ready');
+            } else {
+              console.log('⏳ Provider not ready yet, will initialize asynchronously');
+            }
+          } catch (error) {
+            console.warn('⚠️ OpenStreetMap failed, trying alternative approach:', error);
+
+            try {
+              // Alternative: Try with different URL pattern
+              imageryProvider = new Cesium.UrlTemplateImageryProvider({
+                url: 'https://{s}.tile.osm.org/{z}/{x}/{y}.png',
+                subdomains: ['a', 'b', 'c'],
+                maximumLevel: 18,
+                credit: '© OpenStreetMap contributors'
+              });
+              console.log('✅ Alternative OpenStreetMap provider created');
+            } catch (altError) {
+              console.warn('⚠️ Alternative OpenStreetMap failed, creating simple provider:', altError);
+
+              // Last resort: Create a very simple provider that should always work
+              imageryProvider = new Cesium.GridImageryProvider();
+              console.log('✅ Grid imagery provider created as fallback');
+            }
+          }          const viewerOptions = {
+            animation: false,
+            timeline: false,
+            navigationHelpButton: false,
+            baseLayerPicker: false,
+            geocoder: false,
+            homeButton: false,
+            sceneModePicker: false,
+            navigationInstructionsInitiallyVisible: false,
+            shadows: false,
+            terrainProvider: undefined, // No terrain for faster loading
+            requestRenderMode: false, // Keep rendering active
+            maximumRenderTimeChange: Infinity,
+            // Explicitly set imagery provider to avoid Ion
+            imageryProvider: imageryProvider
+          };
+
+          console.log('🌍 Creating viewer with offline imagery provider...');
+
+          console.log('🚀 Creating Cesium.Viewer instance...');
+          try {
+            viewer = new Cesium.Viewer(cesiumContainerRef.current, viewerOptions);
+            console.log('✅ Cesium viewer created successfully:', !!viewer);
+            console.log('Viewer properties:', Object.keys(viewer || {}).slice(0, 10));
+
+            // Check if viewer components are properly initialized
+            console.log('🔍 Viewer component check:', {
+              cesiumWidget: !!viewer.cesiumWidget,
+              scene: !!viewer.scene,
+              camera: !!viewer.camera,
+              canvas: !!viewer.cesiumWidget?.canvas,
+              webglContext: !!viewer.scene?.context,
+              globe: !!viewer.scene?.globe
+            });
+
+            // Check WebGL context specifically
+            if (viewer.scene && viewer.scene.context && viewer.scene.context._gl) {
+              const gl = viewer.scene.context._gl;
+              console.log('🎨 WebGL context info:', {
+                vendor: gl.getParameter(gl.VENDOR),
+                renderer: gl.getParameter(gl.RENDERER),
+                version: gl.getParameter(gl.VERSION),
+                maxTextureSize: gl.getParameter(gl.MAX_TEXTURE_SIZE),
+                contextLost: gl.isContextLost()
+              });
+            } else {
+              console.error('❌ No WebGL context found!');
+            }
+
+            // Check canvas dimensions
+            if (viewer.cesiumWidget && viewer.cesiumWidget.canvas) {
+              const canvas = viewer.cesiumWidget.canvas;
+              console.log('📐 Canvas dimensions:', {
+                width: canvas.width,
+                height: canvas.height,
+                clientWidth: canvas.clientWidth,
+                clientHeight: canvas.clientHeight,
+                style: canvas.style.cssText
+              });
+
+              // Ensure canvas has proper size
+              if (canvas.clientWidth === 0 || canvas.clientHeight === 0) {
+                console.warn('⚠️ Canvas has zero dimensions!');
+                canvas.style.width = '100%';
+                canvas.style.height = '100%';
+                console.log('🔧 Applied canvas sizing fix');
+              }
+            }
+
+          } catch (viewerError) {
+            console.error('❌ Error creating Cesium viewer:', viewerError);
+            throw new Error(`Viewer creation failed: ${viewerError.message}`);
+          }
+
+          // Wait for Cesium to fully initialize with better checks
+          console.log('⏳ Waiting for viewer to fully initialize...');
+          await new Promise((resolve, reject) => {
+            let checkCount = 0;
+            const maxChecks = 100; // 10 seconds max, increased from 50
+
+            const checkViewer = () => {
+              checkCount++;
+
+              // More comprehensive check including internal properties
+              if (viewer &&
+                  viewer.cesiumWidget &&
+                  viewer.cesiumWidget._element &&
+                  viewer.scene &&
+                  viewer.scene.globe &&
+                  viewer.camera &&
+                  viewer.scene.canvas &&
+                  viewer.cesiumWidget.canvas) {
+
+                // Additional internal check to prevent _cesiumWidget errors
+                try {
+                  // Test access to critical properties
+                  const testScene = viewer.scene;
+                  const testCanvas = viewer.cesiumWidget.canvas;
+                  if (testScene && testCanvas) {
+                    console.log('Cesium viewer fully initialized with all internal components');
+                    resolve();
+                    return;
+                  }
+                } catch (testError) {
+                  console.warn('Cesium internal property test failed:', testError);
+                  // Continue checking
+                }
+              }
+
+              if (checkCount >= maxChecks) {
+                console.warn('Cesium viewer initialization timeout - proceeding with limited functionality');
+                resolve(); // Resolve anyway to prevent complete failure
+                return;
+              }
+
+              // Check again in 100ms
+              setTimeout(checkViewer, 100);
+            };
+
+            // Start checking immediately
+            checkViewer();
+          });
+
+          // Wait for viewer to be ready before configuring
+          if (!viewer || !viewer.scene || !viewer.scene.globe || !viewer.camera || !viewer.cesiumWidget) {
+            throw new Error('Viewer not properly initialized - missing required components');
+          }
+
+          // Configure viewer settings with basic, safe settings only
+          try {
+            if (viewer.scene && viewer.scene.globe) {
+              viewer.scene.globe.enableLighting = lighting;
+              viewer.scene.globe.showGroundAtmosphere = true;
+
+              // Configure globe texture settings to prevent lazy initialization
+              viewer.scene.globe.preloadSiblings = true;
+              viewer.scene.globe.tileCacheSize = 100;
+
+              console.log('🌍 Globe configuration:', {
+                enableLighting: viewer.scene.globe.enableLighting,
+                showGroundAtmosphere: viewer.scene.globe.showGroundAtmosphere,
+                show: viewer.scene.globe.show,
+                maximumScreenSpaceError: viewer.scene.globe.maximumScreenSpaceError
+              });
+
+              // Ensure globe is visible
+              viewer.scene.globe.show = true;
+
+              // Force globe surface initialization
+              if (viewer.scene.globe._surface) {
+                viewer.scene.globe._surface._debug.wireframe = false;
+                viewer.scene.globe._surface._debug.boundingSphereTile = false;
+              }
+            } else {
+              console.warn('❌ Globe not found in scene!');
+            }            if (viewer.cesiumWidget && viewer.cesiumWidget.creditContainer) {
+              viewer.cesiumWidget.creditContainer.style.display = "none";
+            }
+
+            // Configure scene rendering for better texture handling
+            if (viewer.scene) {
+              viewer.scene.logarithmicDepthBuffer = false; // Avoid depth buffer issues
+              viewer.scene.fxaa = false; // Disable FXAA to reduce texture operations
+            }
+          } catch (e) {
+            console.warn('Error configuring viewer settings:', e);
+          }
+
+          setLoadingProgress(80);
+          setLoadingMessage('Adding historical events...');
+
+          viewerRef.current = viewer;
+          setCesiumLoaded(true);
+
+          // Manually add imagery layer since viewerOptions.imageryProvider might not work
+          console.log('🔧 Manually adding imagery layer to scene...');
+          if (viewer.scene && viewer.scene.imageryLayers && imageryProvider) {
+            try {
+              // Remove any existing default layers first
+              const layers = viewer.scene.imageryLayers;
+              console.log('Existing layers before cleanup:', layers.length);
+
+              // Remove all existing layers
+              layers.removeAll();
+              console.log('✅ Cleared existing imagery layers');
+
+              // Add our custom imagery provider
+              const imageryLayer = layers.addImageryProvider(imageryProvider);
+              console.log('✅ Added custom imagery layer:', !!imageryLayer);
+
+              // Ensure the layer is fully visible
+              if (imageryLayer) {
+                imageryLayer.show = true;
+                imageryLayer.alpha = 1.0;
+                imageryLayer.brightness = 1.0;
+                imageryLayer.contrast = 1.0;
+                console.log('✅ Configured imagery layer visibility');
+              }
+
+              console.log('Final layer count:', layers.length);
+            } catch (layerError) {
+              console.error('❌ Failed to add imagery layer:', layerError);
+            }
+          } else {
+            console.warn('⚠️ Cannot add imagery layer - missing scene, layers, or provider');
+          }
+
+          // Check what imagery layers are actually loaded (after manual addition)
+          console.log('🌍 Verifying imagery layers after manual addition...');
+          if (viewer.scene && viewer.scene.imageryLayers) {
+            const layers = viewer.scene.imageryLayers;
+            console.log('Final number of imagery layers:', layers.length);
+
+            if (layers.length > 0) {
+              for (let i = 0; i < layers.length; i++) {
+                const layer = layers.get(i);
+                const provider = layer.imageryProvider;
+                console.log(`Layer ${i}:`, {
+                  show: layer.show,
+                  alpha: layer.alpha,
+                  brightness: layer.brightness,
+                  contrast: layer.contrast,
+                  providerType: provider?.constructor?.name || 'Unknown',
+                  ready: provider?.ready || false,
+                  hasUrl: !!provider?.url,
+                  url: provider?.url || 'No URL',
+                  hasCredit: !!provider?.credit
+                });
+
+                // Force render after adding layer
+                viewer.scene.requestRender();
+              }
+              console.log('✅ Imagery layers verified and render requested');
+            } else {
+              console.error('❌ Still no imagery layers after manual addition!');
+            }
+          } else {
+            console.warn('❌ No imagery layers collection found after manual addition!');
+          }          // Force a render to make sure imagery loads
+          if (viewer.scene) {
+            viewer.scene.requestRender();
+            console.log('🎨 Requested initial scene render');
+
+            // Set camera to a good initial position to see Earth
+            if (viewer.camera) {
+              console.log('📹 Setting initial camera position...');
+              try {
+                viewer.camera.setView({
+                  destination: Cesium.Cartesian3.fromDegrees(-75.59777, 40.03883, 15000000), // Above North America
+                  orientation: {
+                    heading: 0.0,
+                    pitch: -Cesium.Math.PI_OVER_TWO, // Looking straight down
+                    roll: 0.0
+                  }
+                });
+                console.log('✅ Camera positioned above North America');
+
+                // Log current camera position for debugging
+                const cameraPosition = viewer.camera.positionCartographic;
+                if (cameraPosition) {
+                  console.log('📍 Camera position:', {
+                    longitude: Cesium.Math.toDegrees(cameraPosition.longitude),
+                    latitude: Cesium.Math.toDegrees(cameraPosition.latitude),
+                    height: cameraPosition.height
+                  });
+                }
+              } catch (cameraError) {
+                console.warn('⚠️ Camera positioning failed:', cameraError);
+              }
+            }
+
+            // Check if scene is actually rendering
+            console.log('🎬 Scene render state:', {
+              mode: viewer.scene.mode,
+              canvas: !!viewer.scene.canvas,
+              camera: !!viewer.scene.camera,
+              globe: !!viewer.scene.globe
+            });
+          }
+
+          // Preload and initialize textures to prevent lazy initialization warnings
+          try {
+            if (viewer && viewer.scene && viewer.scene.context) {
+              setLoadingMessage('Initializing WebGL textures...');
+
+              // Force texture initialization by creating and immediately using a test texture
+              const context = viewer.scene.context;
+              if (context && context._gl) {
+                const gl = context._gl;
+
+                // Create multiple test textures to force comprehensive WebGL initialization
+                const textureFormats = [
+                  { format: gl.RGBA, type: gl.UNSIGNED_BYTE, size: 1 },
+                  { format: gl.RGB, type: gl.UNSIGNED_BYTE, size: 1 },
+                  { format: gl.RGBA, type: gl.UNSIGNED_BYTE, size: 4 }, // Small tile size
+                  { format: gl.RGBA, type: gl.UNSIGNED_BYTE, size: 8 }  // Medium tile size
+                ];
+
+                textureFormats.forEach((textureFormat, index) => {
+                  try {
+                    const testTexture = gl.createTexture();
+                    gl.bindTexture(gl.TEXTURE_2D, testTexture);
+
+                    // Initialize with appropriate sized data
+                    const pixelCount = textureFormat.size * textureFormat.size;
+                    const channelCount = textureFormat.format === gl.RGBA ? 4 : 3;
+                    const testData = new Uint8Array(pixelCount * channelCount).fill(255);
+
+                    gl.texImage2D(gl.TEXTURE_2D, 0, textureFormat.format,
+                                 textureFormat.size, textureFormat.size, 0,
+                                 textureFormat.format, textureFormat.type, testData);
+                    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+                    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+                    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+                    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+
+                    // Clean up test texture
+                    gl.deleteTexture(testTexture);
+                  } catch (textureError) {
+                    console.warn(`Texture preload ${index} failed:`, textureError);
+                  }
+                });
+
+                gl.bindTexture(gl.TEXTURE_2D, null);
+
+                // Force multiple render frames to establish rendering pipeline
+                for (let i = 0; i < 3; i++) {
+                  viewer.scene.requestRender();
+                }
+
+                console.log('✅ WebGL texture preloading completed');
+              }
+            }
+          } catch (preloadError) {
+            console.warn('Texture preloading failed, continuing:', preloadError);
+          }          // Temporarily disable mouse tracking to prevent errors
+          // TODO: Re-implement mouse tracking with better safety checks
+          console.log('Cesium viewer ready - mouse tracking disabled to prevent errors');
+
+          // Add historical events as entities with error handling
+          try {
+            historicalEvents.forEach(event => {
+              if (viewer && viewer.entities) {
+                viewer.entities.add({
+                  position: Cesium.Cartesian3.fromDegrees(event.lon, event.lat),
+                  point: {
+                    pixelSize: 20,
+                    color: Cesium.Color.YELLOW,
+                    outlineColor: Cesium.Color.BLACK,
+                    outlineWidth: 3,
+                    heightReference: Cesium.HeightReference.CLAMP_TO_GROUND,
+                  },
+                  label: {
+                    text: `${event.icon} ${event.title}`,
+                    font: '14pt sans-serif',
+                    fillColor: Cesium.Color.WHITE,
+                    outlineColor: Cesium.Color.BLACK,
+                    outlineWidth: 2,
+                    verticalOrigin: Cesium.VerticalOrigin.BOTTOM,
+                    pixelOffset: new Cesium.Cartesian2(0, -40),
+                  },
+                  eventData: event
+                });
+              }
+            });
+          } catch (e) {
+            console.warn('Error adding historical events:', e);
+          }
+
+          // Temporarily disable click handler to prevent errors
+          // TODO: Re-implement click handler with better safety checks
+          console.log('Cesium event handlers disabled to prevent initialization errors');
+
+          setLoadingProgress(100);
+          setLoadingMessage('Globe ready!');
+
+          // Small delay to show completion
+          setTimeout(() => {
+            setIsLoading(false);
+            setError(null);
+          }, 500);
+
+          console.log('Cesium viewer initialized successfully');
+
+          // Add camera position tracking
+          const updateCameraPosition = () => {
+            if (!window.Cesium || !viewerRef.current) return;
+
+            try {
+              const camera = viewerRef.current.camera;
+              const cartographic = window.Cesium.Cartographic.fromCartesian(camera.position);
+              const latitude = window.Cesium.Math.toDegrees(cartographic.latitude);
+              const longitude = window.Cesium.Math.toDegrees(cartographic.longitude);
+
+              setCurrentCameraPosition({ lat: latitude, lon: longitude });
+            } catch (err) {
+              console.warn('Camera position update failed:', err);
+            }
+          };
+
+          // Update position when camera moves
+          viewerRef.current.camera.moveEnd.addEventListener(updateCameraPosition);
+
+          // Initial position update
+          setTimeout(updateCameraPosition, 1000);
+        } else {
+          // Should not reach here with dynamic loading
+          if (mounted) {
+            setError('Cesium initialization failed unexpectedly.');
+            setIsLoading(false);
+            console.log('🎉 Cesium initialization completed successfully!');
+            console.log('Viewer ref:', viewerRef.current);
+            console.log('Cesium loaded state:', cesiumLoaded);
+          }
+        }
+      } catch (error) {
+        if (mounted) {
+          console.error('Cesium initialization error:', error);
+
+          // More detailed error message
+          let errorMessage = '3D Globe failed to load';
+          if (error.message.includes('WebGL')) {
+            errorMessage = 'WebGL not supported. Using 2D fallback mode.';
+          } else if (error.message.includes('timeout')) {
+            errorMessage = 'Loading timeout. Check network connection.';
+          } else if (error.message.includes('Viewer')) {
+            errorMessage = 'Cesium viewer initialization failed. Using 2D mode.';
+          } else {
+            errorMessage = `${errorMessage}: ${error.message}`;
+          }
+
+          setError(errorMessage);
+          setIsLoading(false);
+        }
+      }
+    };
+
+    // Simple initialization
+    if (cesiumContainerRef.current) {
+      console.log('🏗️ Container found, starting initialization...');
+      setIsLoading(true);
+      setError(null);
+      setLoadingProgress(10);
+      setLoadingMessage('Starting 3D globe...');
+
+      // Start immediately, no preload checks
+      initTimeout = setTimeout(initializeCesium, 100);
+
+    }
+
+    return () => {
+      console.log('🧹 Cleaning up Cesium initialization...');
+      mounted = false;
+      if (initTimeout) {
+        clearTimeout(initTimeout);
+      }
+      if (viewer) {
+        try {
+          viewer.destroy();
+        } catch (e) {
+          console.warn('Cleanup error:', e);
+        }
+      }
+    };
+  }, [mapViewMode]); // Only run when mapViewMode changes
+
+  // Handle timeline change
+  const handleTimelineChange = useCallback((e) => {
+    const percentage = parseFloat(e.target.value);
+    setTimelinePosition(percentage);
+
+    const { year, isBC: yearIsBC } = percentageToYear(percentage);
+    setSelectedDate(year);
+    setIsBC(yearIsBC);
+  }, [percentageToYear]);
+
+  // Handle play/pause
+  const handlePlayPause = useCallback(() => {
+    setIsPlaying(!isPlaying);
+  }, [isPlaying]);
+
+  // Auto-advance timeline when playing
+  useEffect(() => {
+    if (!isPlaying) return;
+
+    const interval = setInterval(() => {
+      setTimelinePosition(prev => {
+        const newPos = prev + 0.05;
+        if (newPos >= 100) {
+          setIsPlaying(false);
+          return 100;
+        }
+
+        const { year, isBC: yearIsBC } = percentageToYear(newPos);
+        setSelectedDate(year);
+        setIsBC(yearIsBC);
+        return newPos;
+      });
+    }, 200);
+
+    return () => clearInterval(interval);
+  }, [isPlaying, percentageToYear]);
+
+  // Find the closest event to the current timeline position
+  const findClosestEventToTimeline = useCallback((currentYear, currentIsBC) => {
+    const currentActualYear = currentIsBC ? -Math.abs(currentYear) : currentYear;
+
+    let closestEvent = null;
+    let minDistance = Infinity;
+
+    historicalEvents.forEach(event => {
+      const eventActualYear = event.isBC ? -event.year : event.year;
+      const distance = Math.abs(eventActualYear - currentActualYear);
+
+      // Only consider events within a reasonable range (25 years for more precision)
+      if (distance <= 25 && distance < minDistance) {
+        minDistance = distance;
+        closestEvent = event;
+      }
+    });
+
+    return closestEvent;
+  }, [historicalEvents]);
+
+  // Auto-zoom to events when timeline position changes (during playback or manual movement)
+  useEffect(() => {
+    const currentYear = selectedDate;
+    const currentIsBC = isBC;
+
+    const closestEvent = findClosestEventToTimeline(currentYear, currentIsBC);
+
+    // Only update if we found a new event AND it's different from the last processed event
+    // AND we're not currently in a transition (prevents rapid fire events)
+    if (closestEvent && closestEvent.id !== lastProcessedEventId && !isTransitioning) {
+      console.log(`Timeline reached new event: "${closestEvent.title}" (${closestEvent.year} ${closestEvent.isBC ? 'BC' : 'AD'})`);
+
+      // Update selected event and last processed event
+      setSelectedEvent(closestEvent);
+      setLastProcessedEventId(closestEvent.id);
+
+      // Update stable map state only for new events - but avoid updating 2D map during 3D transitions
+      if (mapViewMode === '2D' || !isTransitioning) {
+        setStableMapCenter([closestEvent.lat, closestEvent.lon]);
+        setStableMapZoom(10);
+        console.log(`📍 Updated 2D map state for: ${closestEvent.title}`);
+      } else {
+        console.log(`📍 Skipping 2D map update - in 3D transition mode`);
+      }
+
+      // Show brief notification
+      setEventNotification(`📍 Reached: ${closestEvent.title}`);
+      setTimeout(() => setEventNotification(null), 3000); // Hide after 3 seconds
+
+      // Zoom to event in 3D mode (Cesium) using multi-level navigation
+      if (mapViewMode === '3D' && cesiumLoaded && viewerRef.current && window.Cesium) {
+        console.log('🚀 TIMELINE EVENT DETECTED - Using multi-level navigation for:', closestEvent.title);
+
+        // Get REAL-TIME current camera position for accurate distance calculation
+        let realCurrentLat = 0, realCurrentLon = 0;
+
+        try {
+          const camera = viewerRef.current.camera;
+          const cartographic = window.Cesium.Cartographic.fromCartesian(camera.position);
+          realCurrentLat = window.Cesium.Math.toDegrees(cartographic.latitude);
+          realCurrentLon = window.Cesium.Math.toDegrees(cartographic.longitude);
+          console.log(`🎯 Current 3D camera position: (${realCurrentLat.toFixed(2)}, ${realCurrentLon.toFixed(2)})`);
+        } catch (e) {
+          console.warn('Could not get current camera position, using fallback');
+          const currentPos = currentCameraPosition || { lat: 0, lon: 0 };
+          realCurrentLat = currentPos.lat;
+          realCurrentLon = currentPos.lon;
+        }
+
+        navigateToEvent(closestEvent, realCurrentLat, realCurrentLon);
+      }
+
+      // Zoom to event in 2D mode (Leaflet) - let the flyTo method handle it via ref
+      else if (mapViewMode === '2D' && leafletMapRef.current) {
+        // Call the map's flyTo method if it exists
+        if (leafletMapRef.current.flyTo) {
+          leafletMapRef.current.flyTo(closestEvent.lat, closestEvent.lon, 10);
+          console.log(`2D map zoomed to: ${closestEvent.title}`);
+        }
+      }
+    }
+    // Position maintenance: If timeline is still on the same event, don't move camera
+    else if (closestEvent && closestEvent.id === lastProcessedEventId) {
+      console.log(`📍 Still at current event: ${closestEvent.title} - maintaining camera position`);
+      // Camera stays exactly where it is - no movement, no state updates
+    }
+    // FIXED: Don't reset to default position when moving away from events
+    // Instead, maintain current camera position until we reach a NEW event
+    else if (!closestEvent && lastProcessedEventId) {
+      console.log(`🔄 Timeline moved away from events, but MAINTAINING current camera position until next event`);
+      console.log(`📌 Camera staying at current location - NO map updates until reaching a new event`);
+      // Clear the processed event ID so we can detect the next new event
+      setLastProcessedEventId(null);
+      // IMPORTANT: DO NOT update map center or zoom - keep current position!
+      // DO NOT call setStableMapCenter or setStableMapZoom
+      // This prevents tile loading and map movement between events
+    }
+  }, [selectedDate, isBC, mapViewMode, cesiumLoaded, findClosestEventToTimeline, lastProcessedEventId, navigateToEvent, currentCameraPosition]);
+
+  // Handle map mode changes
+  const handleMapModeChange = ({ mapMode: newMapMode, editorMode }) => {
+    setMapViewMode(newMapMode === '3D' ? '3D' : '2D');
+    setIsMapEditor(editorMode);
+  };
+
+  const handleDrawingChange = (drawingData) => {
+    setDrawnItems(drawingData.allItems || []);
+    console.log('Drawing changed:', drawingData);
+  };
+
+  // Toggle between 3D Cesium and 2D interactive map
+  const toggleMapViewMode = () => {
+    if (mapViewMode === '3D') {
+      setMapViewMode('2D');
+    } else if (mapViewMode === '2D') {
+      setMapViewMode('2D-simple');
+    } else {
+      setMapViewMode('3D');
+    }
+  };
+
+  // Search events
+  const searchResults = historicalEvents.filter(event =>
+    event.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    event.description.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    event.category.toLowerCase().includes(searchQuery.toLowerCase())
+  );
+
+  // Simple 2D fallback component
+  const Simple2DView = () => (
+    <div className="h-full flex flex-col bg-gray-100">
+      <div className="bg-blue-600 text-white p-4 text-center">
+        <h2 className="text-xl font-bold">📍 Historical Events Map (2D Mode)</h2>
+        <p className="text-sm opacity-90">3D globe unavailable - showing simplified timeline</p>
+      </div>
+      <div className="flex-1 p-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {historicalEvents.map(event => (
+            <div key={event.id} className="bg-white p-4 rounded-lg shadow hover:shadow-md transition-shadow cursor-pointer"
+                 onClick={() => setSelectedEvent(event)}>
+              <div className="flex items-center gap-3 mb-2">
+                <span className="text-2xl">{event.icon}</span>
+                <div>
+                  <h3 className="font-bold text-gray-900">{event.title}</h3>
+                  <p className="text-sm text-gray-600">{event.year} {event.isBC ? 'BC' : 'AD'}</p>
+                </div>
+              </div>
+              <p className="text-sm text-gray-700">{event.description}</p>
+              <div className="mt-3 flex items-center justify-between">
+                <span className="px-2 py-1 bg-blue-100 text-blue-800 text-xs rounded">{event.category}</span>
+                <span className="text-xs text-gray-500">📍 {event.lat.toFixed(2)}°, {event.lon.toFixed(2)}°</span>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+
+  if (error) {
+    return (
+      <div className="h-screen flex items-center justify-center bg-gray-100">
+        <div className="text-center p-8 bg-white rounded-lg shadow-lg max-w-md">
+          <div className="text-red-500 text-6xl mb-4">🌍</div>
+          <h2 className="text-2xl font-bold text-gray-900 mb-2">3D Globe Issue</h2>
+          <p className="text-gray-600 mb-4 text-sm">{error}</p>
+          <div className="space-y-3">
+            <button
+              onClick={() => {
+                setError(null);
+                setIsLoading(true);
+                window.location.reload();
+              }}
+              className="w-full px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+            >
+              🔄 Try 3D Again
+            </button>
+            <button
+              onClick={() => {
+                setError(null);
+                setIsLoading(false);
+                setMapViewMode('2D');
+              }}
+              className="w-full px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
+            >
+              🗺️ Use Interactive 2D Map
+            </button>
+            <button
+              onClick={() => {
+                setError(null);
+                setIsLoading(false);
+                setMapViewMode('2D-simple');
+              }}
+              className="w-full px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors"
+            >
+              📱 Use Simple 2D Mode
+            </button>
+            <div className="text-xs text-gray-500">
+              <p>💡 Interactive 2D map includes drawing tools</p>
+              <p>📱 Simple 2D mode works without any dependencies</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="h-screen flex flex-col bg-gray-100">
+      {/* Header */}
+      <div className="bg-white shadow-sm border-b border-gray-200 p-4 relative z-10">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-4">
+            <GlobeAltIcon className="w-8 h-8 text-blue-600" />
+            <h1 className="text-2xl font-bold text-gray-900">Historical Timeline Globe</h1>
+            <div className="flex items-center gap-2 text-lg font-semibold">
+              <ClockIcon className="w-5 h-5 text-gray-600" />
+              <span className="text-blue-600">
+                {selectedDate.toLocaleString()} {isBC ? 'BC' : 'AD'}
+              </span>
+            </div>
+          </div>
+
+          {/* Controls */}
+          <div className="flex items-center gap-4">
+            {/* Search */}
+            <div className="relative">
+              <MagnifyingGlassIcon className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 transform -translate-y-1/2" />
+              <input
+                type="text"
+                placeholder="Search historical events..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 w-64"
+              />
+            </div>
+
+            {/* Granularity selector */}
+            <select
+              value={granularity}
+              onChange={(e) => setGranularity(e.target.value)}
+              className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+            >
+              <option value="year">Year View</option>
+              <option value="month">Month View</option>
+              <option value="day">Day View</option>
+            </select>
+
+            {/* Map Mode Toggle */}
+            <div className="flex items-center bg-gray-100 rounded-lg p-1">
+              <button
+                onClick={() => setMapViewMode('3D')}
+                className={`px-3 py-1 text-sm rounded transition-colors ${
+                  mapViewMode === '3D'
+                    ? 'bg-blue-600 text-white shadow-sm'
+                    : 'text-gray-700 hover:bg-gray-200'
+                }`}
+              >
+                🌍 3D
+              </button>
+              <button
+                onClick={() => setMapViewMode('2D')}
+                className={`px-3 py-1 text-sm rounded transition-colors ${
+                  mapViewMode === '2D'
+                    ? 'bg-green-600 text-white shadow-sm'
+                    : 'text-gray-700 hover:bg-gray-200'
+                }`}
+              >
+                🗺️ 2D Map
+              </button>
+              <button
+                onClick={() => setMapViewMode('2D-simple')}
+                className={`px-3 py-1 text-sm rounded transition-colors ${
+                  mapViewMode === '2D-simple'
+                    ? 'bg-purple-600 text-white shadow-sm'
+                    : 'text-gray-700 hover:bg-gray-200'
+                }`}
+              >
+                📱 Fallback
+              </button>
+            </div>
+
+            {/* Settings button */}
+            <button
+              onClick={() => setShowSettings(!showSettings)}
+              className={`p-2 rounded-lg transition-colors ${
+                showSettings ? 'bg-blue-600 text-white' : 'bg-gray-100 hover:bg-gray-200'
+              }`}
+            >
+              <AdjustmentsHorizontalIcon className="w-5 h-5" />
+            </button>
+          </div>
+        </div>
+
+        {/* Settings Panel */}
+        {showSettings && (
+          <div className="absolute top-full left-0 right-0 bg-white border-b border-gray-200 shadow-lg p-4 z-20">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              {/* Visual Options */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Visual Options</label>
+                <div className="space-y-2">
+                  <label className="flex items-center">
+                    <input
+                      type="checkbox"
+                      checked={terrainEnabled}
+                      onChange={(e) => setTerrainEnabled(e.target.checked)}
+                      className="rounded"
+                    />
+                    <span className="ml-2 text-sm">3D Terrain</span>
+                  </label>
+                </div>
+              </div>
+
+              {/* Lighting Options */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Lighting</label>
+                <div className="space-y-2">
+                  <label className="flex items-center">
+                    <input
+                      type="checkbox"
+                      checked={lighting}
+                      onChange={(e) => setLighting(e.target.checked)}
+                      className="rounded"
+                    />
+                    <span className="ml-2 text-sm">Sun Lighting</span>
+                  </label>
+                </div>
+              </div>
+
+              {/* Status */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Status</label>
+                <div className="text-sm">
+                  <div className={`flex items-center gap-2 ${cesiumLoaded ? 'text-green-600' : 'text-yellow-600'}`}>
+                    <div className={`w-2 h-2 rounded-full ${cesiumLoaded ? 'bg-green-500' : 'bg-yellow-500'}`}></div>
+                    {cesiumLoaded ? 'Globe Ready' : 'Loading Globe...'}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Main content */}
+      <div className="flex-1 flex relative">
+        {/* Globe/Map Container */}
+        <div className="flex-1 relative">
+          {/* Render different map modes */}
+          {mapViewMode === '2D' ? (
+            <div className="w-full h-full flex flex-col">
+              <div className="p-3 bg-white border-b">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h3 className="font-bold">🗺️ Interactive Map with Timeline Sync</h3>
+                    <p className="text-sm text-gray-600">Map automatically zooms to events as you move through history</p>
+                  </div>
+                  <div className="text-sm text-gray-500">
+                    {isMapEditor ? '✏️ Editor Mode' : '👁️ View Only'}
+                  </div>
+                </div>
+                {selectedEvent && (
+                  <div className="mt-2 p-2 bg-blue-50 border border-blue-200 rounded">
+                    <div className="flex items-center gap-2">
+                      <span className="text-lg">{selectedEvent.icon}</span>
+                      <div>
+                        <strong>{selectedEvent.title}</strong>
+                        <span className="text-sm text-gray-600 ml-2">
+                          ({selectedEvent.year} {selectedEvent.isBC ? 'BC' : 'AD'})
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+              <div className="flex-1">
+                <LeafletMap
+                  ref={leafletMapRef}
+                  center={stableMapCenter}
+                  zoom={stableMapZoom}
+                  height="100%"
+                  historicalEvents={historicalEvents} // Use original events, not filtered
+                  isEditorMode={isMapEditor}
+                  onDrawingChange={handleDrawingChange}
+                />
+              </div>
+            </div>
+          ) : mapViewMode === '2D-simple' ? (
+            <MapEditorSimple
+              isEditorMode={isMapEditor}
+              is3DMode={false}
+              onModeChange={(data) => {
+                setIsMapEditor(data.editorMode);
+                if (data.mapMode === '3D') {
+                  setMapViewMode('3D');
+                }
+              }}
+              onDrawingChange={handleDrawingChange}
+              initialCenter={selectedEvent ? [selectedEvent.lat, selectedEvent.lon] : [46.2044, 6.1432]}
+              initialZoom={selectedEvent ? 8 : 4}
+              height="100%"
+              historicalEvents={filteredEvents}
+              className="w-full h-full"
+            />
+          ) : mapViewMode === '3D' ? (
+            <div
+              ref={cesiumContainerRef}
+              className="w-full h-full bg-gray-900"
+              style={{
+                minHeight: '400px',
+                position: 'relative',
+                border: '2px solid red' // Temporary debug border
+              }}
+            >
+              {/* Debug overlay to show container is rendering */}
+              {!cesiumLoaded && (
+                <div className="absolute inset-0 flex items-center justify-center text-white text-sm">
+                  <div className="bg-black bg-opacity-50 p-2 rounded">
+                    3D Container Ready - Initializing...
+                  </div>
+                </div>
+              )}
+            </div>
+          ) : (
+            <div className="w-full h-full flex items-center justify-center bg-gray-100">
+              <div className="text-center text-gray-500">
+                <div className="text-4xl mb-2">🗺️</div>
+                <div>Select a map mode</div>
+              </div>
+            </div>
+          )}
+
+          {/* Enhanced Loading indicator - only for 3D mode */}
+          {isLoading && mapViewMode === '3D' && (
+            <div className="absolute inset-0 flex items-center justify-center bg-gradient-to-br from-blue-900 to-black bg-opacity-90">
+              <div className="text-center text-white p-8 bg-black bg-opacity-50 rounded-lg backdrop-blur-sm">
+                <div className="relative mb-6">
+                  <div className="animate-spin rounded-full h-16 w-16 border-4 border-blue-500 border-t-transparent mx-auto"></div>
+                  <div className="absolute inset-0 flex items-center justify-center">
+                    <span className="text-xs font-bold text-blue-300">{loadingProgress}%</span>
+                  </div>
+                </div>
+
+                <h3 className="text-xl font-bold mb-2">🌍 Loading 3D Globe</h3>
+                <p className="text-sm text-blue-200 mb-4">{loadingMessage}</p>
+
+                {/* Progress bar */}
+                <div className="w-64 bg-gray-700 rounded-full h-2 mb-3">
+                  <div
+                    className="bg-gradient-to-r from-blue-500 to-green-500 h-2 rounded-full transition-all duration-300"
+                    style={{ width: `${loadingProgress}%` }}
+                  ></div>
+                </div>
+
+                <div className="text-xs text-gray-400 space-y-1">
+                  <p>🚀 Loading Cesium WebGL engine</p>
+                  <p>🗺️ Preparing satellite imagery</p>
+                  <p>📍 Configuring historical events</p>
+                </div>
+
+                {loadingProgress > 50 && (
+                  <div className="mt-4 text-xs text-green-300 animate-pulse">
+                    Almost ready! Setting up 3D controls...
+                  </div>
+                )}
+
+                <div className="mt-3 text-xs text-gray-400">
+                  <p>🔍 Debug Info:</p>
+                  <p>Cesium library: {typeof window !== 'undefined' && window.Cesium ? '✅ Loaded' : '❌ Missing'}</p>
+                  <p>Container: {cesiumContainerRef.current ? '✅ Ready' : '❌ Not ready'}</p>
+                  <p>Assets: <a href="/cesium/Cesium.js" target="_blank" className="text-blue-300 underline">Check Cesium.js</a></p>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Status overlay */}
+          {cesiumLoaded && (
+            <div className="absolute bottom-4 left-4 bg-black bg-opacity-50 text-white p-3 rounded-lg text-sm">
+              <div>Mouse: {mousePosition.lat}°, {mousePosition.lon}°</div>
+              <div>Camera Height: {parseInt(cameraHeight).toLocaleString()} m</div>
+              <div>Events Visible: {filteredEvents.length}</div>
+            </div>
+          )}
+
+          {/* Event info overlay */}
+          {selectedEvent && (
+            <div className="absolute top-4 right-4 bg-white rounded-lg shadow-lg p-4 max-w-sm border border-gray-200">
+              <div className="flex items-start justify-between mb-2">
+                <div className="flex items-center gap-2">
+                  <span className="text-2xl">{selectedEvent.icon}</span>
+                  <div>
+                    <h3 className="font-bold text-lg text-gray-900">{selectedEvent.title}</h3>
+                    <p className="text-sm text-gray-600">
+                      {selectedEvent.year.toLocaleString()} {selectedEvent.isBC ? 'BC' : 'AD'}
+                    </p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setSelectedEvent(null)}
+                  className="text-gray-400 hover:text-gray-600 text-xl leading-none"
+                >
+                  ×
+                </button>
+              </div>
+
+              <p className="text-sm text-gray-700 mb-3">{selectedEvent.description}</p>
+
+              <div className="flex items-center justify-between mt-3 pt-3 border-t border-gray-200">
+                <span className="inline-block px-2 py-1 text-xs font-medium bg-blue-100 text-blue-800 rounded">
+                  {selectedEvent.category}
+                </span>
+                <div className="flex items-center gap-1">
+                  {Array.from({ length: selectedEvent.importance }, (_, i) => (
+                    <StarIcon key={i} className="w-3 h-3 text-yellow-400 fill-current" />
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Sidebar */}
+        <div className="w-80 bg-white shadow-lg border-l border-gray-200 overflow-y-auto">
+          <div className="p-4">
+            <h2 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
+              <InformationCircleIcon className="w-5 h-5" />
+              {searchQuery ? 'Search Results' : 'Timeline Events'}
+            </h2>
+
+            <div className="space-y-3">
+              {(searchQuery ? searchResults : filteredEvents)
+                .sort((a, b) => {
+                  const yearA = a.isBC ? -a.year : a.year;
+                  const yearB = b.isBC ? -b.year : b.year;
+                  return yearB - yearA;
+                })
+                .map((event) => (
+                <div
+                  key={event.id}
+                  className={`p-3 border rounded-lg cursor-pointer transition-all duration-200 ${
+                    selectedEvent?.id === event.id
+                      ? 'border-blue-500 bg-blue-50 shadow-md'
+                      : 'border-gray-200 hover:bg-gray-50 hover:shadow-sm'
+                  }`}
+                  onClick={() => handleEventSelect(event)}
+                >
+                  <div className="flex items-start justify-between mb-2">
+                    <div className="flex items-center gap-2">
+                      <span className="text-lg">{event.icon}</span>
+                      <div className="min-w-0">
+                        <h3 className="font-medium text-gray-900 text-sm leading-tight">{event.title}</h3>
+                        <p className="text-xs text-gray-600">
+                          {event.year.toLocaleString()} {event.isBC ? 'BC' : 'AD'}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-1">
+                      {Array.from({ length: event.importance }, (_, i) => (
+                        <StarIcon key={i} className="w-3 h-3 text-yellow-400 fill-current" />
+                      ))}
+                    </div>
+                  </div>
+
+                  <p className="text-xs text-gray-500 mb-2 line-clamp-2">
+                    {event.description}
+                  </p>
+
+                  <div className="flex items-center justify-between">
+                    <span className="inline-block px-2 py-1 text-xs font-medium bg-gray-100 text-gray-700 rounded">
+                      {event.category}
+                    </span>
+                    <MapPinIcon className="w-4 h-4 text-gray-400" />
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {(searchQuery ? searchResults : filteredEvents).length === 0 && (
+              <div className="text-center py-8 text-gray-500">
+                <CalendarIcon className="w-12 h-12 text-gray-300 mx-auto mb-3" />
+                <p className="text-sm font-medium">No events found</p>
+                <p className="text-xs">Try adjusting the time period or search terms</p>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* Enhanced Timeline Controls */}
+      <div className="bg-white shadow-lg border-t border-gray-200 p-4">
+        <div className="flex items-center gap-4 mb-4">
+          {/* Playback controls */}
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setTimelinePosition(Math.max(0, timelinePosition - 5))}
+              className="p-2 rounded-lg bg-gray-100 hover:bg-gray-200 transition-colors"
+              title="Jump backward"
+            >
+              <BackwardIcon className="w-4 h-4" />
+            </button>
+            <button
+              onClick={handlePlayPause}
+              className="p-3 rounded-lg bg-blue-600 hover:bg-blue-700 text-white transition-colors"
+              title={isPlaying ? "Pause timeline" : "Play timeline"}
+            >
+              {isPlaying ? <PauseIcon className="w-5 h-5" /> : <PlayIcon className="w-5 h-5" />}
+            </button>
+            <button
+              onClick={() => setTimelinePosition(Math.min(100, timelinePosition + 5))}
+              className="p-2 rounded-lg bg-gray-100 hover:bg-gray-200 transition-colors"
+              title="Jump forward"
+            >
+              <ForwardIcon className="w-4 h-4" />
+            </button>
+          </div>
+
+          {/* Timeline info */}
+          <div className="flex items-center gap-3 text-sm text-gray-600">
+            <div className="flex items-center gap-1">
+              <CalendarIcon className="w-4 h-4" />
+              <span>Range: 3000 BC - 2025 AD</span>
+            </div>
+            <span>•</span>
+            <div className="flex items-center gap-1">
+              <EyeIcon className="w-4 h-4" />
+              <span>View: {granularity}</span>
+            </div>
+            <span>•</span>
+            <div className="flex items-center gap-1">
+              <MapPinIcon className="w-4 h-4" />
+              <span>{filteredEvents.length} events</span>
+            </div>
+          </div>
+
+          {/* Quick navigation */}
+          <div className="ml-auto flex gap-2">
+            {[
+              { label: "Ancient", year: 1000, bc: true },
+              { label: "Classical", year: 1, bc: true },
+              { label: "Medieval", year: 1000, bc: false },
+              { label: "Modern", year: 1800, bc: false },
+              { label: "Present", year: 2000, bc: false }
+            ].map(period => (
+              <button
+                key={period.label}
+                onClick={() => {
+                  setSelectedDate(period.year);
+                  setIsBC(period.bc);
+                  setTimelinePosition(yearToPercentage(period.year, period.bc));
+                }}
+                className="px-3 py-1 text-xs bg-gray-100 hover:bg-gray-200 rounded-md transition-colors"
+              >
+                {period.label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Enhanced Timeline slider */}
+        <div className="relative">
+          <input
+            type="range"
+            min="0"
+            max="100"
+            step="0.01"
+            value={timelinePosition}
+            onChange={handleTimelineChange}
+            className="w-full h-3 bg-gradient-to-r from-amber-200 via-green-200 to-blue-200 rounded-lg appearance-none cursor-pointer"
+            style={{
+              background: 'linear-gradient(90deg, #fbbf24 0%, #f59e0b 25%, #10b981 50%, #3b82f6 75%, #8b5cf6 100%)'
+            }}
+          />
+
+          {/* Event markers on timeline */}
+          <div className="absolute top-0 left-0 right-0 h-3 pointer-events-none">
+            {historicalEvents.map(event => {
+              const position = yearToPercentage(event.year, event.isBC);
+              return (
+                <div
+                  key={event.id}
+                  className="absolute w-1 h-3 bg-red-500 opacity-70 rounded"
+                  style={{ left: `${position}%`, transform: 'translateX(-50%)' }}
+                  title={event.title}
+                />
+              );
+            })}
+          </div>
+
+          {/* Timeline period labels */}
+          <div className="absolute top-5 left-0 right-0 flex justify-between text-xs text-gray-500">
+            <span className="bg-white px-1 rounded">3000 BC</span>
+            <span className="bg-white px-1 rounded">2000 BC</span>
+            <span className="bg-white px-1 rounded">1000 BC</span>
+            <span className="bg-white px-1 rounded">1 AD</span>
+            <span className="bg-white px-1 rounded">1000 AD</span>
+            <span className="bg-white px-1 rounded">2000 AD</span>
+          </div>
+        </div>
+      </div>
+
+      {/* Floating event notification */}
+      {eventNotification && (
+        <div className="fixed top-20 left-1/2 transform -translate-x-1/2 z-50 animate-bounce">
+          <div className="bg-green-600 text-white px-6 py-3 rounded-lg shadow-lg flex items-center gap-2">
+            <div className="w-2 h-2 bg-green-300 rounded-full animate-pulse"></div>
+            <span className="font-medium">{eventNotification}</span>
+          </div>
+        </div>
+      )}
+
+      {/* Navigation status indicator with progress */}
+      {isTransitioning && (
+        <div className="fixed top-4 right-4 z-50">
+          <div className="bg-blue-600 text-white px-4 py-2 rounded-lg shadow-lg">
+            <div className="flex items-center gap-2">
+              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+              <div className="flex flex-col">
+                <span className="font-medium text-sm">
+                  {navigationLevel === 'globe' && '🌍 Global Overview'}
+                  {navigationLevel === 'continent' && '🗺️ Continental View'}
+                  {navigationLevel === 'country' && '🏛️ Country/Regional View'}
+                  {navigationLevel === 'map' && '🗺️ Detailed Mapping'}
+                </span>
+                <span className="text-xs opacity-75">
+                  {targetEvent?.title && `→ ${targetEvent.title}`}
+                </span>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Current navigation level indicator */}
+      {mapViewMode === '3D' && !isTransitioning && (
+        <div className="fixed bottom-4 right-4 z-40">
+          <div className="bg-slate-800 text-white px-3 py-2 rounded-lg shadow-lg text-sm">
+            <span className="opacity-75">Level: </span>
+            <span className="font-medium">
+              {navigationLevel === 'globe' && '🌍 Globe'}
+              {navigationLevel === 'continent' && '🗺️ Continent'}
+              {navigationLevel === 'country' && '🏛️ Country'}
+              {navigationLevel === 'map' && '🗺️ Local'}
+            </span>
+          </div>
+        </div>
+      )}
+
+    </div>
+  );
+};
+
+export default HistoryBasic;

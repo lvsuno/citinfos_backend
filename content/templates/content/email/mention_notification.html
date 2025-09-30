@@ -1,0 +1,39 @@
+{% extends "content/email/base/base_email.html" %}
+
+{% block email_title %}{{ mentioner.username }} mentioned you - Homey Platform{% endblock %}
+
+{% block preheader %}{{ mentioner.username }} mentioned you in a post on Homey Platform{% endblock %}
+
+{% block header_content %}
+    <h1 style="color: #ffffff; font-size: 24px; font-weight: 600; margin: 20px 0 0 0;">
+        🏷️ You were mentioned!
+    </h1>
+{% endblock %}
+
+{% block email_heading %}Hello {{ user.username }}!{% endblock %}
+
+{% block content %}
+    <p style="color: #555555; font-size: 16px; margin: 0 0 20px 0; line-height: 1.6;">
+        <strong>{{ mentioner.username }}</strong> mentioned you in a post on <strong>Homey Platform</strong>.
+    </p>
+
+    <!-- User Info Component -->
+    {% include "content/components/user_info.html" with user=mentioner action="mentioned you in a post:" %}
+
+    <!-- Post Content Quote Component -->
+    {% include "content/components/content_quote.html" with content=post.content %}
+
+    <!-- Info Box Component -->
+    {% include "content/components/info_box.html" with title="💡 Quick Tip" message="When someone mentions you, it means they want to bring you into the conversation. Feel free to engage by liking, commenting, or sharing your thoughts!" %}
+
+    <!-- View Post Button -->
+    {% include "content/components/button.html" with url=post_url text="View Post & Reply" type="primary" %}
+
+    <p style="color: #6c757d; font-size: 14px; margin: 30px 0 0 0; line-height: 1.4;">
+        Don't miss out on the conversation! Click above to see the full post and join the discussion.
+    </p>
+{% endblock %}
+
+{% block footer_text %}
+    This mention notification was sent because someone tagged you in their content.
+{% endblock %}

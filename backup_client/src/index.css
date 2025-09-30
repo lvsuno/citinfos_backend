@@ -1,0 +1,5 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* FontAwesome will be loaded via JavaScript instead due to Yarn PnP issues */

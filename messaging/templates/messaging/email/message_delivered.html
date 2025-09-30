@@ -1,0 +1,95 @@
+{% extends "messaging/base/base_email.html" %}
+
+{% block email_title %}Message Delivered - Homey Platform{% endblock %}
+
+{% block preheader %}Your message was successfully delivered{% endblock %}
+
+{% block header_content %}
+    <h1 style="color: #ffffff; font-size: 24px; font-weight: 600; margin: 20px 0 0 0; text-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);">
+        ✅ Delivery Confirmed
+    </h1>
+{% endblock %}
+
+{% block email_heading %}
+    Message delivered successfully!
+{% endblock %}
+
+{% block content %}
+    <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="margin: 0 0 30px 0;">
+        <tr>
+            <td style="text-align: center;">
+                <p style="color: #6c757d; font-size: 16px; line-height: 1.5; margin: 0 0 25px 0;">
+                    Your message has been successfully delivered to {{ recipient.first_name|default:"the recipient" }}.
+                </p>
+            </td>
+        </tr>
+    </table>
+
+    <!-- Delivery confirmation box -->
+    <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="margin: 20px 0;">
+        <tr>
+            <td style="background-color: #d4edda; border: 1px solid #c3e6cb; border-radius: 8px; padding: 20px;">
+                <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%">
+                    <tr>
+                        <td style="text-align: center;">
+                            <h3 style="color: #155724; font-size: 18px; font-weight: 600; margin: 0 0 10px 0;">
+                                ✅ Delivery Status: Confirmed
+                            </h3>
+                            <p style="color: #155724; font-size: 14px; margin: 0;">
+                                Delivered at {{ delivery_time|date:"M j, Y \a\t g:i A"|default:"just now" }}
+                            </p>
+                        </td>
+                    </tr>
+                </table>
+            </td>
+        </tr>
+    </table>
+
+    <!-- Message preview -->
+    {% if message.content %}
+        <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="margin: 30px 0;">
+            <tr>
+                <td>
+                    <h4 style="color: #333333; font-size: 16px; font-weight: 600; margin: 0 0 15px 0;">
+                        Your message:
+                    </h4>
+                    {% include "messaging/components/message_bubble.html" with message=message %}
+                </td>
+            </tr>
+        </table>
+    {% endif %}
+
+    <!-- Action buttons -->
+    <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="margin: 30px 0;">
+        <tr>
+            <td style="text-align: center;">
+                {% include "messaging/components/button.html" with url=conversation_url text="Continue Conversation" style="primary" %}
+
+                <table role="presentation" cellspacing="0" cellpadding="0" border="0" style="margin: 15px auto 0 auto;">
+                    <tr>
+                        <td style="text-align: center;">
+                            <a href="{{ messages_url }}" style="color: #667eea; text-decoration: none; font-size: 14px;">
+                                View all messages
+                            </a>
+                        </td>
+                    </tr>
+                </table>
+            </td>
+        </tr>
+    </table>
+
+    <!-- Info tip -->
+    <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="margin-top: 30px;">
+        <tr>
+            <td style="background-color: #f8f9fa; padding: 20px; border-radius: 8px; border-left: 4px solid #17a2b8;">
+                <p style="color: #495057; font-size: 14px; line-height: 1.4; margin: 0;">
+                    <strong>📱 Stay Connected:</strong> You can disable delivery confirmations in your messaging settings if you prefer not to receive these notifications.
+                </p>
+            </td>
+        </tr>
+    </table>
+{% endblock %}
+
+{% block footer_text %}
+    This delivery confirmation was sent to let you know your message was successfully delivered on the Homey Platform.
+{% endblock %}

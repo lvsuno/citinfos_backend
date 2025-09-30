@@ -1,0 +1,100 @@
+{% extends "global/email/base/global_base_email.html" %}
+
+{% block email_title %}System Error - Homey Platform{% endblock %}
+
+{% block preheader %}An error occurred in your account{% endblock %}
+
+{% block header_content %}
+    <h1 style="color: #ffffff; font-size: 24px; font-weight: 600; margin: 20px 0 0 0; text-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);">
+        ❌ System Error
+    </h1>
+{% endblock %}
+
+{% block email_heading %}
+    Something went wrong
+{% endblock %}
+
+{% block content %}
+    <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="margin: 0 0 30px 0;">
+        <tr>
+            <td style="text-align: center;">
+                <p style="color: #6c757d; font-size: 16px; line-height: 1.5; margin: 0 0 25px 0;">
+                    We encountered an error while processing your request. Our technical team has been notified and is working to resolve this issue.
+                </p>
+            </td>
+        </tr>
+    </table>
+
+    <!-- Error Details Box -->
+    {% include "global/email/components/alert_box.html" with type="error" title="Error Details" message=error_message %}
+
+    <!-- Error Information if available -->
+    {% if error_code or timestamp %}
+        <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="margin: 25px 0;">
+            <tr>
+                <td style="background-color: #f8f9fa; padding: 20px; border-radius: 8px;">
+                    <h4 style="color: #333333; font-size: 16px; font-weight: 600; margin: 0 0 15px 0;">
+                        Technical Information:
+                    </h4>
+                    {% if error_code %}
+                        <p style="color: #6c757d; font-size: 14px; margin: 0 0 8px 0;">
+                            <strong>Error Code:</strong> {{ error_code }}
+                        </p>
+                    {% endif %}
+                    {% if timestamp %}
+                        <p style="color: #6c757d; font-size: 14px; margin: 0 0 8px 0;">
+                            <strong>Time:</strong> {{ timestamp|date:"M j, Y \a\t g:i A" }}
+                        </p>
+                    {% endif %}
+                    {% if request_id %}
+                        <p style="color: #6c757d; font-size: 14px; margin: 0;">
+                            <strong>Request ID:</strong> {{ request_id }}
+                        </p>
+                    {% endif %}
+                </td>
+            </tr>
+        </table>
+    {% endif %}
+
+    <!-- What to do next -->
+    <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="margin: 30px 0;">
+        <tr>
+            <td>
+                <h4 style="color: #333333; font-size: 16px; font-weight: 600; margin: 0 0 15px 0;">
+                    What happens next?
+                </h4>
+                <ul style="color: #555555; font-size: 14px; line-height: 1.6; margin: 0; padding-left: 20px;">
+                    <li style="margin-bottom: 8px;">Our technical team has been automatically notified</li>
+                    <li style="margin-bottom: 8px;">We're working to resolve this issue as quickly as possible</li>
+                    <li style="margin-bottom: 8px;">You may try again in a few minutes</li>
+                    <li>If the problem persists, please contact our support team</li>
+                </ul>
+            </td>
+        </tr>
+    </table>
+
+    <!-- Action buttons -->
+    <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="margin: 30px 0;">
+        <tr>
+            <td style="text-align: center;">
+                {% include "global/email/components/button.html" with url=retry_url text="Try Again" style="primary" %}
+                {% include "global/email/components/button.html" with url=support_url text="Contact Support" style="secondary" %}
+            </td>
+        </tr>
+    </table>
+
+    <!-- Status page info -->
+    <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="margin-top: 30px;">
+        <tr>
+            <td style="background-color: #f8f9fa; padding: 20px; border-radius: 8px; border-left: 4px solid #17a2b8;">
+                <p style="color: #495057; font-size: 14px; line-height: 1.4; margin: 0;">
+                    <strong>📊 System Status:</strong> Check our <a href="{{ status_page_url|default:'https://status.homey.com' }}" style="color: #17a2b8;">status page</a> for real-time updates on system performance and ongoing issues.
+                </p>
+            </td>
+        </tr>
+    </table>
+{% endblock %}
+
+{% block footer_text %}
+    This error notification was sent to inform you of a system issue. We apologize for any inconvenience.
+{% endblock %}

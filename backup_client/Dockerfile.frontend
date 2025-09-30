@@ -1,0 +1,38 @@
+FROM node:20-alpine
+
+WORKDIR /app
+
+# Install basic dependencies and tools
+RUN apk add --no-cache git
+
+# Enable Corepack and activate workspace Yarn version (Yarn 4)
+RUN corepack enable && corepack prepare yarn@4.9.2 --activate
+
+# Copy package files first for better caching
+COPY package.json ./
+COPY yarn.lock* ./
+
+# Environment for dev and file watching inside containers
+ENV NODE_ENV=development \
+    CHOKIDAR_USEPOLLING=true \
+    WATCHPACK_POLLING=true
+
+# Configure yarn (remove deprecated network-timeout from Yarn 1)
+RUN yarn config set npmRegistryServer https://registry.npmjs.org
+
+# Install dependencies with yarn (Yarn Berry)
+RUN yarn install --immutable --inline-builds || \
+    (yarn cache clean && yarn install --immutable --inline-builds) || \
+    (echo "Fallback to non-immutable install..." && yarn install)
+
+# Copy source code after dependency installation for better caching
+COPY src/ ./src/
+COPY public/ ./public/
+COPY tailwind.config.js ./tailwind.config.js
+COPY postcss.config.js ./postcss.config.js
+COPY tsconfig*.json ./
+COPY .env ./.env
+COPY .env.local ./.env.local
+
+EXPOSE 3000
+CMD ["yarn", "start"]

@@ -1,0 +1,38 @@
+
+{% extends "accounts/base/base_email.html" %}
+
+{% block email_title %}Verify Your Account - Homey Platform{% endblock %}
+
+{% block preheader %}Verify your account to get started with Homey Platform{% endblock %}
+
+{% block header_content %}
+    <h1 style="color: #ffffff; font-size: 24px; font-weight: 600; margin: 20px 0 0 0;">
+        Account Verification
+    </h1>
+{% endblock %}
+
+{% block email_heading %}Hello {{ user.username }}!{% endblock %}
+
+{% block content %}
+    <p style="color: #555555; font-size: 16px; margin: 0 0 20px 0; line-height: 1.6;">
+        Thank you for registering with <strong>Homey Platform</strong>! We're excited to have you join our community.
+    </p>
+
+    <p style="color: #555555; font-size: 16px; margin: 0 0 20px 0; line-height: 1.6;">
+        To complete your registration and activate your account, please use the verification code below:
+    </p>
+
+    <!-- Verification Code Component -->
+    {% include "accounts/components/verification_code.html" with verification_code=code expiry_time=expires_at %}
+
+    <p style="color: #555555; font-size: 16px; margin: 20px 0 0 0; line-height: 1.6;">
+        If you didn't create this account, you can safely ignore this email.
+    </p>
+
+    <!-- Info Box -->
+    {% include "accounts/components/info_box.html" with title="Need Help?" message="If you're having trouble with verification, please contact our support team at <a href='mailto:support@homey.com' style='color: #6372ff; text-decoration: none;'>support@homey.com</a>" %}
+{% endblock %}
+
+{% block footer_text %}
+    Welcome to Homey Platform! This verification email was sent automatically to complete your account setup.
+{% endblock %}

@@ -1,0 +1,145 @@
+{% extends "messaging/base/base_email.html" %}
+
+{% block email_title %}Hourly Message Batch - Homey Platform{% endblock %}
+
+{% block preheader %}{{ batch_messages.count }} new messages in your conversations{% endblock %}
+
+{% block header_content %}
+    <h1 style="color: #ffffff; font-size: 24px; font-weight: 600; margin: 20px 0 0 0; text-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);">
+        ⏰ Message Updates
+    </h1>
+{% endblock %}
+
+{% block email_heading %}
+    {% if batch_messages.count == 1 %}
+        New Message
+    {% else %}
+        {{ batch_messages.count }} New Messages
+    {% endif %}
+{% endblock %}
+
+{% block content %}
+    <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="margin: 0 0 30px 0;">
+        <tr>
+            <td style="text-align: center;">
+                <p style="color: #6c757d; font-size: 16px; line-height: 1.5; margin: 0 0 25px 0;">
+                    You have {{ batch_messages.count }} new message{{ batch_messages.count|pluralize }}
+                    in your conversations from the past hour.
+                </p>
+            </td>
+        </tr>
+    </table>
+
+    <!-- Message batch -->
+    {% for message in batch_messages %}
+        <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="margin: 0 0 25px 0; background-color: #f8f9fa; border-radius: 8px; overflow: hidden;">
+            <tr>
+                <td style="padding: 20px;">
+                    <!-- User info for sender -->
+                    {% include "messaging/components/user_info.html" with user=message.sender compact=True %}
+
+                    <!-- Message content -->
+                    {% include "messaging/components/message_bubble.html" with message=message %}
+
+                    <!-- Conversation context if available -->
+                    {% if message.conversation %}
+                        <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="margin-top: 15px;">
+                            <tr>
+                                <td style="background-color: #ffffff; padding: 15px; border-radius: 6px; border-left: 3px solid #667eea;">
+                                    <p style="color: #495057; font-size: 14px; margin: 0 0 5px 0;">
+                                        <strong>In conversation:</strong> {{ message.conversation.title|default:"Direct Message" }}
+                                    </p>
+                                    {% if message.conversation.participant_count > 2 %}
+                                        <p style="color: #6c757d; font-size: 12px; margin: 0;">
+                                            {{ message.conversation.participant_count }} participants
+                                        </p>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                        </table>
+                    {% endif %}
+
+                    <!-- Action button -->
+                    <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="margin-top: 15px;">
+                        <tr>
+                            <td>
+                                <p style="color: #6c757d; font-size: 12px; margin: 0;">
+                                    {{ message.created_at|date:"g:i A" }}
+                                </p>
+                            </td>
+                            <td style="text-align: right;">
+                                {% include "messaging/components/button.html" with url=message.get_absolute_url text="Reply" style="secondary" size="small" %}
+                            </td>
+                        </tr>
+                    </table>
+                </td>
+            </tr>
+        </table>
+    {% empty %}
+        <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="margin: 0 0 25px 0;">
+            <tr>
+                <td style="text-align: center; padding: 40px 20px;">
+                    <p style="color: #6c757d; font-size: 16px; margin: 0;">
+                        📭 No new messages in this batch.
+                    </p>
+                </td>
+            </tr>
+        </table>
+    {% endfor %}
+
+    <!-- Summary and actions -->
+    {% if batch_messages.count > 0 %}
+        <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="margin: 30px 0;">
+            <tr>
+                <td style="text-align: center;">
+                    <!-- Message stats component -->
+                    {% include "messaging/components/message_stats.html" with total_messages=batch_messages.count total_conversations=unique_conversations_count %}
+
+                    <table role="presentation" cellspacing="0" cellpadding="0" border="0" style="margin: 25px auto 0 auto;">
+                        <tr>
+                            <td style="text-align: center;">
+                                {% include "messaging/components/button.html" with url=messages_url text="View All Messages" style="primary" %}
+                            </td>
+                        </tr>
+                        <tr>
+                            <td style="text-align: center; padding-top: 15px;">
+                                <a href="{{ settings_url }}" style="color: #667eea; text-decoration: none; font-size: 14px;">
+                                    Adjust notification frequency
+                                </a>
+                            </td>
+                        </tr>
+                    </table>
+                </td>
+            </tr>
+        </table>
+
+        <!-- Quick actions -->
+        <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="margin-top: 30px;">
+            <tr>
+                <td style="background-color: #e8f5e8; padding: 20px; border-radius: 8px; border-left: 4px solid #28a745;">
+                    <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%">
+                        <tr>
+                            <td>
+                                <p style="color: #155724; font-size: 14px; font-weight: 600; margin: 0 0 5px 0;">
+                                    Quick Actions:
+                                </p>
+                                <p style="color: #495057; font-size: 14px; line-height: 1.4; margin: 0;">
+                                    • Mark all as read<br>
+                                    • Mute conversations<br>
+                                    • Set status to busy
+                                </p>
+                            </td>
+                            <td style="text-align: right; vertical-align: top;">
+                                {% include "messaging/components/button.html" with url=quick_actions_url text="Manage" style="secondary" size="small" %}
+                            </td>
+                        </tr>
+                    </table>
+                </td>
+            </tr>
+        </table>
+    {% endif %}
+{% endblock %}
+
+{% block footer_text %}
+    This hourly batch notification helps you stay updated with recent messaging activity on the Homey Platform.
+{% endblock %}

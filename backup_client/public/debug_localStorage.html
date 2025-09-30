@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LocalStorage Debug Test</title>
+</head>
+<body>
+    <h1>LocalStorage Debug Test</h1>
+    <div id="results"></div>
+
+    <script>
+        const results = document.getElementById('results');
+        
+        function log(message, isError = false) {
+            const div = document.createElement('div');
+            div.style.color = isError ? 'red' : 'green';
+            div.style.margin = '5px 0';
+            div.textContent = message;
+            results.appendChild(div);
+        }
+
+        // Test 1: Basic localStorage functionality
+        try {
+            localStorage.setItem('debug_test', 'hello_world');
+            const value = localStorage.getItem('debug_test');
+            if (value === 'hello_world') {
+                log('✅ Basic localStorage: Working');
+            } else {
+                log('❌ Basic localStorage: Value mismatch', true);
+            }
+            localStorage.removeItem('debug_test');
+        } catch (error) {
+            log(`❌ Basic localStorage: ${error.message}`, true);
+        }
+
+        // Test 2: Check current tokens
+        const accessToken = localStorage.getItem('access_token');
+        const refreshToken = localStorage.getItem('refresh_token');
+        
+        log(`🔑 Current Access Token: ${accessToken ? `${accessToken.substring(0, 50)}...` : 'Not found'}`);
+        log(`🔑 Current Refresh Token: ${refreshToken ? `${refreshToken.substring(0, 50)}...` : 'Not found'}`);
+
+        // Test 3: Check localStorage availability and limits
+        try {
+            const testData = 'x'.repeat(1024); // 1KB
+            for (let i = 0; i < 100; i++) {
+                localStorage.setItem(`test_${i}`, testData);
+            }
+            log('✅ localStorage Capacity: Good (can store 100KB+)');
+            
+            // Cleanup
+            for (let i = 0; i < 100; i++) {
+                localStorage.removeItem(`test_${i}`);
+            }
+        } catch (error) {
+            log(`⚠️ localStorage Capacity: Limited (${error.message})`, true);
+        }
+
+        // Test 4: Check for browser security restrictions
+        try {
+            const testDate = new Date().toISOString();
+            localStorage.setItem('timestamp_test', testDate);
+            setTimeout(() => {
+                const retrieved = localStorage.getItem('timestamp_test');
+                if (retrieved === testDate) {
+                    log('✅ localStorage Persistence: Working');
+                } else {
+                    log('❌ localStorage Persistence: Failed', true);
+                }
+                localStorage.removeItem('timestamp_test');
+            }, 1000);
+        } catch (error) {
+            log(`❌ localStorage Persistence: ${error.message}`, true);
+        }
+
+        // Test 5: Simulate token storage
+        try {
+            const fakeAccessToken = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiaWF0IjoxNTE2MjM5MDIyfQ.fake';
+            const fakeRefreshToken = 'fake_refresh_token_12345';
+            
+            localStorage.setItem('access_token', fakeAccessToken);
+            localStorage.setItem('refresh_token', fakeRefreshToken);
+            
+            const retrievedAccess = localStorage.getItem('access_token');
+            const retrievedRefresh = localStorage.getItem('refresh_token');
+            
+            if (retrievedAccess === fakeAccessToken && retrievedRefresh === fakeRefreshToken) {
+                log('✅ Token Storage Simulation: Working');
+            } else {
+                log('❌ Token Storage Simulation: Failed', true);
+            }
+            
+            // Don't remove - leave for manual inspection
+        } catch (error) {
+            log(`❌ Token Storage Simulation: ${error.message}`, true);
+        }
+
+        // Test 6: Check browser environment
+        log(`🌐 Protocol: ${window.location.protocol}`);
+        log(`🌐 Host: ${window.location.host}`);
+        log(`🌐 Origin: ${window.location.origin}`);
+        log(`🔒 Secure Context: ${window.isSecureContext ? 'Yes' : 'No'}`);
+
+        // Test 7: Check if running in iframe or restricted context
+        if (window.self !== window.top) {
+            log('⚠️ Running in iframe - may affect localStorage', true);
+        }
+
+        // Test 8: Check for incognito mode
+        try {
+            localStorage.setItem('incognito_test', '1');
+            localStorage.removeItem('incognito_test');
+            log('✅ Browser Mode: Normal (not incognito)');
+        } catch (error) {
+            if (error.name === 'QuotaExceededError') {
+                log('⚠️ Browser Mode: Possibly incognito (localStorage limited)', true);
+            }
+        }
+    </script>
+</body>
+</html>

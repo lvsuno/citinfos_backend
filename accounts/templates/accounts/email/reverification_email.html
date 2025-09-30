@@ -1,0 +1,37 @@
+{% extends "accounts/base/base_email.html" %}
+
+{% block email_title %}Re-verify Your Account - Homey Platform{% endblock %}
+
+{% block preheader %}Your account needs to be re-verified for security purposes{% endblock %}
+
+{% block header_content %}
+    <h1 style="color: #ffffff; font-size: 24px; font-weight: 600; margin: 20px 0 0 0;">
+        Account Re-verification Required
+    </h1>
+{% endblock %}
+
+{% block email_heading %}Hello {{ user.username }}!{% endblock %}
+
+{% block content %}
+    <p style="color: #555555; font-size: 16px; margin: 0 0 20px 0; line-height: 1.6;">
+        For security purposes, we need to verify your <strong>Homey Platform</strong> account again.
+    </p>
+
+    <p style="color: #555555; font-size: 16px; margin: 0 0 20px 0; line-height: 1.6;">
+        Please use the verification code below to re-verify your account:
+    </p>
+
+    <!-- Verification Code Component -->
+    {% include "accounts/components/verification_code.html" with verification_code=code expiry_time=expires_at %}
+
+    <p style="color: #555555; font-size: 16px; margin: 20px 0 0 0; line-height: 1.6;">
+        This is a security measure to ensure your account remains protected.
+    </p>
+
+    <!-- Info Box -->
+    {% include "accounts/components/info_box.html" with title="Why am I seeing this?" message="We periodically require account re-verification to maintain security. If you didn't attempt to access your account, please contact our support team at <a href='mailto:support@homey.com' style='color: #6372ff; text-decoration: none;'>support@homey.com</a>" %}
+{% endblock %}
+
+{% block footer_text %}
+    This verification email was sent for security purposes to maintain your account protection.
+{% endblock %}

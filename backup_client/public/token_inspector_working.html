@@ -1,0 +1,312 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>JWT Token Inspector - Working</title>
+</head>
+<body>
+    <h1>🔍 JWT Token Inspector (Working Version)</h1>
+    <div id="results"></div>
+
+    <button onclick="inspectTokens()" style="padding: 10px; margin: 5px; background: #1976d2; color: white; border: none; border-radius: 4px; cursor: pointer;">🔍 Inspect Current Tokens</button>
+    <button onclick="clearTokens()" style="padding: 10px; margin: 5px; background: #d32f2f; color: white; border: none; border-radius: 4px; cursor: pointer;">🗑️ Clear Tokens</button>
+    <button onclick="testAPI()" style="padding: 10px; margin: 5px; background: #388e3c; color: white; border: none; border-radius: 4px; cursor: pointer;">🧪 Test API Call</button>
+    <button onclick="debugLoginAPI()" style="padding: 10px; margin: 5px; background: #ff9800; color: white; border: none; border-radius: 4px; cursor: pointer;">🔧 Debug Login API</button>
+    <button onclick="checkVerificationStatus()" style="padding: 10px; margin: 5px; background: #9c27b0; color: white; border: none; border-radius: 4px; cursor: pointer;">📧 Check Verification Status</button>
+    <button onclick="testClientRequests()" style="padding: 10px; margin: 5px; background: #f44336; color: white; border: none; border-radius: 4px; cursor: pointer;">🚨 Debug Client Requests</button>
+
+    <script>
+        const results = document.getElementById('results');
+
+        function log(message, isError = false) {
+            const div = document.createElement('div');
+            div.style.color = isError ? 'red' : 'green';
+            div.style.margin = '5px 0';
+            div.style.fontFamily = 'monospace';
+            div.innerHTML = message; // Use innerHTML to support HTML content
+            results.appendChild(div);
+        }
+
+        function inspectTokens() {
+            results.innerHTML = ''; // Clear previous results
+            log('<h2>🔍 Token Inspection Results</h2>');
+
+            // Check current tokens
+            const accessToken = localStorage.getItem('access_token');
+            const refreshToken = localStorage.getItem('refresh_token');
+
+            if (accessToken) {
+                log(`🟢 <strong>Access Token Found:</strong><br>${accessToken.substring(0, 80)}...`);
+
+                // Try to decode the JWT
+                try {
+                    const parts = accessToken.split('.');
+                    if (parts.length === 3) {
+                        const header = JSON.parse(atob(parts[0]));
+                        const payload = JSON.parse(atob(parts[1]));
+
+                        log(`📋 <strong>Token Header:</strong><br><pre>${JSON.stringify(header, null, 2)}</pre>`);
+                        log(`📋 <strong>Token Payload:</strong><br><pre>${JSON.stringify(payload, null, 2)}</pre>`);
+
+                        // Check expiration
+                        if (payload.exp) {
+                            const expiry = new Date(payload.exp * 1000);
+                            const now = new Date();
+                            const isExpired = expiry < now;
+                            log(`⏰ <strong>Token Expiry:</strong> ${expiry.toLocaleString()} ${isExpired ? '(EXPIRED)' : '(Valid)'}`, isExpired);
+                        }
+
+                        // Check for session ID
+                        if (payload.sid) {
+                            log(`🔑 <strong>Session ID:</strong> ${payload.sid}`);
+                        }
+                    }
+                } catch (error) {
+                    log(`❌ Failed to decode access token: ${error.message}`, true);
+                }
+            } else {
+                log('❌ No access token found in localStorage', true);
+            }
+
+            if (refreshToken) {
+                log(`🟢 <strong>Refresh Token Found:</strong><br>${refreshToken.substring(0, 80)}...`);
+            } else {
+                log('❌ No refresh token found in localStorage', true);
+            }
+
+            // Show all localStorage keys for debugging
+            log('<h3>📦 All localStorage Keys:</h3>');
+            for (let i = 0; i < localStorage.length; i++) {
+                const key = localStorage.key(i);
+                const value = localStorage.getItem(key);
+                const truncated = value.length > 50 ? value.substring(0, 50) + '...' : value;
+                log(`• <strong>${key}:</strong> ${truncated}`);
+            }
+        }
+
+        function clearTokens() {
+            localStorage.removeItem('access_token');
+            localStorage.removeItem('refresh_token');
+            log('🗑️ Tokens cleared from localStorage');
+            setTimeout(inspectTokens, 100); // Re-inspect after clearing
+        }
+
+        async function testAPI() {
+            results.innerHTML += '<hr><h2>🧪 Testing API Call</h2>';
+            const accessToken = localStorage.getItem('access_token');
+
+            if (!accessToken) {
+                log('❌ No access token found - cannot test API', true);
+                return;
+            }
+
+            try {
+                log('📡 Making API call to /auth/user-info/...');
+                const response = await fetch('http://localhost:8000/api/auth/user-info/', {
+                    method: 'GET',
+                    headers: {
+                        'Authorization': `Bearer ${accessToken}`,
+                        'Content-Type': 'application/json'
+                    }
+                });
+
+                log(`📊 API Response Status: ${response.status} ${response.statusText}`);
+
+                if (response.ok) {
+                    const userData = await response.json();
+                    log('✅ API call successful!');
+                    log(`👤 User Data: <pre>${JSON.stringify(userData, null, 2)}</pre>`);
+                } else {
+                    const errorText = await response.text();
+                    log(`❌ API call failed: ${errorText}`, true);
+                }
+            } catch (error) {
+                log(`❌ API call error: ${error.message}`, true);
+            }
+        }
+
+        async function debugLoginAPI() {
+            results.innerHTML += '<hr><h2>🔧 Debug Login API</h2>';
+
+            try {
+                log('📡 Testing login endpoint...');
+                const response = await fetch('http://localhost:8000/api/auth/login-with-verification-check/', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        username: 'testuser',
+                        password: 'testpass123'
+                    })
+                });
+
+                const contentType = response.headers.get('Content-Type') || 'unknown';
+                log(`📊 Status: ${response.status} ${response.statusText}`);
+                log(`📋 Content-Type: ${contentType}`);
+
+                const responseText = await response.text();
+                log(`📄 Raw Response (first 300 chars):<br><pre>${responseText.substring(0, 300)}</pre>`);
+
+                try {
+                    const jsonData = JSON.parse(responseText);
+                    log('✅ Valid JSON:<br><pre>' + JSON.stringify(jsonData, null, 2) + '</pre>');
+
+                    if (jsonData.verification_required) {
+                        log('⚠️ <strong>Account needs email verification!</strong>', true);
+                        log(`👤 User ID: ${jsonData.user_id}`);
+                        log(`📧 Verification sent: ${jsonData.verification_sent}`);
+                    }
+                } catch (parseError) {
+                    log(`❌ Invalid JSON: ${parseError.message}`, true);
+                }
+            } catch (error) {
+                log(`❌ Login API test failed: ${error.message}`, true);
+            }
+        }
+
+        async function checkVerificationStatus() {
+            results.innerHTML += '<hr><h2>📧 Check Verification Status</h2>';
+
+            try {
+                log('📧 Checking verification status...');
+                const response = await fetch('http://localhost:8000/api/auth/verification-status/', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        email: 'togbanelvis@yahoo.fr'  // Replace with actual email
+                    })
+                });
+
+                log(`📊 Status: ${response.status} ${response.statusText}`);
+
+                if (response.ok) {
+                    const data = await response.json();
+                    log('📋 Verification Status:<br><pre>' + JSON.stringify(data, null, 2) + '</pre>');
+                } else {
+                    const errorText = await response.text();
+                    log(`❌ Verification check failed: ${errorText}`, true);
+                }
+            } catch (error) {
+                log(`❌ Verification check error: ${error.message}`, true);
+            }
+        }
+
+        async function testClientRequests() {
+            results.innerHTML += '<hr><h2>🔍 Client Request Debug</h2>';
+
+            const accessToken = localStorage.getItem('access_token');
+
+            // Test 1: Simple backend health check
+            try {
+                log('🏥 Testing backend health...');
+                const healthResponse = await fetch('http://localhost:8000/api/auth/user-info/', {
+                    method: 'GET',
+                    headers: {
+                        'Authorization': `Bearer ${accessToken || 'no-token'}`,
+                        'Content-Type': 'application/json'
+                    }
+                });
+                log(`📊 Health check: ${healthResponse.status} ${healthResponse.statusText}`);
+
+                if (healthResponse.status === 401) {
+                    log('🔑 Token expired or invalid - this is expected');
+                } else if (healthResponse.ok) {
+                    const data = await healthResponse.json();
+                    log('✅ Backend is accessible and token works!');
+                    log(`👤 User data: <pre>${JSON.stringify(data, null, 2)}</pre>`);
+                } else {
+                    const errorText = await healthResponse.text();
+                    log(`⚠️ Backend responded with: ${errorText}`);
+                }
+            } catch (error) {
+                log(`❌ Backend connection failed: ${error.message}`, true);
+            }
+
+            // Test 2: Check if browser is blocking requests
+            try {
+                log('<hr>🌐 Testing CORS and network...');
+                const corsTest = await fetch('http://localhost:8000/', {
+                    method: 'GET',
+                    mode: 'cors'
+                });
+                log(`📊 CORS test: ${corsTest.status} - Backend is reachable`);
+            } catch (error) {
+                log(`❌ CORS/Network error: ${error.message}`, true);
+                log('🔥 This could be the problem - check if backend is running!', true);
+            }
+
+            // Test 3: Test session-based auth (without JWT) - THE KEY TEST
+            try {
+                log('<hr>🍪 Testing session-based authentication (fingerprint fallback)...');
+                const sessionResponse = await fetch('http://localhost:8000/api/auth/user-info/', {
+                    method: 'GET',
+                    credentials: 'include', // Include cookies for session auth
+                    headers: {
+                        'Content-Type': 'application/json',
+                        // Don't include Authorization header to trigger fingerprint fallback
+                    }
+                });
+
+                log(`📊 Session auth: ${sessionResponse.status} ${sessionResponse.statusText}`);
+
+                if (sessionResponse.ok) {
+                    const data = await sessionResponse.json();
+                    log('✅ Session authentication works!', false);
+                    log(`👤 User data from session: <pre>${JSON.stringify(data, null, 2)}</pre>`);
+
+                    // Check if new tokens were generated
+                    const newAccessToken = localStorage.getItem('access_token');
+                    const newRefreshToken = localStorage.getItem('refresh_token');
+                    log(`🔑 New access token in localStorage: ${newAccessToken ? 'YES' : 'NO'}`);
+                    log(`🔑 New refresh token in localStorage: ${newRefreshToken ? 'YES' : 'NO'}`);
+
+                } else {
+                    const errorText = await sessionResponse.text();
+                    log(`❌ Session auth failed: ${errorText}`, true);
+                }
+            } catch (error) {
+                log(`❌ Session auth error: ${error.message}`, true);
+            }
+
+            // Test 4: Test without any auth headers to see full fingerprint fallback
+            try {
+                log('<hr>🔍 Testing raw fingerprint fallback (no auth headers)...');
+                const fpResponse = await fetch('http://localhost:8000/api/auth/user-info/', {
+                    method: 'GET',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        // No Authorization header at all
+                    }
+                });
+
+                log(`📊 Fingerprint fallback: ${fpResponse.status} ${fpResponse.statusText}`);
+
+                if (fpResponse.ok) {
+                    const data = await fpResponse.json();
+                    log('🎉 FINGERPRINT FALLBACK WORKS!', false);
+                    log(`👤 User authenticated via fingerprint: <pre>${JSON.stringify(data, null, 2)}</pre>`);
+                } else {
+                    const errorText = await fpResponse.text();
+                    log(`❌ Fingerprint fallback failed: ${errorText}`, true);
+                }
+            } catch (error) {
+                log(`❌ Fingerprint fallback error: ${error.message}`, true);
+            }
+
+            // Test 5: Check browser developer tools
+            log('<hr>🔧 Next steps:');
+            log('1. Check browser DevTools Network tab for any requests');
+            log('2. Look for CORS errors in Console tab');
+            log('3. Check if localhost:8000 is accessible');
+            log('4. Verify React app is making requests at all');
+        }
+
+        // Auto-run inspection on page load
+        inspectTokens();
+    </script>
+</body>
+</html>

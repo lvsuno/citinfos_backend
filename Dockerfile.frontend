@@ -1,0 +1,29 @@
+FROM node:20-alpine
+
+WORKDIR /app
+
+# Install basic dependencies and tools
+RUN apk add --no-cache git
+
+# Enable Corepack and prepare yarn
+RUN corepack enable && corepack prepare yarn@stable --activate
+
+# Copy package files first for better caching
+COPY package.json ./
+COPY yarn.lock ./
+COPY .yarnrc.yml ./
+
+# Environment for dev and file watching inside containers
+ENV NODE_ENV=development \
+    CHOKIDAR_USEPOLLING=true \
+    WATCHPACK_POLLING=true
+
+# Install dependencies with yarn
+RUN yarn install
+
+# Copy source code after dependency installation for better caching
+COPY src/ ./src/
+COPY public/ ./public/
+
+EXPOSE 3000
+CMD ["yarn", "start"]

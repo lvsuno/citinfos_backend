@@ -1,0 +1,123 @@
+{% extends "global/email/base/global_base_email.html" %}
+
+{% block title %}{{ notification_title|default:"Notification" }}{% endblock %}
+
+{% block header_content %}
+<h1 style="color: #ffffff; font-size: 24px; font-weight: 600; margin: 20px 0 0 0; text-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);">
+    {{ notification_icon|default:"📧" }} {{ notification_title|default:"Notification" }}
+</h1>
+{% endblock %}
+
+{% block email_heading %}
+{{ notification_heading|default:"You have a new notification" }}
+{% endblock %}
+
+{% block content %}
+<div style="padding: 30px;">
+    <!-- Main Message -->
+    {% if notification_message %}
+    <p style="margin: 15px 0; line-height: 1.6; font-size: 16px; color: #333;">
+        {{ notification_message|linebreaks }}
+    </p>
+    {% endif %}
+
+    <!-- Alert Box for Important Information -->
+    {% if alert_message %}
+    <div style="background-color: {% if alert_type == 'warning' %}#fff3cd{% elif alert_type == 'error' %}#f8d7da{% elif alert_type == 'success' %}#d1edff{% else %}#e9ecef{% endif %}; border: 1px solid {% if alert_type == 'warning' %}#ffeaa7{% elif alert_type == 'error' %}#f5c6cb{% elif alert_type == 'success' %}#bee5eb{% else %}#dee2e6{% endif %}; border-radius: 6px; padding: 20px; margin: 20px 0;">
+        <p style="margin: 0; color: {% if alert_type == 'warning' %}#856404{% elif alert_type == 'error' %}#721c24{% elif alert_type == 'success' %}#0c5460{% else %}#495057{% endif %}; line-height: 1.4;">
+            <strong>{% if alert_type == 'warning' %}⚠️{% elif alert_type == 'error' %}❌{% elif alert_type == 'success' %}✅{% else %}ℹ️{% endif %}</strong> {{ alert_message }}
+        </p>
+    </div>
+    {% endif %}
+
+    <!-- Details Section -->
+    {% if notification_details %}
+    <h2 style="color: #333; margin: 25px 0 15px 0; font-size: 18px;">Details</h2>
+    <div style="background-color: #f8f9fa; border: 1px solid #dee2e6; border-radius: 6px; padding: 20px; margin: 15px 0;">
+        {% for detail in notification_details %}
+            <p style="margin: 8px 0; color: #6c757d; font-size: 14px;">
+                {% if detail.label %}<strong>{{ detail.label }}:</strong>{% endif %} {{ detail.value }}
+            </p>
+        {% endfor %}
+    </div>
+    {% endif %}
+
+    <!-- Simple Key-Value Details -->
+    {% if details %}
+    <h2 style="color: #333; margin: 25px 0 15px 0; font-size: 18px;">Information</h2>
+    <div style="background-color: #f8f9fa; border: 1px solid #dee2e6; border-radius: 6px; padding: 20px; margin: 15px 0;">
+        {% for key, value in details.items %}
+        <p style="margin: 8px 0; color: #6c757d; font-size: 14px;">
+            <strong>{{ key }}:</strong> {{ value }}
+        </p>
+        {% endfor %}
+    </div>
+    {% endif %}
+
+    <!-- Action Items List -->
+    {% if action_items %}
+    <h2 style="color: #333; margin: 25px 0 15px 0; font-size: 18px;">{{ action_items_title|default:"What you can do" }}</h2>
+
+    <ul style="margin: 10px 0; padding-left: 20px; line-height: 1.6;">
+        {% for item in action_items %}
+        <li style="margin-bottom: 8px; color: #555;">{{ item }}</li>
+        {% endfor %}
+    </ul>
+    {% endif %}
+
+    <!-- Primary Action Button -->
+    {% if primary_action_url %}
+    <table role="presentation" cellspacing="0" cellpadding="0" border="0" style="margin: 30px 0;">
+        <tr>
+            <td style="background-color: {% if button_color %}{{ button_color }}{% else %}#007bff{% endif %}; border-radius: 6px;">
+                <a href="{{ primary_action_url }}" style="display: inline-block; padding: 12px 30px; color: #ffffff; text-decoration: none; font-weight: bold; font-size: 16px; text-align: center;">
+                    {{ primary_action_text|default:"Take Action" }}
+                </a>
+            </td>
+        </tr>
+    </table>
+    {% endif %}
+
+    <!-- Secondary Action Button -->
+    {% if secondary_action_url %}
+    <table role="presentation" cellspacing="0" cellpadding="0" border="0" style="margin: 15px 0;">
+        <tr>
+            <td style="background-color: #6c757d; border-radius: 6px;">
+                <a href="{{ secondary_action_url }}" style="display: inline-block; padding: 12px 30px; color: #ffffff; text-decoration: none; font-weight: bold; font-size: 16px; text-align: center;">
+                    {{ secondary_action_text|default:"Learn More" }}
+                </a>
+            </td>
+        </tr>
+    </table>
+    {% endif %}
+
+    <!-- Timestamp and Reference -->
+    {% if show_timestamp %}
+    <div style="margin: 30px 0; padding: 15px; background-color: #f8f9fa; border-radius: 6px; border-left: 4px solid #007bff;">
+        <p style="margin: 0; color: #6c757d; font-size: 12px;">
+            {% if notification_id %}
+                <strong>Reference ID:</strong> {{ notification_id }}<br>
+            {% endif %}
+            <strong>Sent:</strong> {% now "F j, Y \a\t g:i A" %}
+        </p>
+    </div>
+    {% endif %}
+
+    <!-- Additional Notes -->
+    {% if additional_notes %}
+    <div style="background-color: #e9ecef; border: 1px solid #ced4da; border-radius: 6px; padding: 15px; margin: 20px 0;">
+        <p style="margin: 0; color: #495057; font-size: 14px; line-height: 1.4;">
+            <strong>Note:</strong> {{ additional_notes }}
+        </p>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}
+
+{% block footer_text %}
+{% if footer_message %}
+{{ footer_message }}
+{% else %}
+This is an automated notification from the Equipment Platform. Please do not reply to this email.
+{% endif %}
+{% endblock %}

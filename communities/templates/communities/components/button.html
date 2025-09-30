@@ -1,0 +1,8 @@
+<!-- Community Button Component -->
+<a href="{{ url }}"
+   class="btn btn-{{ type|default:'primary' }} {% if size %}btn-{{ size }}{% endif %} {% if classes %}{{ classes }}{% endif %}"
+   {% if target %}target="{{ target }}"{% endif %}
+   {% if disabled %}disabled{% endif %}>
+    {% if icon %}<i class="{{ icon }} {% if text %}mr-2{% endif %}"></i>{% endif %}
+    {% if text %}{{ text }}{% endif %}
+</a>

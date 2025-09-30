@@ -1,0 +1,37 @@
+<!-- Global Button Component -->
+<!-- Usage: {% include "global/email/components/button.html" with url="..." text="..." style="primary|secondary|outline" size="small|normal|large" %} -->
+
+{% if url and text %}
+    <table role="presentation" cellspacing="0" cellpadding="0" border="0" style="margin: {% if size == 'small' %}10px auto{% elif size == 'large' %}25px auto{% else %}20px auto{% endif %};">
+        <tr>
+            <td style="text-align: center;">
+                <a href="{{ url }}"
+                   style="
+                   display: inline-block;
+                   padding: {% if size == 'small' %}8px 16px{% elif size == 'large' %}18px 36px{% else %}15px 30px{% endif %};
+                   {% if style == 'secondary' %}
+                       background-color: #f8f9fa;
+                       color: #6372ff !important;
+                       border: 2px solid #6372ff;
+                   {% elif style == 'outline' %}
+                       background-color: transparent;
+                       color: #6372ff !important;
+                       border: 1px solid #6372ff;
+                   {% else %}
+                       background: linear-gradient(135deg, #6372ff 0%, #5ca9fb 100%);
+                       color: #ffffff !important;
+                       border: none;
+                   {% endif %}
+                   text-decoration: none;
+                   border-radius: {% if size == 'small' %}4px{% else %}6px{% endif %};
+                   font-weight: 600;
+                   font-size: {% if size == 'small' %}12px{% elif size == 'large' %}18px{% else %}16px{% endif %};
+                   text-align: center;
+                   transition: transform 0.2s ease-in-out;
+                   ">
+                    {{ text }}
+                </a>
+            </td>
+        </tr>
+    </table>
+{% endif %}

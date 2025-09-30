@@ -1,0 +1,80 @@
+{% extends "global/email/base/global_base_email.html" %}
+
+{% block title %}System Error Notification{% endblock %}
+
+{% block header_title %}
+System Error Detected
+{% endblock %}
+
+{% block email_body %}
+<div style="padding: 30px;">
+    <!-- Error Alert -->
+    <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="margin: 20px 0;">
+        <tr>
+            <td style="background-color: #f8d7da; border: 1px solid #f5c6cb; color: #721c24; border-radius: 6px; padding: 15px;">
+                <h4 style="margin: 0 0 8px 0; font-size: 16px; font-weight: 600;">❌ System Error</h4>
+                <p style="margin: 0; font-size: 14px; line-height: 1.4;">
+                    We've detected a system error that requires attention. Our team has been automatically notified.
+                </p>
+            </td>
+        </tr>
+    </table>
+
+    <h2 style="color: #333; margin: 20px 0 15px 0; font-size: 20px;">Error Details</h2>
+
+    <table style="width: 100%; background-color: #f8f9fa; border: 1px solid #dee2e6; border-radius: 6px; padding: 15px; margin: 15px 0;">
+        <tr>
+            <td><strong>Error ID:</strong></td>
+            <td>{{ error_id|default:"ERR-12345" }}</td>
+        </tr>
+        <tr>
+            <td><strong>Time:</strong></td>
+            <td>{{ error_time|default:"2024-01-15 10:30:00 UTC" }}</td>
+        </tr>
+        <tr>
+            <td><strong>Component:</strong></td>
+            <td>{{ component|default:"Database Connection" }}</td>
+        </tr>
+        <tr>
+            <td><strong>Severity:</strong></td>
+            <td><span style="color: #d32f2f; font-weight: bold;">{{ severity|default:"High" }}</span></td>
+        </tr>
+    </table>
+
+    <p style="margin: 15px 0; line-height: 1.6;">
+        <strong>What happened:</strong><br>
+        {{ error_description|default:"A database connection timeout occurred while processing user requests. This may cause temporary service interruptions." }}
+    </p>
+
+    <p style="margin: 15px 0; line-height: 1.6;">
+        <strong>What we're doing:</strong><br>
+        {{ resolution_steps|default:"Our technical team is investigating the issue and working to restore full service. We expect resolution within 30 minutes." }}
+    </p>
+
+    <!-- Action Button -->
+    <table role="presentation" cellspacing="0" cellpadding="0" border="0" style="margin: 30px 0;">
+        <tr>
+            <td style="background-color: #007bff; border-radius: 6px;">
+                <a href="{{ status_url|default:'#' }}" style="display: inline-block; padding: 12px 30px; color: #ffffff; text-decoration: none; font-weight: bold; font-size: 16px; text-align: center;">
+                    Check System Status
+                </a>
+            </td>
+        </tr>
+    </table>
+
+    <!-- Support Info -->
+    <div style="background-color: #e9ecef; padding: 20px; border-radius: 6px; margin: 20px 0;">
+        <h3 style="margin: 0 0 10px 0; color: #495057;">Need Help?</h3>
+        <p style="margin: 5px 0; color: #6c757d;">
+            📧 Email: <a href="mailto:{{ support_email|default:'support@equipment.com' }}">{{ support_email|default:'support@equipment.com' }}</a>
+        </p>
+        <p style="margin: 5px 0; color: #6c757d;">
+            🌐 Status Page: <a href="{{ status_url|default:'#' }}">{{ status_url|default:'https://status.equipment.com' }}</a>
+        </p>
+    </div>
+</div>
+{% endblock %}
+
+{% block footer_text %}
+This is an automated system notification. Our team is working to resolve this issue as quickly as possible.
+{% endblock %}

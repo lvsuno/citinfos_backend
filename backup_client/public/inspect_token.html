@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>JWT Token Inspector</title>
+    <style>
+        body {
+            font-family: monospace;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            max-width: 1000px;
+            margin: 0 auto;
+        }
+        .token-section {
+            margin: 20px 0;
+            padding: 15px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+        .token-data {
+            background: #f8f9fa;
+            padding: 10px;
+            border-radius: 4px;
+            white-space: pre-wrap;
+            overflow-x: auto;
+        }
+        .highlight { background: #ffeb3b; }
+        .error { color: #d32f2f; }
+        .success { color: #388e3c; }
+        button {
+            padding: 10px 20px;
+            margin: 5px;
+            background: #1976d2;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        button:hover { background: #1565c0; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔍 JWT Token Inspector</h1>
+        <p>This tool inspects the JWT tokens in localStorage and checks for session information.</p>
+
+        <button onclick="inspectTokens()">🔍 Inspect Tokens</button>
+        <button onclick="clearTokens()">🗑️ Clear Tokens</button>
+        <button onclick="testSessionRecovery()">🔄 Test Session Recovery</button>
+
+        <div id="results"></div>
+    </div>
+
+    <script>
+        function inspectTokens() {
+            const results = document.getElementById('results');
+            results.innerHTML = '';
+
+            // Check localStorage
+            console.log('🔍 Inspecting localStorage...');
+
+            const accessToken = localStorage.getItem('access_token');
+            const refreshToken = localStorage.getItem('refresh_token');
+
+            let html = '<div class="token-section"><h2>📱 localStorage Contents</h2>';
+
+            if (accessToken) {
+                html += `<h3>🟢 Access Token Found</h3>`;
+                html += `<div class="token-data">${accessToken.substring(0, 50)}...</div>`;
+
+                // Decode JWT token
+                try {
+                    const decoded = decodeJWT(accessToken);
+                    html += '<h3>📋 Decoded Access Token</h3>';
+                    html += `<div class="token-data">${JSON.stringify(decoded, null, 2)}</div>`;
+
+                    // Check for session ID
+                    if (decoded.sid || decoded.session_id) {
+                        html += `<p class="success">✅ Session ID found: ${decoded.sid || decoded.session_id}</p>`;
+                    } else {
+                        html += `<p class="error">❌ No session ID found in token</p>`;
+                    }
+
+                    // Check expiration
+                    const now = Math.floor(Date.now() / 1000);
+                    if (decoded.exp) {
+                        const expired = decoded.exp < now;
+                        const expireDate = new Date(decoded.exp * 1000);
+                        html += `<p class="${expired ? 'error' : 'success'}">
+                            ${expired ? '❌' : '✅'} Token expires: ${expireDate.toLocaleString()}
+                            ${expired ? ' (EXPIRED)' : ' (Valid)'}
+                        </p>`;
+                    }
+
+                } catch (e) {
+                    html += `<p class="error">❌ Failed to decode access token: ${e.message}</p>`;
+                }
+            } else {
+                html += '<p class="error">❌ No access token in localStorage</p>';
+            }
+
+            if (refreshToken) {
+                html += `<h3>🟢 Refresh Token Found</h3>`;
+                html += `<div class="token-data">${refreshToken.substring(0, 50)}...</div>`;
+
+                try {
+                    const decoded = decodeJWT(refreshToken);
+                    html += '<h3>📋 Decoded Refresh Token</h3>';
+                    html += `<div class="token-data">${JSON.stringify(decoded, null, 2)}</div>`;
+                } catch (e) {
+                    html += `<p class="error">❌ Failed to decode refresh token: ${e.message}</p>`;
+                }
+            } else {
+                html += '<p class="error">❌ No refresh token in localStorage</p>';
+            }
+
+            html += '</div>';
+
+            // Check all localStorage keys
+            html += '<div class="token-section"><h2>🗂️ All localStorage Keys</h2>';
+            const allKeys = [];
+            for (let i = 0; i < localStorage.length; i++) {
+                const key = localStorage.key(i);
+                const value = localStorage.getItem(key);
+                allKeys.push({ key, value: value.substring(0, 100) + (value.length > 100 ? '...' : '') });
+            }
+            html += `<div class="token-data">${JSON.stringify(allKeys, null, 2)}</div></div>`;
+
+            results.innerHTML = html;
+        }
+
+        function decodeJWT(token) {
+            const parts = token.split('.');
+            if (parts.length !== 3) {
+                throw new Error('Invalid JWT format');
+            }
+
+            // Decode the payload (second part)
+            const payload = parts[1];
+            // Add padding if needed
+            const padded = payload + '='.repeat((4 - payload.length % 4) % 4);
+            const decoded = atob(padded.replace(/-/g, '+').replace(/_/g, '/'));
+            return JSON.parse(decoded);
+        }
+
+        function clearTokens() {
+            localStorage.removeItem('access_token');
+            localStorage.removeItem('refresh_token');
+            console.log('🗑️ Tokens cleared from localStorage');
+            inspectTokens(); // Refresh the display
+        }
+
+        async function testSessionRecovery() {
+            const results = document.getElementById('results');
+
+            let html = '<div class="token-section"><h2>🔄 Testing Session Recovery</h2>';
+            html += '<p>Making API request without Authorization header to test fingerprint fallback...</p>';
+
+            try {
+                const response = await fetch('http://localhost:8000/api/accounts/profile/', {
+                    method: 'GET',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    credentials: 'include' // Include cookies for session
+                });
+
+                html += `<p>Response Status: ${response.status}</p>`;
+
+                // Check for new token headers
+                const newAccessToken = response.headers.get('X-Renewed-Access');
+                const newRefreshToken = response.headers.get('X-Renewed-Refresh');
+
+                if (newAccessToken) {
+                    html += `<p class="success">✅ New Access Token received: ${newAccessToken.substring(0, 50)}...</p>`;
+                    localStorage.setItem('access_token', newAccessToken);
+                }
+                if (newRefreshToken) {
+                    html += `<p class="success">✅ New Refresh Token received</p>`;
+                    localStorage.setItem('refresh_token', newRefreshToken);
+                }
+
+                if (response.ok) {
+                    const data = await response.json();
+                    html += '<p class="success">✅ Session recovery successful!</p>';
+                    html += `<div class="token-data">${JSON.stringify(data, null, 2)}</div>`;
+                } else {
+                    const errorData = await response.text();
+                    html += `<p class="error">❌ Session recovery failed: ${errorData}</p>`;
+                }
+
+            } catch (error) {
+                html += `<p class="error">❌ Request failed: ${error.message}</p>`;
+            }
+
+            html += '</div>';
+            results.innerHTML = html;
+        }
+
+        // Auto-inspect immediately when script loads
+        inspectTokens();
+    </script>
+</body>
+</html>

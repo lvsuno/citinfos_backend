@@ -1,0 +1,26 @@
+{
+  "description": "Batch configuration for loading geographic data",
+  "files": [
+    {
+      "shapefile_path": "/app/shapefiles/ben_adm_1m_salb_2019_shapes/ben_admbnda_adm0_1m_salb_20190816.shp",
+      "country_code": "BEN",
+      "admin_level": 0,
+      "geometry_type": "area",
+      "data_source": "Benin SALB 2019 ADM0"
+    },
+    {
+      "shapefile_path": "/app/shapefiles/ben_adm_1m_salb_2019_shapes/ben_admbnda_adm1_1m_salb_20190816.shp",
+      "country_code": "BEN",
+      "admin_level": 1,
+      "geometry_type": "area",
+      "data_source": "Benin SALB 2019 ADM1"
+    },
+    {
+      "shapefile_path": "/app/shapefiles/ben_adm_1m_salb_2019_shapes/ben_admbnda_adm2_1m_salb_20190816_fixed.shp",
+      "country_code": "BEN",
+      "admin_level": 2,
+      "geometry_type": "area",
+      "data_source": "Benin SALB 2019 ADM2"
+    }
+  ]
+}

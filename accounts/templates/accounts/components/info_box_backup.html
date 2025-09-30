@@ -1,0 +1,18 @@
+<!-- Info Box Component -->
+<!-- Usage: {% include "accounts/components/info_box.html" with title="Information" message="Your message" %} -->
+<table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="margin: 20px 0;">
+    <tr>
+        <td style="background-color: #d1ecf1; border: 1px solid #b8daff; color: #0c5460; border-radius: 6px; padding: 15px;">
+            {% if title %}
+            <h4 style="margin: 0 0 10px 0; color: #0c5460; font-size: 16px; font-weight: 600;">
+                {{ title }}
+            </h4>
+            {% endif %}
+            {% if message %}
+            <p style="margin: 0; color: #0c5460; font-size: 14px; line-height: 1.4;">
+                {{ message|safe }}
+            </p>
+            {% endif %}
+        </td>
+    </tr>
+</table>

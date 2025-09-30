@@ -1,0 +1,40 @@
+{% extends "accounts/base/base_email.html" %}
+
+{% block email_title %}Verify Your New Email Address - Homey Platform{% endblock %}
+
+{% block preheader %}Verify your new email address to complete the email change{% endblock %}
+
+{% block header_content %}
+    <h1 style="color: #ffffff; font-size: 24px; font-weight: 600; margin: 20px 0 0 0;">
+        New Email Verification
+    </h1>
+{% endblock %}
+
+{% block email_heading %}Hello {{ user.get_full_name|default:user.username }}!{% endblock %}
+
+{% block content %}
+    <p style="color: #555555; font-size: 16px; margin: 0 0 20px 0; line-height: 1.6;">
+        We're almost done! This is your new email address and we need to verify it on <strong>Homey Platform</strong>.
+    </p>
+
+    <p style="color: #555555; font-size: 16px; margin: 0 0 20px 0; line-height: 1.6;">
+        Please use the verification code below to complete your email change:
+    </p>
+
+    <!-- Verification Code Component -->
+    {% include "accounts/components/verification_code.html" with verification_code=code expiry_time=expires_at %}
+
+    <!-- Info Box -->
+    {% include "accounts/components/info_box.html" with title="Final Step" message="After entering this code, your email address will be officially changed and you'll be able to use it for login and notifications." %}
+
+    <p style="color: #555555; font-size: 16px; margin: 20px 0; line-height: 1.6;">
+        This code expires on <strong>{{ expires_at|date:"F j, Y \a\t g:i A" }}</strong>.
+    </p>
+
+    <!-- Warning Box -->
+    {% include "accounts/components/warning_box.html" with title="Security Notice" message="If you didn't request this email change, please contact our support team immediately at <a href='mailto:support@homey.com' style='color: #6372ff; text-decoration: none;'>support@homey.com</a>" %}
+{% endblock %}
+
+{% block footer_text %}
+    This new email verification was sent to confirm your email address change request.
+{% endblock %}

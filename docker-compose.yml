@@ -1,0 +1,197 @@
+services:
+  # PostGIS database for spatial and non-spatial data
+  postgis:
+    image: postgis/postgis:16-3.4
+    restart: always
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgis_data:/var/lib/postgresql/data
+    env_file:
+      - .env.postgres
+    environment:
+      - POSTGRES_DB=${POSTGRES_DATABASE}
+      - POSTGRES_USER=${POSTGRES_USER}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      - POSTGRES_INITDB_ARGS=--encoding=UTF-8
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DATABASE}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7
+    restart: always
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+
+  redis-commander:
+    image: rediscommander/redis-commander:latest
+    restart: always
+    ports:
+      - "8081:8081"
+    environment:
+      - REDIS_HOSTS=local:redis:6379
+      - HTTP_USER=admin
+      - HTTP_PASSWORD=admin
+    depends_on:
+      - redis
+
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile.backend
+    image: citinfos_backend-backend  # Explicitly name the built image
+    command: sh -c "[ \"$START_CLEAN_MIG\" = 'true' ] && ./scripts/clean_migrations.sh; python manage.py makemigrations && python manage.py migrate && ./scripts/auto_cascade_postgres.sh loc_database loc_user postgis && python manage.py load_initial_data && python manage.py collectstatic --noinput && celery -A citinfos_backend beat --detach && daphne -b 0.0.0.0 -p 8000 citinfos_backend.asgi:application"
+    volumes:
+      - .:/app
+      - ./shapefiles:/app/shapefiles
+    ports:
+      - "8000:8000"
+    depends_on:
+      postgis:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    env_file:
+      - .env
+    environment:
+      # Ensure we always use the baked virtual environment in /opt/venv
+      - VIRTUAL_ENV=/opt/venv
+      - PATH=/opt/venv/bin:$PATH
+
+  celery:
+    # Use the same image as backend - will wait for backend to be built
+    image: citinfos_backend-backend
+    command: celery -A citinfos_backend worker --loglevel=info
+    volumes:
+      - .:/app
+    depends_on:
+      - backend  # This ensures backend is built first
+      - redis
+    env_file:
+      - .env
+    environment:
+      - VIRTUAL_ENV=/opt/venv
+      - PATH=/opt/venv/bin:$PATH
+
+  celery-beat:
+    # Use the same image as backend - will wait for backend to be built
+    image: citinfos_backend-backend
+    command: celery -A citinfos_backend beat --loglevel=info --scheduler django_celery_beat.schedulers:DatabaseScheduler
+    volumes:
+      - .:/app
+    depends_on:
+      - backend  # This ensures backend is built first
+      - redis
+      - postgis
+    env_file:
+      - .env
+    environment:
+      - VIRTUAL_ENV=/opt/venv
+      - PATH=/opt/venv/bin:$PATH
+
+  flower:
+    # Use the same image as backend - will wait for backend to be built
+    image: citinfos_backend-backend
+    command: celery -A citinfos_backend flower --port=5555
+    ports:
+      - "5555:5555"
+    depends_on:
+      - backend  # This ensures backend is built first
+      - celery
+      - redis
+    env_file:
+      - .env
+    environment:
+      - VIRTUAL_ENV=/opt/venv
+      - PATH=/opt/venv/bin:$PATH
+
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile.frontend
+      args:
+        - BUILDKIT_INLINE_CACHE=1
+      # Add build options for network resilience
+      network: default
+    # Mount only the essential source files for your new basic client
+    volumes:
+      - ./src:/app/src
+      - ./public:/app/public
+    ports:
+      - "3000:3000"
+    env_file:
+      - .env
+    depends_on:
+      - backend
+    # Network configuration for better connectivity
+    networks:
+      - default
+    # Add restart policy in case of network failures during build
+    restart: unless-stopped
+
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.13.4
+    environment:
+      - discovery.type=single-node
+      - xpack.security.enabled=false
+      - ES_JAVA_OPTS=-Xms1g -Xmx1g
+    ports:
+      - "9200:9200"
+    volumes:
+      - ./clean_data:/usr/share/elasticsearch/data
+    healthcheck:
+      test: ["CMD-SHELL", "curl -s http://localhost:9200/_cluster/health | grep -q '\"status\"'"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+
+  es-init:
+    image: curlimages/curl:8.8.0
+    # entrypoint: ["/bin/sh", "-c", "chmod +x /init/create_index.sh && /init/create_index.sh"]
+
+    entrypoint: ["/bin/sh", "-c", "/init/create_index.sh"]
+    volumes:
+      - ./logstash/init/create_index.sh:/init/create_index.sh
+    depends_on:
+      elasticsearch:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -s http://elasticsearch:9200/canada-addresses-2025.07.29 | grep -q '\"canada-addresses-2025.07.29\"'"]
+      interval: 10s
+      timeout: 3000s
+      retries: 100
+
+  logstash:
+    image: docker.elastic.co/logstash/logstash:8.13.4
+    ports:
+      - "5044:5044"
+      - "9600:9600"
+    volumes:
+      - ./logstash/oda.conf:/usr/share/logstash/pipeline/logstash.conf
+      - ./clean_data:/clean_data
+    depends_on:
+      - es-init
+
+  autocomplete:
+    build:
+      context: ./autocomplete
+      dockerfile: Dockerfile.autocomplete
+    ports:
+      - "4000:4000"
+    env_file:
+      - .env.ac
+    depends_on:
+      - elasticsearch
+      - logstash
+
+volumes:
+  postgis_data:
+  redis_data:
+  clean_data:
+

@@ -1,0 +1,376 @@
+{
+  "description": "Generated mappings for quebec_adm",
+  "version": "1.0",
+  "data_sources": {
+    "quebec_adm_QUEBEC_comet_s": {
+      "description": "Generated from QUEBEC_comet_s.shp",
+      "country_code": "CAN",
+      "detection_patterns": {
+        "filename": [
+          "quebec_comet_s"
+        ],
+        "fields": [
+          "CMS_NO_IND",
+          "CMS_DE_IND",
+          "CMS_CO_COM",
+          "CMS_NM_COM",
+          "CMS_CO_REF"
+        ]
+      },
+      "admin_levels": {
+        "3": {
+          "level": 3,
+          "name_fields": [
+            "CMS_NM_COM"
+          ],
+          "code_fields": [
+            "CMS_NO_IND",
+            "CMS_CO_COM",
+            "CMS_CO_REF"
+          ],
+          "parent_field": null,
+          "boundary_type": "municipal",
+          "filename_pattern": "s"
+        }
+      },
+      "_field_analysis": {
+        "CMS_NO_IND": {
+          "type": "str",
+          "sample_value": "50 02 0200 000"
+        },
+        "CMS_DE_IND": {
+          "type": "str",
+          "sample_value": "Communauté métropolitaine"
+        },
+        "CMS_CO_COM": {
+          "type": "str",
+          "sample_value": "663"
+        },
+        "CMS_NM_COM": {
+          "type": "str",
+          "sample_value": "Communauté métropolitaine de Montréal"
+        },
+        "CMS_CO_REF": {
+          "type": "str",
+          "sample_value": "SDA20K"
+        },
+        "CMS_CO_VER": {
+          "type": "str",
+          "sample_value": "V2025-09"
+        }
+      }
+    },
+    "quebec_adm_QUEBEC_mrc_s": {
+      "description": "Generated from QUEBEC_mrc_s.shp",
+      "country_code": "CAN",
+      "detection_patterns": {
+        "filename": [
+          "quebec_mrc_s"
+        ],
+        "fields": [
+          "MRS_NO_IND",
+          "MRS_DE_IND",
+          "MRS_CO_MRC",
+          "MRS_NM_MRC",
+          "MRS_CO_REG"
+        ]
+      },
+      "admin_levels": {
+        "3": {
+          "level": 3,
+          "name_fields": [
+            "MRS_NM_MRC",
+            "MRS_NM_REG"
+          ],
+          "code_fields": [
+            "MRS_NO_IND",
+            "MRS_CO_MRC",
+            "MRS_CO_REG"
+          ],
+          "parent_field": null,
+          "boundary_type": "municipal",
+          "filename_pattern": "mrc"
+        }
+      },
+      "_field_analysis": {
+        "MRS_NO_IND": {
+          "type": "str",
+          "sample_value": "50 02 0040 000"
+        },
+        "MRS_DE_IND": {
+          "type": "str",
+          "sample_value": "Municipalité régionale de comté géographique"
+        },
+        "MRS_CO_MRC": {
+          "type": "str",
+          "sample_value": "371"
+        },
+        "MRS_NM_MRC": {
+          "type": "str",
+          "sample_value": "Trois-Rivières"
+        },
+        "MRS_CO_REG": {
+          "type": "str",
+          "sample_value": "04"
+        },
+        "MRS_NM_REG": {
+          "type": "str",
+          "sample_value": "Mauricie"
+        },
+        "MRS_CO_REF": {
+          "type": "str",
+          "sample_value": "SDA20K"
+        },
+        "MRS_CO_VER": {
+          "type": "str",
+          "sample_value": "V2025-09"
+        }
+      }
+    },
+    "quebec_adm_QUEBEC_arron_s": {
+      "description": "Generated from QUEBEC_arron_s.shp",
+      "country_code": "CAN",
+      "detection_patterns": {
+        "filename": [
+          "quebec_arron_s"
+        ],
+        "fields": [
+          "ARS_NO_IND",
+          "ARS_DE_IND",
+          "ARS_CO_ARR",
+          "ARS_NM_ARR",
+          "ARS_NM_MUN"
+        ]
+      },
+      "admin_levels": {
+        "5": {
+          "level": 5,
+          "name_fields": [
+            "ARS_NM_ARR",
+            "ARS_NM_MUN"
+          ],
+          "code_fields": [
+            "ARS_NO_IND",
+            "ARS_CO_ARR",
+            "ARS_CO_MOD"
+          ],
+          "parent_field": null,
+          "boundary_type": "other",
+          "filename_pattern": "arron"
+        }
+      },
+      "_field_analysis": {
+        "ARS_NO_IND": {
+          "type": "str",
+          "sample_value": "50 02 0000 000"
+        },
+        "ARS_DE_IND": {
+          "type": "str",
+          "sample_value": "Arrondissement"
+        },
+        "ARS_CO_ARR": {
+          "type": "str",
+          "sample_value": "REQ02"
+        },
+        "ARS_NM_ARR": {
+          "type": "str",
+          "sample_value": "Les Rivières"
+        },
+        "ARS_NM_MUN": {
+          "type": "str",
+          "sample_value": "Québec"
+        },
+        "ARS_CO_MOD": {
+          "type": "str",
+          "sample_value": "CORLIM"
+        },
+        "ARS_DA_MOD": {
+          "type": "date",
+          "sample_value": "2025-01-24"
+        },
+        "ARS_CO_REF": {
+          "type": "str",
+          "sample_value": "SDA20K"
+        },
+        "ARS_CO_VER": {
+          "type": "str",
+          "sample_value": "V2025-09"
+        }
+      }
+    },
+    "quebec_adm_QUEBEC_munic_s": {
+      "description": "Generated from QUEBEC_munic_s.shp",
+      "country_code": "CAN",
+      "detection_patterns": {
+        "filename": [
+          "quebec_munic_s"
+        ],
+        "fields": [
+          "MUS_VA_SUP",
+          "MUS_NO_IND",
+          "MUS_DE_IND",
+          "MUS_CO_GEO",
+          "MUS_CO_DES"
+        ]
+      },
+      "admin_levels": {
+        "4": {
+          "level": 4,
+          "name_fields": [
+            "MUS_NM_MUN",
+            "MUS_NM_NMC",
+            "MUS_NM_MRC"
+          ],
+          "code_fields": [
+            "MUS_NO_IND",
+            "MUS_CO_GEO",
+            "MUS_CO_DES"
+          ],
+          "parent_field": null,
+          "boundary_type": "district",
+          "filename_pattern": "munic"
+        }
+      },
+      "_field_analysis": {
+        "MUS_VA_SUP": {
+          "type": "float",
+          "sample_value": "1963.52"
+        },
+        "MUS_NO_IND": {
+          "type": "str",
+          "sample_value": "50 02 0002 000"
+        },
+        "MUS_DE_IND": {
+          "type": "str",
+          "sample_value": "Territoire non organisé"
+        },
+        "MUS_CO_GEO": {
+          "type": "str",
+          "sample_value": "99918"
+        },
+        "MUS_CO_DES": {
+          "type": "str",
+          "sample_value": "NO"
+        },
+        "MUS_NM_MUN": {
+          "type": "str",
+          "sample_value": "Toponyme à venir"
+        },
+        "MUS_NM_NMC": {
+          "type": "str",
+          "sample_value": "Territoire non-organisé toponyme à venir (99918)"
+        },
+        "MUS_CO_MRC": {
+          "type": "str",
+          "sample_value": "991"
+        },
+        "MUS_NM_MRC": {
+          "type": "str",
+          "sample_value": "Jamésie"
+        },
+        "MUS_CO_REG": {
+          "type": "str",
+          "sample_value": "10"
+        },
+        "MUS_NM_REG": {
+          "type": "str",
+          "sample_value": "Nord-du-Québec"
+        },
+        "MUS_NM_AGG": {
+          "type": "NoneType",
+          "sample_value": null
+        },
+        "MUS_CO_COM": {
+          "type": "NoneType",
+          "sample_value": null
+        },
+        "MUS_NM_COM": {
+          "type": "NoneType",
+          "sample_value": null
+        },
+        "MUS_DA_CON": {
+          "type": "date",
+          "sample_value": "2014-01-01"
+        },
+        "MUS_CO_MOD": {
+          "type": "str",
+          "sample_value": "CORLIM"
+        },
+        "MUS_DA_MOD": {
+          "type": "date",
+          "sample_value": "2025-04-18"
+        },
+        "MUS_CO_SOU": {
+          "type": "str",
+          "sample_value": "MRN-DGIG"
+        },
+        "MUS_CO_REF": {
+          "type": "str",
+          "sample_value": "SDA20K"
+        },
+        "MUS_CO_VER": {
+          "type": "str",
+          "sample_value": "V2025-09"
+        }
+      }
+    },
+    "quebec_adm_QUEBEC_regio_s": {
+      "description": "Generated from QUEBEC_regio_s.shp",
+      "country_code": "CAN",
+      "detection_patterns": {
+        "filename": [
+          "quebec_regio_s"
+        ],
+        "fields": [
+          "RES_NO_IND",
+          "RES_DE_IND",
+          "RES_CO_REG",
+          "RES_NM_REG",
+          "RES_CO_REF"
+        ]
+      },
+      "admin_levels": {
+        "2": {
+          "level": 2,
+          "name_fields": [
+            "RES_NM_REG"
+          ],
+          "code_fields": [
+            "RES_NO_IND",
+            "RES_CO_REG",
+            "RES_CO_REF"
+          ],
+          "parent_field": null,
+          "boundary_type": "regional",
+          "filename_pattern": "regio"
+        }
+      },
+      "_field_analysis": {
+        "RES_NO_IND": {
+          "type": "str",
+          "sample_value": "50 02 0100 000"
+        },
+        "RES_DE_IND": {
+          "type": "str",
+          "sample_value": "Région administrative"
+        },
+        "RES_CO_REG": {
+          "type": "str",
+          "sample_value": "17"
+        },
+        "RES_NM_REG": {
+          "type": "str",
+          "sample_value": "Centre-du-Québec"
+        },
+        "RES_CO_REF": {
+          "type": "str",
+          "sample_value": "SDA20K"
+        },
+        "RES_CO_VER": {
+          "type": "str",
+          "sample_value": "V2025-09"
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,73 @@
+{% extends "accounts/base/base_email.html" %}
+
+{% block email_title %}Email Address Changed - Homey Platform{% endblock %}
+
+{% block preheader %}Your email address has been successfully updated{% endblock %}
+
+{% block header_content %}
+    <h1 style="color: #ffffff; font-size: 24px; font-weight: 600; margin: 20px 0 0 0;">
+        Email Address Changed
+    </h1>
+{% endblock %}
+
+{% block email_heading %}Hello {{ user.get_full_name|default:user.username }}!{% endblock %}
+
+{% block content %}
+    <p style="color: #555555; font-size: 16px; margin: 0 0 20px 0; line-height: 1.6;">
+        Your email address has been successfully changed on <strong>Homey Platform</strong>!
+    </p>
+
+    <!-- Success Box -->
+    {% include "accounts/components/success_box.html" with title="✅ Change Completed Successfully!" message="Your email address has been updated and all future communications will be sent to your new address." %}
+
+    <!-- Info Table -->
+    <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="margin: 30px 0;">
+        <tr>
+            <td style="background-color: #f8f9fa; border-radius: 8px; padding: 20px;">
+                <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%">
+                    <tr>
+                        <td style="padding: 8px 0; border-bottom: 1px solid #e9ecef; font-weight: 600; color: #333333;">
+                            Previous Email:
+                        </td>
+                        <td style="padding: 8px 0; border-bottom: 1px solid #e9ecef; text-align: right; color: #555555;">
+                            {{ old_email }}
+                        </td>
+                    </tr>
+                    <tr>
+                        <td style="padding: 8px 0; border-bottom: 1px solid #e9ecef; font-weight: 600; color: #333333;">
+                            New Email:
+                        </td>
+                        <td style="padding: 8px 0; border-bottom: 1px solid #e9ecef; text-align: right; color: #6372ff; font-weight: 600;">
+                            {{ new_email }}
+                        </td>
+                    </tr>
+                    <tr>
+                        <td style="padding: 8px 0; font-weight: 600; color: #333333;">
+                            Changed On:
+                        </td>
+                        <td style="padding: 8px 0; text-align: right; color: #555555;">
+                            {{ changed_at|date:"F j, Y \a\t g:i A" }}
+                        </td>
+                    </tr>
+                </table>
+            </td>
+        </tr>
+    </table>
+
+    <h3 style="color: #333333; font-size: 18px; font-weight: 600; margin: 30px 0 15px 0;">
+        What happens next:
+    </h3>
+    <ul style="color: #555555; font-size: 16px; line-height: 1.6; margin: 0 0 20px 20px; padding: 0;">
+        <li style="margin-bottom: 8px;">All future emails will be sent to your new address</li>
+        <li style="margin-bottom: 8px;">You can now login using your new email address</li>
+        <li style="margin-bottom: 8px;">Your account security has been maintained throughout this process</li>
+        <li style="margin-bottom: 8px;">All your data and settings remain unchanged</li>
+    </ul>
+
+    <!-- Warning Box for Security -->
+    {% include "accounts/components/warning_box.html" with title="Security Notice" message="If you didn't initiate this email change, please contact our support team immediately at <a href='mailto:support@homey.com' style='color: #6372ff; text-decoration: none;'>support@homey.com</a>" %}
+{% endblock %}
+
+{% block footer_text %}
+    This email change confirmation was sent automatically to confirm your email address update.
+{% endblock %}

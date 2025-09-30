@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Moderator Nomination - {{ community.name }}</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            max-width: 600px;
+            margin: 40px auto;
+            padding: 20px;
+            line-height: 1.6;
+            color: #333;
+        }
+        .container {
+            background: white;
+            border-radius: 8px;
+            padding: 30px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        .community-info {
+            background: #f8f9fa;
+            padding: 20px;
+            border-radius: 6px;
+            margin: 20px 0;
+        }
+        .action-buttons {
+            display: flex;
+            gap: 15px;
+            justify-content: center;
+            margin: 30px 0;
+        }
+        .btn {
+            padding: 12px 24px;
+            border: none;
+            border-radius: 6px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+            min-width: 120px;
+        }
+        .btn-accept {
+            background: #22c55e;
+            color: white;
+        }
+        .btn-accept:hover {
+            background: #16a34a;
+        }
+        .btn-decline {
+            background: #ef4444;
+            color: white;
+        }
+        .btn-decline:hover {
+            background: #dc2626;
+        }
+        .loading {
+            display: none;
+            text-align: center;
+            margin: 20px 0;
+        }
+        .result {
+            display: none;
+            padding: 15px;
+            border-radius: 6px;
+            margin: 20px 0;
+            text-align: center;
+        }
+        .result.success {
+            background: #dcfce7;
+            color: #166534;
+            border: 1px solid #bbf7d0;
+        }
+        .result.error {
+            background: #fef2f2;
+            color: #991b1b;
+            border: 1px solid #fecaca;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>Moderator Nomination</h1>
+            <p>You've been invited to become a moderator</p>
+        </div>
+
+        <div class="community-info">
+            <h3>{{ community.name }}</h3>
+            <p>{{ community.description|default:"Join this amazing community!" }}</p>
+            <p><strong>Assigned by:</strong> {{ assigned_by.display_name|default:assigned_by.user.username }}</p>
+        </div>
+
+        <div class="action-buttons">
+            <button class="btn btn-accept" onclick="processNomination('accept')">
+                Accept Role
+            </button>
+            <button class="btn btn-decline" onclick="processNomination('decline')">
+                Decline Role
+            </button>
+        </div>
+
+        <div class="loading">
+            <p>Processing your response...</p>
+        </div>
+
+        <div class="result" id="result">
+            <!-- Result message will be shown here -->
+        </div>
+    </div>
+
+    <script>
+        // Get URL parameters
+        const urlParams = new URLSearchParams(window.location.search);
+        const membershipId = urlParams.get('membership_id');
+        const suggestedAction = urlParams.get('action');
+
+        // Auto-highlight suggested action
+        if (suggestedAction === 'accept') {
+            document.querySelector('.btn-accept').style.transform = 'scale(1.05)';
+        } else if (suggestedAction === 'decline') {
+            document.querySelector('.btn-decline').style.transform = 'scale(1.05)';
+        }
+
+        async function processNomination(action) {
+            const buttons = document.querySelectorAll('.btn');
+            const loading = document.querySelector('.loading');
+            const result = document.getElementById('result');
+
+            // Show loading state
+            buttons.forEach(btn => btn.disabled = true);
+            loading.style.display = 'block';
+            result.style.display = 'none';
+
+            try {
+                // Get CSRF token from cookie or meta tag
+                const csrfToken = getCsrfToken();
+
+                const response = await fetch('/api/community-roles/process-moderator-nomination/', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': csrfToken,
+                        // Include authorization header if user is logged in
+                        ...getAuthHeaders()
+                    },
+                    credentials: 'include',
+                    body: JSON.stringify({
+                        membership_id: membershipId,
+                        action: action
+                    })
+                });
+
+                const data = await response.json();
+
+                if (response.ok) {
+                    showResult('success', `✅ ${data.message}`);
+
+                    // Redirect to community page after 3 seconds
+                    setTimeout(() => {
+                        window.location.href = `/communities/{{ community.slug }}/`;
+                    }, 3000);
+                } else {
+                    showResult('error', `❌ ${data.error || 'An error occurred'}`);
+                }
+
+            } catch (error) {
+                console.error('Error processing nomination:', error);
+                showResult('error', '❌ Network error. Please try again.');
+            } finally {
+                // Hide loading state
+                loading.style.display = 'none';
+                buttons.forEach(btn => btn.disabled = false);
+            }
+        }
+
+        function showResult(type, message) {
+            const result = document.getElementById('result');
+            result.className = `result ${type}`;
+            result.innerHTML = `<p>${message}</p>`;
+            result.style.display = 'block';
+        }
+
+        function getCsrfToken() {
+            // Try to get CSRF token from cookie
+            const cookies = document.cookie.split(';');
+            for (let cookie of cookies) {
+                const [name, value] = cookie.trim().split('=');
+                if (name === 'csrftoken') {
+                    return value;
+                }
+            }
+
+            // Fallback: try meta tag
+            const meta = document.querySelector('meta[name="csrf-token"]');
+            return meta ? meta.getAttribute('content') : '';
+        }
+
+        function getAuthHeaders() {
+            // Add authorization headers if available
+            const token = localStorage.getItem('auth_token') || sessionStorage.getItem('auth_token');
+            if (token) {
+                return { 'Authorization': `Bearer ${token}` };
+            }
+            return {};
+        }
+
+        // Show error if no membership_id provided
+        if (!membershipId) {
+            showResult('error', '❌ Invalid nomination link. Please contact support.');
+            document.querySelectorAll('.btn').forEach(btn => btn.disabled = true);
+        }
+    </script>
+</body>
+</html>

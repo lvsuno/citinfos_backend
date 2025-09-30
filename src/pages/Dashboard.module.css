@@ -1,0 +1,27 @@
+/* CSS Module pour le contenu spécifique au Dashboard */
+
+.emptyState {
+    text-align: center;
+    color: #1E293B;
+    /* Deep Navy */
+    padding: 40px 20px;
+}
+
+.emptyIcon {
+    font-size: 64px;
+    color: #CBD5E1;
+    /* Gris neutre */
+    margin-bottom: 16px;
+    display: block;
+}
+
+.emptyState p {
+    margin: 12px 0;
+    line-height: 1.6;
+}
+
+.emptyState strong {
+    color: #06B6D4;
+    /* Cyan pour les éléments importants */
+    font-weight: 600;
+}

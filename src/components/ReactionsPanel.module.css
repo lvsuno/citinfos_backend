@@ -1,0 +1,102 @@
+.reactionsPanel {
+    position: absolute;
+    bottom: 100%;
+    left: 50%;
+    transform: translateX(-50%);
+    background: white;
+    border-radius: 50px;
+    padding: 8px 16px;
+    display: flex;
+    gap: 4px;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.15);
+    border: 1px solid #F1F5F9;
+    animation: reactionsSlideUp 0.3s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+    z-index: 1000;
+    margin-bottom: 8px;
+    white-space: nowrap;
+    /* Empêcher le débordement */
+    max-width: 90vw;
+}
+
+/* Ajustement automatique si le panneau dépasse à droite */
+.reactionsPanel[data-overflow="right"] {
+    left: auto;
+    right: 0;
+    transform: none;
+}
+
+/* Ajustement automatique si le panneau dépasse à gauche */
+.reactionsPanel[data-overflow="left"] {
+    left: 0;
+    transform: none;
+}
+
+@keyframes reactionsSlideUp {
+    from {
+        opacity: 0;
+        transform: translateX(-50%) translateY(10px) scale(0.8);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateX(-50%) translateY(0) scale(1);
+    }
+}
+
+.reactionOption {
+    background: none;
+    border: none;
+    padding: 8px;
+    border-radius: 50%;
+    cursor: pointer;
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+    min-width: 40px;
+    min-height: 40px;
+    z-index: 1001;
+}
+
+.reactionOption:hover {
+    background: #F8FAFC;
+    transform: scale(1.2) translateY(-2px);
+    z-index: 1002;
+}
+
+.reactionOption.active {
+    background: linear-gradient(135deg, rgba(102, 126, 234, 0.1) 0%, rgba(102, 126, 234, 0.05) 100%);
+}
+
+.reactionIcon {
+    font-size: 24px;
+    transition: transform 0.2s ease;
+}
+
+.reactionOption:hover .reactionIcon {
+    transform: scale(1.1);
+}
+
+.reactionLabel {
+    font-size: 10px;
+    font-weight: 600;
+    opacity: 0;
+    transition: opacity 0.2s ease;
+    position: absolute;
+    bottom: -24px;
+    left: 50%;
+    transform: translateX(-50%);
+    white-space: nowrap;
+    background: rgba(0, 0, 0, 0.8);
+    color: white;
+    padding: 4px 8px;
+    border-radius: 6px;
+    z-index: 1003;
+    pointer-events: none;
+}
+
+.reactionOption:hover .reactionLabel {
+    opacity: 1;
+}

@@ -1,0 +1,69 @@
+{% extends "messaging/base/base_email.html" %}
+
+{% block email_title %}New Message - Homey Platform{% endblock %}
+
+{% block preheader %}You have a new message from {{ sender.first_name }}{% endblock %}
+
+{% block header_content %}
+    <h1 style="color: #ffffff; font-size: 24px; font-weight: 600; margin: 20px 0 0 0; text-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);">
+        💬 New Message
+    </h1>
+{% endblock %}
+
+{% block email_heading %}
+    You have a new message
+{% endblock %}
+
+{% block content %}
+    <!-- User info for sender -->
+    {% include "messaging/components/user_info.html" with user=sender %}
+
+    <!-- Message bubble -->
+    {% include "messaging/components/message_bubble.html" with message=message %}
+
+    <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="margin: 30px 0;">
+        <tr>
+            <td style="text-align: center;">
+                <p style="color: #6c757d; font-size: 16px; line-height: 1.5; margin: 0 0 25px 0;">
+                    {{ sender.first_name }} sent you a message. Click below to view and reply.
+                </p>
+
+                <!-- Primary action button -->
+                {% include "messaging/components/button.html" with url=message_url text="View & Reply" style="primary" %}
+            </td>
+        </tr>
+    </table>
+
+    <!-- Conversation context -->
+    {% if conversation.title %}
+        <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="margin-top: 30px;">
+            <tr>
+                <td style="background-color: #f8f9fa; padding: 20px; border-radius: 8px; border-left: 4px solid #667eea;">
+                    <p style="color: #495057; font-size: 14px; line-height: 1.4; margin: 0 0 5px 0;">
+                        <strong>In conversation:</strong> {{ conversation.title }}
+                    </p>
+                    {% if conversation.participant_count > 2 %}
+                        <p style="color: #6c757d; font-size: 12px; margin: 0;">
+                            {{ conversation.participant_count }} participants
+                        </p>
+                    {% endif %}
+                </td>
+            </tr>
+        </table>
+    {% endif %}
+
+    <!-- Quick actions tip -->
+    <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="margin-top: 30px;">
+        <tr>
+            <td style="background-color: #f8f9fa; padding: 20px; border-radius: 8px; border-left: 4px solid #28a745;">
+                <p style="color: #495057; font-size: 14px; line-height: 1.4; margin: 0;">
+                    <strong>💡 Tip:</strong> You can reply directly by visiting your messages or adjust your notification settings to control when you receive these alerts.
+                </p>
+            </td>
+        </tr>
+    </table>
+{% endblock %}
+
+{% block footer_text %}
+    This message notification was sent because {{ sender.first_name }} sent you a direct message on the Homey Platform.
+{% endblock %}

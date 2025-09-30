@@ -1,0 +1,15 @@
+{
+  "message": "Debug endpoint working",
+  "localStorage_test": "success",
+  "instructions": [
+    "Open browser console (F12)",
+    "Run: localStorage.getItem('access_token')",
+    "Run: localStorage.getItem('refresh_token')",
+    "Check if tokens exist"
+  ],
+  "test_commands": [
+    "localStorage.setItem('test', 'value')",
+    "localStorage.getItem('test')",
+    "localStorage.removeItem('test')"
+  ]
+}

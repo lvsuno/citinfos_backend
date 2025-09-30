@@ -1,0 +1,98 @@
+{% extends "global/email/base/global_base_email.html" %}
+
+{% block title %}Account Suspended Notification{% endblock %}
+
+{% block header_content %}
+<h1 style="color: #ffffff; font-size: 24px; font-weight: 600; margin: 20px 0 0 0; text-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);">
+    ⚠️ Account Suspended
+</h1>
+{% endblock %}
+
+{% block email_heading %}
+Your account has been suspended
+{% endblock %}
+
+{% block content %}
+<div style="padding: 30px;">
+    <p style="margin: 15px 0; line-height: 1.6; font-size: 16px;">
+        Your account has been temporarily suspended due to a violation of our terms of service.
+    </p>
+
+    <!-- Suspension Alert -->
+    {% include "global/email/components/working_alert.html" with title="Suspension Reason" message=suspension_reason %}
+
+    <h2 style="color: #333; margin: 25px 0 15px 0; font-size: 20px;">📋 Suspension Details</h2>
+
+    <div style="background-color: #f8f9fa; border: 1px solid #dee2e6; border-radius: 6px; padding: 20px; margin: 15px 0;">
+        {% if suspension_date %}
+            <p style="margin: 5px 0; color: #6c757d;">
+                <strong>Suspended on:</strong> {{ suspension_date|default:"Recently" }}
+            </p>
+        {% endif %}
+        {% if suspension_duration %}
+            <p style="margin: 5px 0; color: #6c757d;">
+                <strong>Duration:</strong> {{ suspension_duration|default:"Temporary" }}
+            </p>
+        {% endif %}
+        {% if reinstatement_date %}
+            <p style="margin: 5px 0; color: #6c757d;">
+                <strong>Reinstatement Date:</strong> {{ reinstatement_date|default:"To be determined" }}
+            </p>
+        {% endif %}
+    </div>
+
+    <h2 style="color: #333; margin: 25px 0 15px 0; font-size: 20px;">What this means</h2>
+
+    <ul style="margin: 10px 0; padding-left: 20px; line-height: 1.6;">
+        <li style="margin-bottom: 8px;">You cannot access your account during the suspension period</li>
+        <li style="margin-bottom: 8px;">Your content and data remain safe and will be restored</li>
+        <li style="margin-bottom: 8px;">You will not receive notifications during this time</li>
+        <li>Other users cannot interact with your suspended account</li>
+    </ul>
+
+    <h2 style="color: #333; margin: 25px 0 15px 0; font-size: 20px;">Next steps</h2>
+
+    <ol style="margin: 10px 0; padding-left: 20px; line-height: 1.6;">
+        <li style="margin-bottom: 8px;">Review our <a href="{{ terms_url|default:'#' }}" style="color: #ffc107; text-decoration: underline;">Terms of Service</a></li>
+        <li style="margin-bottom: 8px;">Wait for the suspension period to end</li>
+        <li style="margin-bottom: 8px;">If you believe this is an error, contact our appeals team</li>
+        <li>Ensure future compliance with our community guidelines</li>
+    </ol>
+
+    <!-- Action Buttons -->
+    {% if appeal_url %}
+    <table role="presentation" cellspacing="0" cellpadding="0" border="0" style="margin: 30px 0;">
+        <tr>
+            <td style="background-color: #007bff; border-radius: 6px;">
+                <a href="{{ appeal_url }}" style="display: inline-block; padding: 12px 30px; color: #ffffff; text-decoration: none; font-weight: bold; font-size: 16px; text-align: center;">
+                    Submit Appeal
+                </a>
+            </td>
+        </tr>
+    </table>
+    {% endif %}
+
+    {% if terms_url %}
+    <table role="presentation" cellspacing="0" cellpadding="0" border="0" style="margin: 15px 0;">
+        <tr>
+            <td style="background-color: #6c757d; border-radius: 6px;">
+                <a href="{{ terms_url }}" style="display: inline-block; padding: 12px 30px; color: #ffffff; text-decoration: none; font-weight: bold; font-size: 16px; text-align: center;">
+                    Review Terms
+                </a>
+            </td>
+        </tr>
+    </table>
+    {% endif %}
+
+    <!-- Important Notice -->
+    <div style="background-color: #fff3cd; border: 1px solid #ffeaa7; border-radius: 6px; padding: 20px; margin: 20px 0;">
+        <p style="margin: 0; color: #856404; line-height: 1.4;">
+            <strong>⚠️ Important:</strong> Repeated violations may result in permanent account termination. Please familiarize yourself with our community guidelines to prevent future issues.
+        </p>
+    </div>
+</div>
+{% endblock %}
+
+{% block footer_text %}
+This account suspension notice was sent in accordance with our Terms of Service and Community Guidelines.
+{% endblock %}

@@ -1,0 +1,105 @@
+.attachments {
+    margin-bottom: 0;
+}
+
+.singleAttachment {
+    width: 100%;
+    position: relative;
+    overflow: hidden;
+    border-radius: 0 0 20px 20px;
+}
+
+.attachmentImage,
+.attachmentVideo {
+    width: 100%;
+    height: auto;
+    max-height: 650px;
+    object-fit: cover;
+    display: block;
+    transition: transform 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.singleAttachment:hover .attachmentImage,
+.singleAttachment:hover .attachmentVideo {
+    transform: scale(1.02);
+}
+
+.multipleAttachments {
+    display: grid;
+    gap: 3px;
+    height: 480px;
+    margin: 0 28px 0 28px;
+    border-radius: 16px;
+    overflow: hidden;
+}
+
+.twoItems {
+    grid-template-columns: 1fr 1fr;
+}
+
+.threeItems {
+    grid-template-columns: 1fr 1fr;
+    grid-template-rows: 1fr 1fr;
+}
+
+.threeItems .attachmentItem:first-child {
+    grid-row: 1 / -1;
+}
+
+.fourPlusItems {
+    grid-template-columns: 1fr 1fr;
+    grid-template-rows: 1fr 1fr;
+}
+
+.attachmentItem {
+    position: relative;
+    overflow: hidden;
+    background: #F8FAFC;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.attachmentItem:hover {
+    transform: scale(1.02);
+}
+
+.attachmentItem img,
+.attachmentItem video {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    transition: transform 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.attachmentItem:hover img,
+.attachmentItem:hover video {
+    transform: scale(1.1);
+}
+
+.moreOverlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: linear-gradient(135deg, rgba(15, 23, 42, 0.85) 0%, rgba(30, 41, 59, 0.9) 100%);
+    backdrop-filter: blur(12px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: white;
+    font-size: 32px;
+    font-weight: 800;
+    letter-spacing: -0.03em;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.moreOverlay:hover {
+    background: linear-gradient(135deg, rgba(102, 126, 234, 0.85) 0%, rgba(118, 75, 162, 0.9) 100%);
+}
+
+@media (max-width: 768px) {
+    .multipleAttachments {
+        margin: 0 20px 0 20px;
+        height: 350px;
+    }
+}

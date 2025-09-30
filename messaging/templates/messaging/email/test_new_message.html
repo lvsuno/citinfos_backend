@@ -1,0 +1,52 @@
+{% extends "messaging/base/base_email.html" %}
+
+{% block email_title %}New Message from {{ sender.username }} - Homey Platform{% endblock %}
+
+{% block preheader %}{{ sender.username }} sent you a new message{% endblock %}
+
+{% block header_content %}
+    <h1 style="color: #ffffff; font-size: 24px; font-weight: 600; margin: 20px 0 0 0; text-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);">
+        💬 New Message
+    </h1>
+{% endblock %}
+
+{% block email_heading %}Hello {{ user.username }}!{% endblock %}
+
+{% block content %}
+    <p style="color: #4a5568; font-size: 16px; margin: 0 0 20px 0; line-height: 1.6;">
+        You have received a new message from <strong>{{ sender.username }}</strong>. Here's what they said:
+    </p>
+
+    <!-- Simple message display without components -->
+    <div style="background-color: #f7fafc; border: 1px solid #e2e8f0; border-radius: 12px; padding: 20px; border-left: 4px solid #667eea; margin: 20px 0;">
+        <p style="color: #667eea; font-weight: 600; font-size: 14px; margin: 0 0 8px 0;">
+            {{ sender.username|default:"Unknown User" }}
+        </p>
+        <p style="color: #2d3748; font-size: 15px; line-height: 1.5; margin: 0;">
+            {{ message.content|default:"No message content" }}
+        </p>
+    </div>
+
+    <p style="color: #4a5568; font-size: 16px; margin: 25px 0 20px 0; line-height: 1.6;">
+        You can reply to this message directly in your chat conversation.
+    </p>
+
+    <!-- Simple button without component -->
+    <table role="presentation" cellspacing="0" cellpadding="0" border="0" style="margin: 25px auto;">
+        <tr>
+            <td style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border-radius: 8px; box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);">
+                <a href="{{ chat_url }}" style="display: inline-block; padding: 14px 28px; color: #ffffff; text-decoration: none; font-weight: 600; font-size: 16px;">
+                    Reply to Message
+                </a>
+            </td>
+        </tr>
+    </table>
+
+    <p style="color: #6c757d; font-size: 14px; margin: 30px 0 0 0; line-height: 1.4;">
+        Stay connected with your team through instant messaging. Reply quickly to keep the conversation flowing.
+    </p>
+{% endblock %}
+
+{% block footer_text %}
+    This message notification was sent because you have new message alerts enabled in your messaging preferences.
+{% endblock %}

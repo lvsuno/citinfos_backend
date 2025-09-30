@@ -1,0 +1,126 @@
+{% extends "global/email/base/global_base_email.html" %}
+
+{% block title %}Welcome to Equipment Platform!{% endblock %}
+
+{% block header_title %}
+🎉 Welcome {{ user.first_name|default:"" }}!
+{% endblock %}
+
+{% block email_body %}
+<div style="padding: 30px;">
+    <p style="margin: 15px 0; line-height: 1.6; font-size: 16px;">
+        Welcome to the Equipment Platform! We're excited to have you join our community. Here's everything you need to get started:
+    </p>
+
+    <!-- Success Alert -->
+    {% include "global/email/components/working_alert.html" with title="Account Created Successfully" message="Your Equipment Platform account is ready to use! You can now access all features and start connecting with others." %}
+
+    <h2 style="color: #333; margin: 25px 0 15px 0; font-size: 20px;">🚀 Let's get you started</h2>
+
+    <ol style="margin: 10px 0; padding-left: 20px; line-height: 1.6;">
+        <li style="margin-bottom: 12px;">
+            <strong>Complete your profile:</strong> Add a photo and tell others about yourself
+        </li>
+        <li style="margin-bottom: 12px;">
+            <strong>Explore features:</strong> Discover equipment sharing, community groups, and messaging
+        </li>
+        <li style="margin-bottom: 12px;">
+            <strong>Connect with others:</strong> Find friends and neighbors in your area
+        </li>
+        <li style="margin-bottom: 12px;">
+            <strong>Share equipment:</strong> List items you'd like to share with the community
+        </li>
+    </ol>
+
+    <!-- Quick Actions -->
+    <h2 style="color: #333; margin: 25px 0 15px 0; font-size: 20px;">Quick Actions</h2>
+
+    <table role="presentation" cellspacing="0" cellpadding="0" border="0" style="margin: 20px 0;">
+        <tr>
+            <td style="background-color: #28a745; border-radius: 6px;">
+                <a href="{{ complete_profile_url|default:'#' }}" style="display: inline-block; padding: 12px 30px; color: #ffffff; text-decoration: none; font-weight: bold; font-size: 16px; text-align: center;">
+                    Complete Profile
+                </a>
+            </td>
+        </tr>
+    </table>
+
+    <table role="presentation" cellspacing="0" cellpadding="0" border="0" style="margin: 15px 0;">
+        <tr>
+            <td style="background-color: #17a2b8; border-radius: 6px;">
+                <a href="{{ browse_equipment_url|default:'#' }}" style="display: inline-block; padding: 12px 30px; color: #ffffff; text-decoration: none; font-weight: bold; font-size: 16px; text-align: center;">
+                    Browse Equipment
+                </a>
+            </td>
+        </tr>
+    </table>
+
+    <!-- Platform Features -->
+    <h2 style="color: #333; margin: 25px 0 15px 0; font-size: 20px;">🏠 What you can do with Equipment Platform</h2>
+
+    <div style="background-color: #f8f9fa; border: 1px solid #dee2e6; border-radius: 6px; padding: 20px; margin: 15px 0;">
+        <div style="margin-bottom: 15px;">
+            <h4 style="margin: 0 0 5px 0; color: #28a745;">🔧 Equipment Sharing</h4>
+            <p style="margin: 0; color: #6c757d; line-height: 1.4;">
+                Borrow and lend tools, equipment, and household items with your neighbors.
+            </p>
+        </div>
+
+        <div style="margin-bottom: 15px;">
+            <h4 style="margin: 0 0 5px 0; color: #28a745;">👥 Community Groups</h4>
+            <p style="margin: 0; color: #6c757d; line-height: 1.4;">
+                Join local groups and participate in community discussions and events.
+            </p>
+        </div>
+
+        <div style="margin-bottom: 15px;">
+            <h4 style="margin: 0 0 5px 0; color: #28a745;">💬 Messaging</h4>
+            <p style="margin: 0; color: #6c757d; line-height: 1.4;">
+                Connect directly with other community members through our messaging system.
+            </p>
+        </div>
+
+        <div>
+            <h4 style="margin: 0 0 5px 0; color: #28a745;">📊 Activity Tracking</h4>
+            <p style="margin: 0; color: #6c757d; line-height: 1.4;">
+                Track your sharing activity and build a reputation in the community.
+            </p>
+        </div>
+    </div>
+
+    <!-- Help Resources -->
+    <h2 style="color: #333; margin: 25px 0 15px 0; font-size: 20px;">📚 Need Help Getting Started?</h2>
+
+    <p style="line-height: 1.6; margin: 10px 0;">
+        We're here to help! Check out our resources or reach out to our support team.
+    </p>
+
+    {% if help_center_url %}
+    <table role="presentation" cellspacing="0" cellpadding="0" border="0" style="margin: 15px 0;">
+        <tr>
+            <td style="background-color: #6c757d; border-radius: 6px;">
+                <a href="{{ help_center_url }}" style="display: inline-block; padding: 10px 20px; color: #ffffff; text-decoration: none; font-weight: bold; font-size: 14px; text-align: center;">
+                    Help Center
+                </a>
+            </td>
+        </tr>
+    </table>
+    {% endif %}
+
+    <!-- Community Guidelines -->
+    <div style="background-color: #e8f4fd; padding: 20px; border-radius: 8px; border-left: 4px solid #007bff; margin: 20px 0;">
+        <p style="margin: 0; color: #495057; line-height: 1.4;">
+            <strong>🤝 Community Guidelines:</strong> We're building a safe and friendly community. Please take a moment to review our community guidelines to ensure everyone has a great experience.
+        </p>
+    </div>
+
+    <!-- Final welcome message -->
+    <p style="margin: 20px 0; line-height: 1.6; text-align: center; font-size: 16px; color: #6c757d;">
+        Welcome to the neighborhood! We can't wait to see how you'll contribute to our sharing economy community. 🏡
+    </p>
+</div>
+{% endblock %}
+
+{% block footer_text %}
+Welcome to the Equipment Platform! This message was sent because you recently created an account with us.
+{% endblock %}

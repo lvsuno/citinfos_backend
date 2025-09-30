@@ -1,0 +1,456 @@
+/*
+ * Global Base Email Styles for All Apps
+ * This file serves as the master reference for email styling across the platform.
+ * Individual apps should extend this and override app-specific variables.
+ */
+
+/* ===== CSS VARIABLES (Override these in app-specific CSS) ===== */
+:root {
+    /* Primary brand colors - Override in app CSS */
+    --app-primary-color: #6372ff;
+    --app-secondary-color: #5ca9fb;
+    --app-gradient: linear-gradient(135deg, #6372ff 0%, #5ca9fb 100%);
+
+    /* Base colors */
+    --background-color: #f8f9fa;
+    --container-background: #ffffff;
+    --text-primary: #333333;
+    --text-secondary: #555555;
+    --text-muted: #6c757d;
+    --border-light: #e9ecef;
+
+    /* Status colors */
+    --success-color: #28a745;
+    --success-background: #d4edda;
+    --success-border: #c3e6cb;
+    --warning-color: #856404;
+    --warning-background: #fff3cd;
+    --warning-border: #ffeaa7;
+    --error-color: #721c24;
+    --error-background: #f8d7da;
+    --error-border: #f5c6cb;
+    --info-color: #0c5460;
+    --info-background: #d1ecf1;
+    --info-border: #b8daff;
+}
+
+/* ===== RESET STYLES ===== */
+* {
+    box-sizing: border-box;
+}
+
+body, table, td, p, a, li, blockquote {
+    -webkit-text-size-adjust: 100%;
+    -ms-text-size-adjust: 100%;
+}
+
+table, td {
+    mso-table-lspace: 0pt;
+    mso-table-rspace: 0pt;
+}
+
+img {
+    -ms-interpolation-mode: bicubic;
+    border: 0;
+    outline: none;
+    text-decoration: none;
+}
+
+/* ===== BASE BODY STYLES ===== */
+body {
+    margin: 0 !important;
+    padding: 0 !important;
+    background-color: var(--background-color);
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+    line-height: 1.6;
+    color: var(--text-primary);
+}
+
+/* ===== CONTAINER STYLES ===== */
+.email-wrapper {
+    background-color: var(--background-color);
+    width: 100%;
+    padding: 20px;
+}
+
+.email-container {
+    max-width: 600px;
+    width: 100%;
+    background-color: var(--container-background);
+    border-radius: 8px;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    margin: 0 auto;
+}
+
+/* ===== HEADER STYLES ===== */
+.email-header {
+    background: var(--app-gradient);
+    padding: 40px 30px;
+    text-align: center;
+    border-radius: 8px 8px 0 0;
+}
+
+.email-header img {
+    max-width: 150px;
+    height: auto;
+    display: block;
+    margin: 0 auto;
+}
+
+.email-header h1 {
+    color: #ffffff;
+    font-size: 24px;
+    font-weight: 600;
+    margin: 20px 0 0 0;
+    text-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+}
+
+/* ===== CONTENT STYLES ===== */
+.email-content {
+    padding: 40px 30px;
+}
+
+.email-content h1 {
+    color: var(--text-primary);
+    font-size: 28px;
+    font-weight: 600;
+    margin: 0 0 20px 0;
+    text-align: center;
+    line-height: 1.2;
+}
+
+.email-content h2 {
+    color: var(--text-primary);
+    font-size: 22px;
+    font-weight: 600;
+    margin: 30px 0 15px 0;
+}
+
+.email-content h3 {
+    color: var(--text-primary);
+    font-size: 18px;
+    font-weight: 600;
+    margin: 25px 0 10px 0;
+}
+
+.email-content p {
+    color: var(--text-secondary);
+    font-size: 16px;
+    margin: 0 0 20px 0;
+    line-height: 1.6;
+}
+
+.email-content a {
+    color: var(--app-primary-color);
+    text-decoration: none;
+}
+
+.email-content a:hover {
+    text-decoration: underline;
+}
+
+/* ===== BUTTON STYLES ===== */
+.btn-primary {
+    display: inline-block;
+    padding: 15px 30px;
+    background: var(--app-gradient);
+    color: #ffffff !important;
+    text-decoration: none;
+    border-radius: 6px;
+    font-weight: 600;
+    font-size: 16px;
+    text-align: center;
+    margin: 20px 0;
+    transition: transform 0.2s ease-in-out;
+}
+
+.btn-primary:hover {
+    transform: translateY(-2px);
+}
+
+.btn-secondary {
+    display: inline-block;
+    padding: 12px 25px;
+    background-color: var(--background-color);
+    color: var(--app-primary-color) !important;
+    text-decoration: none;
+    border: 2px solid var(--app-primary-color);
+    border-radius: 6px;
+    font-weight: 600;
+    font-size: 14px;
+    text-align: center;
+}
+
+.btn-outline {
+    display: inline-block;
+    padding: 10px 20px;
+    background-color: transparent;
+    color: var(--app-primary-color) !important;
+    text-decoration: none;
+    border: 1px solid var(--app-primary-color);
+    border-radius: 4px;
+    font-weight: 500;
+    font-size: 14px;
+    text-align: center;
+}
+
+.btn-small {
+    padding: 8px 16px;
+    font-size: 12px;
+}
+
+.btn-large {
+    padding: 18px 36px;
+    font-size: 18px;
+}
+
+.btn-center {
+    text-align: center;
+    margin: 30px 0;
+}
+
+/* ===== STATUS/NOTIFICATION BOXES ===== */
+.success-box {
+    background-color: var(--success-background);
+    border: 1px solid var(--success-border);
+    color: var(--success-color);
+    border-radius: 6px;
+    padding: 15px;
+    margin: 20px 0;
+}
+
+.warning-box {
+    background-color: var(--warning-background);
+    border: 1px solid var(--warning-border);
+    color: var(--warning-color);
+    border-radius: 6px;
+    padding: 15px;
+    margin: 20px 0;
+}
+
+.error-box {
+    background-color: var(--error-background);
+    border: 1px solid var(--error-border);
+    color: var(--error-color);
+    border-radius: 6px;
+    padding: 15px;
+    margin: 20px 0;
+}
+
+.info-box {
+    background-color: var(--info-background);
+    border: 1px solid var(--info-border);
+    color: var(--info-color);
+    border-radius: 6px;
+    padding: 15px;
+    margin: 20px 0;
+}
+
+.tip-box {
+    background-color: var(--background-color);
+    border-radius: 8px;
+    padding: 20px;
+    margin: 30px 0;
+    border-left: 4px solid var(--success-color);
+}
+
+/* ===== FOOTER STYLES ===== */
+.email-footer {
+    background-color: var(--background-color);
+    padding: 30px;
+    text-align: center;
+    font-size: 14px;
+    color: var(--text-muted);
+    border-top: 1px solid var(--border-light);
+    border-radius: 0 0 8px 8px;
+}
+
+.email-footer p {
+    margin: 0 0 15px 0;
+}
+
+.email-footer .company-name {
+    font-weight: 600;
+    color: var(--text-primary);
+}
+
+.email-footer a {
+    color: var(--app-primary-color);
+    text-decoration: none;
+}
+
+/* ===== UTILITY CLASSES ===== */
+.text-center { text-align: center; }
+.text-left { text-align: left; }
+.text-right { text-align: right; }
+
+.mb-0 { margin-bottom: 0 !important; }
+.mb-10 { margin-bottom: 10px !important; }
+.mb-20 { margin-bottom: 20px !important; }
+.mb-30 { margin-bottom: 30px !important; }
+
+.mt-0 { margin-top: 0 !important; }
+.mt-10 { margin-top: 10px !important; }
+.mt-20 { margin-top: 20px !important; }
+.mt-30 { margin-top: 30px !important; }
+
+.p-0 { padding: 0 !important; }
+.p-10 { padding: 10px !important; }
+.p-20 { padding: 20px !important; }
+
+.font-weight-normal { font-weight: 400 !important; }
+.font-weight-bold { font-weight: 600 !important; }
+
+.font-size-12 { font-size: 12px !important; }
+.font-size-14 { font-size: 14px !important; }
+.font-size-16 { font-size: 16px !important; }
+.font-size-18 { font-size: 18px !important; }
+
+/* ===== DARK MODE SUPPORT ===== */
+@media (prefers-color-scheme: dark) {
+    :root {
+        --background-color: #1a1a1a;
+        --container-background: #2d2d2d;
+        --text-primary: #ffffff;
+        --text-secondary: #cccccc;
+        --border-light: #404040;
+    }
+
+    body {
+        background-color: #1a1a1a !important;
+        color: #ffffff !important;
+    }
+
+    .email-container {
+        background-color: #2d2d2d !important;
+    }
+
+    .email-content h1,
+    .email-content h2,
+    .email-content h3 {
+        color: #ffffff !important;
+    }
+
+    .email-content p {
+        color: #cccccc !important;
+    }
+
+    .email-footer {
+        background-color: #2d2d2d !important;
+        border-top-color: #404040 !important;
+    }
+}
+
+/* ===== MOBILE RESPONSIVE ===== */
+@media only screen and (max-width: 600px) {
+    .email-wrapper {
+        padding: 10px !important;
+    }
+
+    .email-container {
+        width: 100% !important;
+        max-width: 100% !important;
+        border-radius: 0 !important;
+    }
+
+    .email-header {
+        padding: 30px 20px !important;
+        border-radius: 0 !important;
+    }
+
+    .email-content {
+        padding: 20px !important;
+    }
+
+    .email-content h1 {
+        font-size: 24px !important;
+    }
+
+    .email-content h2 {
+        font-size: 20px !important;
+    }
+
+    .email-content h3 {
+        font-size: 18px !important;
+    }
+
+    .email-footer {
+        padding: 20px !important;
+        border-radius: 0 !important;
+    }
+
+    .btn-primary,
+    .btn-secondary,
+    .btn-outline {
+        display: block !important;
+        width: 100% !important;
+        padding: 15px !important;
+        margin: 10px 0 !important;
+    }
+
+    /* Mobile-specific utility classes */
+    .mobile-hide {
+        display: none !important;
+    }
+
+    .mobile-show {
+        display: block !important;
+    }
+
+    .mobile-text-center {
+        text-align: center !important;
+    }
+
+    .mobile-full-width {
+        width: 100% !important;
+    }
+}
+
+/* ===== OUTLOOK SPECIFIC FIXES ===== */
+/*[if mso]>
+table {
+    border-collapse: collapse;
+    border-spacing: 0;
+    border: none;
+    margin: 0;
+}
+
+div, table, td {
+    font-family: Arial, sans-serif !important;
+}
+
+.btn-primary,
+.btn-secondary,
+.btn-outline {
+    border-radius: 0 !important;
+}
+
+.success-box,
+.warning-box,
+.error-box,
+.info-box,
+.tip-box {
+    border-radius: 0 !important;
+}
+<![endif]*/
+
+/* ===== PRINT STYLES ===== */
+@media print {
+    body {
+        background-color: #ffffff !important;
+        color: #000000 !important;
+    }
+
+    .email-container {
+        box-shadow: none !important;
+        border: 1px solid #cccccc;
+    }
+
+    .btn-primary,
+    .btn-secondary,
+    .btn-outline {
+        border: 2px solid #000000 !important;
+        color: #000000 !important;
+        background-color: transparent !important;
+    }
+}

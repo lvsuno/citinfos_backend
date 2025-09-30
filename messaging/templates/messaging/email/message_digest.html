@@ -1,0 +1,29 @@
+{% extends "messaging/base/base_email.html" %}
+
+{% block email_title %}Unread Messages Summary - Equipment Database{% endblock %}
+{% block preheader %}You have {{ unread_count }} unread messages{% endblock %}
+{% block header_title %}Message Summary{% endblock %}
+
+{% block content %}
+    <h2 style="color: #333333; margin-top: 0;">Your message summary</h2>
+
+    <p>Hello {{ user.get_full_name|default:user.username }},</p>
+
+    <p>Here's a summary of your messaging activity:</p>
+
+    {% include "messaging/components/message_stats.html" with total_messages=stats.total_messages unread_count=stats.unread_count active_threads=stats.active_threads date_range=stats.date_range %}
+
+    {% if unread_messages %}
+        <h3 style="color: #333333;">Recent unread messages:</h3>
+        {% for message in unread_messages %}
+            {% include "messaging/components/message_bubble.html" with user=message.sender message_text=message.content timestamp=message.created_at %}
+        {% endfor %}
+    {% endif %}
+
+    <p style="margin: 20px 0;">Stay up to date with your conversations:</p>
+
+    {% include "messaging/components/button.html" with url=messages_url text="View All Messages" %}
+
+    <p>Best regards,<br>
+    The Equipment Database Team</p>
+{% endblock %}

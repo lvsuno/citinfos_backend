@@ -1,0 +1,277 @@
+/* Content App Email Styles - Development Reference */
+/* This file provides CSS reference for inline styles used in content email templates */
+/* These styles are optimized for email clients and will be inlined in production templates */
+
+/* =============================================================================
+   EMAIL RESET & BASE STYLES
+   ========================================================================== */
+
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+    line-height: 1.6;
+    color: #333333;
+    background-color: #f8f9fa;
+    margin: 0;
+    padding: 0;
+    -webkit-text-size-adjust: 100%;
+    -ms-text-size-adjust: 100%;
+}
+
+table {
+    border-collapse: collapse;
+    mso-table-lspace: 0pt;
+    mso-table-rspace: 0pt;
+}
+
+/* =============================================================================
+   EMAIL CONTAINER & LAYOUT
+   ========================================================================== */
+
+.email-container {
+    max-width: 600px;
+    margin: 0 auto;
+    background-color: #ffffff;
+    border-radius: 10px;
+    box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
+    overflow: hidden;
+}
+
+.email-wrapper {
+    background-color: #f8f9fa;
+    padding: 30px 15px;
+}
+
+/* Header Styles */
+.email-header {
+    background: linear-gradient(135deg, #6372ff 0%, #5ca9fb 100%);
+    padding: 30px 20px;
+    text-align: center;
+    color: #ffffff;
+}
+
+.email-header h1 {
+    font-size: 24px;
+    font-weight: 600;
+    margin: 0;
+}
+
+/* Content Area */
+.email-content {
+    padding: 40px 30px;
+    background-color: #ffffff;
+}
+
+.email-heading {
+    font-size: 20px;
+    font-weight: 600;
+    color: #333333;
+    margin: 0 0 20px 0;
+}
+
+.email-text {
+    font-size: 16px;
+    line-height: 1.6;
+    color: #555555;
+    margin: 0 0 20px 0;
+}
+
+/* Post/Content Quotes */
+.content-quote {
+    background-color: #f8f9fa;
+    border-left: 4px solid #6372ff;
+    padding: 15px 20px;
+    margin: 20px 0;
+    font-style: italic;
+    color: #666666;
+    border-radius: 0 6px 6px 0;
+}
+
+/* =============================================================================
+   NOTIFICATION COMPONENTS
+   ========================================================================== */
+
+/* User Info Component */
+.user-info {
+    display: flex;
+    align-items: center;
+    padding: 15px;
+    background-color: #f8f9fa;
+    border-radius: 8px;
+    margin: 20px 0;
+}
+
+.user-avatar {
+    width: 50px;
+    height: 50px;
+    border-radius: 25px;
+    margin-right: 15px;
+    background: linear-gradient(135deg, #6372ff 0%, #5ca9fb 100%);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #ffffff;
+    font-weight: 600;
+    font-size: 18px;
+}
+
+.user-details h4 {
+    margin: 0 0 5px 0;
+    font-size: 16px;
+    font-weight: 600;
+    color: #333333;
+}
+
+.user-details p {
+    margin: 0;
+    font-size: 14px;
+    color: #6c757d;
+}
+
+/* Action Buttons */
+.btn {
+    display: inline-block;
+    padding: 12px 24px;
+    font-size: 16px;
+    font-weight: 600;
+    text-decoration: none;
+    border-radius: 6px;
+    text-align: center;
+    transition: all 0.3s ease;
+}
+
+.btn-primary {
+    background: linear-gradient(135deg, #6372ff 0%, #5ca9fb 100%);
+    color: #ffffff;
+}
+
+.btn-secondary {
+    background-color: #f8f9fa;
+    color: #6372ff;
+    border: 2px solid #6372ff;
+}
+
+.btn-success {
+    background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
+    color: #ffffff;
+}
+
+/* =============================================================================
+   NOTIFICATION BOXES
+   ========================================================================== */
+
+/* Info Box */
+.notification-info {
+    background-color: #d1ecf1;
+    border: 1px solid #b8daff;
+    color: #0c5460;
+    padding: 15px;
+    border-radius: 6px;
+    margin: 20px 0;
+}
+
+/* Success Box */
+.notification-success {
+    background-color: #d4edda;
+    border: 1px solid #c3e6cb;
+    color: #155724;
+    padding: 15px;
+    border-radius: 6px;
+    margin: 20px 0;
+}
+
+/* Warning Box */
+.notification-warning {
+    background-color: #fff3cd;
+    border: 1px solid #ffeaa7;
+    color: #856404;
+    padding: 15px;
+    border-radius: 6px;
+    margin: 20px 0;
+}
+
+/* =============================================================================
+   FOOTER STYLES
+   ========================================================================== */
+
+.email-footer {
+    background-color: #f8f9fa;
+    padding: 30px;
+    text-align: center;
+    color: #6c757d;
+    font-size: 14px;
+    border-top: 1px solid #e9ecef;
+}
+
+.email-footer p {
+    margin: 0 0 10px 0;
+}
+
+.email-footer a {
+    color: #6372ff;
+    text-decoration: none;
+}
+
+/* =============================================================================
+   RESPONSIVE STYLES
+   ========================================================================== */
+
+@media only screen and (max-width: 600px) {
+    .email-wrapper {
+        padding: 15px 10px !important;
+    }
+
+    .email-content {
+        padding: 25px 20px !important;
+    }
+
+    .email-header {
+        padding: 20px 15px !important;
+    }
+
+    .email-header h1 {
+        font-size: 20px !important;
+    }
+
+    .user-info {
+        flex-direction: column;
+        text-align: center;
+    }
+
+    .user-avatar {
+        margin: 0 0 10px 0;
+    }
+}
+
+/* =============================================================================
+   EMAIL CLIENT COMPATIBILITY
+   ========================================================================== */
+
+/* Outlook specific */
+/*[if mso]>
+<style type="text/css">
+    .email-container {
+        width: 600px !important;
+    }
+    .email-content {
+        padding: 40px 30px !important;
+    }
+</style>
+<![endif]*/
+
+/* Dark mode support */
+@media (prefers-color-scheme: dark) {
+    .email-container {
+        background-color: #ffffff !important;
+    }
+
+    .email-content {
+        background-color: #ffffff !important;
+        color: #333333 !important;
+    }
+}

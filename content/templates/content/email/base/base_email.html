@@ -1,0 +1,123 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+    <meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="format-detection" content="telephone=no" />
+    <meta name="format-detection" content="date=no" />
+    <meta name="format-detection" content="address=no" />
+    <meta name="format-detection" content="email=no" />
+    <title>{% block email_title %}Content Notification - Homey Platform{% endblock %}</title>
+
+    <!-- Email Client Compatibility -->
+    <!--[if mso]>
+    <noscript>
+        <xml>
+            <o:OfficeDocumentSettings>
+                <o:PixelsPerInch>96</o:PixelsPerInch>
+            </o:OfficeDocumentSettings>
+        </xml>
+    </noscript>
+    <![endif]-->
+
+    <style type="text/css">
+        /* Email client resets */
+        body, table, td, p, a, li, blockquote { -webkit-text-size-adjust: 100%; -ms-text-size-adjust: 100%; }
+        table, td { mso-table-lspace: 0pt; mso-table-rspace: 0pt; }
+        img { -ms-interpolation-mode: bicubic; border: 0; outline: none; text-decoration: none; }
+
+        /* Dark mode support */
+        @media (prefers-color-scheme: dark) {
+            .email-container { background-color: #ffffff !important; }
+            .email-content { background-color: #ffffff !important; color: #333333 !important; }
+        }
+    </style>
+</head>
+<body style="margin: 0; padding: 0; background-color: #f8f9fa; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; -webkit-text-size-adjust: 100%; -ms-text-size-adjust: 100%;">
+
+    <!-- Preview Text (hidden) -->
+    <div style="display: none; font-size: 1px; color: #fefefe; line-height: 1px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; max-height: 0; max-width: 0; opacity: 0; overflow: hidden;">
+        {% block preheader %}New content notification from Homey Platform{% endblock %}
+    </div>
+
+    <!-- Email Wrapper -->
+    <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="background-color: #f8f9fa;">
+        <tr>
+            <td style="padding: 30px 15px;">
+
+                <!-- Email Container -->
+                <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="600" class="email-container" style="max-width: 600px; margin: 0 auto; background-color: #ffffff; border-radius: 10px; box-shadow: 0 5px 15px rgba(0,0,0,0.1); overflow: hidden;">
+
+                    <!-- Header -->
+                    <tr>
+                        <td style="background: linear-gradient(135deg, #6372ff 0%, #5ca9fb 100%); padding: 30px 20px; text-align: center;">
+
+                            <!-- Logo/Brand -->
+                            <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%">
+                                <tr>
+                                    <td style="text-align: center;">
+                                        <img src="/media/app/homey-logo.png"
+                                             alt="Homey Platform"
+                                             style="max-height: 50px; height: auto; display: block; margin: 0 auto;" />
+                                    </td>
+                                </tr>
+                            </table>
+
+                            <!-- Header Content Block -->
+                            {% block header_content %}
+                            <h1 style="color: #ffffff; font-size: 24px; font-weight: 600; margin: 20px 0 0 0;">
+                                Content Notification
+                            </h1>
+                            {% endblock %}
+
+                        </td>
+                    </tr>
+
+                    <!-- Main Content -->
+                    <tr>
+                        <td style="padding: 40px 30px; background-color: #ffffff;">
+
+                            <!-- Email Heading -->
+                            <h2 style="font-size: 20px; font-weight: 600; color: #333333; margin: 0 0 20px 0;">
+                                {% block email_heading %}Hello there!{% endblock %}
+                            </h2>
+
+                            <!-- Main Content Block -->
+                            {% block content %}
+                            <p style="color: #555555; font-size: 16px; margin: 0 0 20px 0; line-height: 1.6;">
+                                This is a content notification from Homey Platform.
+                            </p>
+                            {% endblock %}
+
+                        </td>
+                    </tr>
+
+                    <!-- Footer -->
+                    <tr>
+                        <td style="background-color: #f8f9fa; padding: 30px; text-align: center; color: #6c757d; font-size: 14px; border-top: 1px solid #e9ecef;">
+
+                            <p style="margin: 0 0 10px 0;">
+                                {% block footer_text %}
+                                This is an automated content notification from Homey Platform.
+                                {% endblock %}
+                            </p>
+
+                            <p style="margin: 0;">
+                                <strong>HOMEY</strong> •
+                                <a href="mailto:homey.20252026@gmail.com" style="color: #6372ff; text-decoration: none;">
+                                    homey.20252026@gmail.com
+                                </a>
+                            </p>
+
+                        </td>
+                    </tr>
+
+                </table>
+
+            </td>
+        </tr>
+    </table>
+
+</body>
+</html>

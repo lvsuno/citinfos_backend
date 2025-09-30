@@ -1,0 +1,10 @@
+<!-- Global Divider Component -->
+<!-- Usage: {% include "global/email/components/divider.html" with style="solid|dashed|dotted" color="#e9ecef" margin="20px" %} -->
+
+<table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="margin: {{ margin|default:'20px' }} 0;">
+    <tr>
+        <td style="border-top: 1px {{ style|default:'solid' }} {{ color|default:'#e9ecef' }}; padding: 0; font-size: 0; line-height: 0;">
+            &nbsp;
+        </td>
+    </tr>
+</table>

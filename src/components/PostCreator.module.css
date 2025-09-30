@@ -1,0 +1,446 @@
+/* PostCreator.module.css - Design Moderne */
+
+.postCreator {
+    background: #FFFFFF;
+    border-radius: 16px;
+    border: 1px solid #F1F5F9;
+    padding: 24px;
+    margin-bottom: 24px;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+}
+
+.postCreator:hover {
+    box-shadow: 0 8px 25px rgba(0, 0, 0, 0.08);
+    border-color: #E2E8F0;
+}
+
+.creatorHeader {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    cursor: pointer;
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    border-radius: 12px;
+    padding: 4px;
+    margin: -4px;
+}
+
+.creatorHeader:hover {
+    background: #F8FAFC;
+}
+
+.userAvatar {
+    width: 48px;
+    height: 48px;
+    border-radius: 50%;
+    overflow: hidden;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    font-weight: 600;
+    font-size: 18px;
+    position: relative;
+    box-shadow: 0 4px 14px rgba(102, 126, 234, 0.15);
+}
+
+.userAvatar::after {
+    content: '';
+    position: absolute;
+    inset: -2px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #667eea, #764ba2);
+    z-index: -1;
+    opacity: 0;
+    transition: opacity 0.3s ease;
+}
+
+.userAvatar:hover::after {
+    opacity: 0.2;
+}
+
+.userAvatar img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.placeholder {
+    flex: 1;
+    color: #64748B;
+    font-size: 16px;
+    font-weight: 400;
+    padding: 14px 20px;
+    background: #F8FAFC;
+    border-radius: 28px;
+    border: 1px solid transparent;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.placeholder:hover {
+    background: #F1F5F9;
+    border-color: #E2E8F0;
+}
+
+.expandButton {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    border: none;
+    border-radius: 50%;
+    width: 44px;
+    height: 44px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: white;
+    cursor: pointer;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    box-shadow: 0 4px 14px rgba(102, 126, 234, 0.25);
+}
+
+.expandButton:hover {
+    transform: scale(1.08) translateY(-1px);
+    box-shadow: 0 8px 25px rgba(102, 126, 234, 0.35);
+}
+
+.expandButton:active {
+    transform: scale(1.02);
+}
+
+.expandedForm {
+    margin-top: 20px;
+    border-top: 1px solid #F1F5F9;
+    padding-top: 20px;
+    animation: slideDown 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+@keyframes slideDown {
+    from {
+        opacity: 0;
+        transform: translateY(-10px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.formHeader {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 20px;
+}
+
+.headerContent {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.headerIcon {
+    color: #667eea;
+    font-size: 24px;
+}
+
+.formHeader h3 {
+    color: #1E293B;
+    font-size: 20px;
+    font-weight: 700;
+    margin: 0;
+    letter-spacing: -0.025em;
+}
+
+.closeButton {
+    background: none;
+    border: none;
+    color: #64748B;
+    cursor: pointer;
+    padding: 8px;
+    border-radius: 8px;
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.closeButton:hover {
+    background: #F1F5F9;
+    color: #334155;
+    transform: scale(1.05);
+}
+
+.contentArea {
+    margin-bottom: 20px;
+}
+
+.contentInput {
+    width: 100%;
+    border: 1px solid #E2E8F0;
+    border-radius: 12px;
+    padding: 16px 20px;
+    font-size: 16px;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    resize: vertical;
+    min-height: 120px;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    line-height: 1.6;
+    background: #FAFBFC;
+}
+
+.contentInput:focus {
+    outline: none;
+    border-color: #667eea;
+    box-shadow: 0 0 0 4px rgba(102, 126, 234, 0.1);
+    background: #FFFFFF;
+}
+
+.contentInput::placeholder {
+    color: #94A3B8;
+    font-weight: 400;
+}
+
+.attachmentPreview {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+    gap: 16px;
+    margin-bottom: 20px;
+    padding: 20px;
+    background: linear-gradient(135deg, #F8FAFC 0%, #F1F5F9 100%);
+    border-radius: 12px;
+    border: 1px dashed #CBD5E1;
+}
+
+.attachment {
+    position: relative;
+    width: 100%;
+    height: 140px;
+    border-radius: 12px;
+    overflow: hidden;
+    background: #E2E8F0;
+    transition: transform 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+}
+
+.attachment:hover {
+    transform: scale(1.02);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+.attachment img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.videoPreview {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    color: #64748B;
+    text-align: center;
+    padding: 16px;
+    background: linear-gradient(135deg, #F1F5F9 0%, #E2E8F0 100%);
+}
+
+.videoPreview svg {
+    font-size: 36px;
+    margin-bottom: 12px;
+    color: #667eea;
+}
+
+.videoPreview span {
+    font-size: 13px;
+    font-weight: 500;
+    word-break: break-all;
+    line-height: 1.4;
+}
+
+.removeAttachment {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    background: rgba(15, 23, 42, 0.8);
+    backdrop-filter: blur(8px);
+    border: none;
+    border-radius: 50%;
+    width: 28px;
+    height: 28px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: white;
+    cursor: pointer;
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    opacity: 0.8;
+}
+
+.removeAttachment:hover {
+    background: #EF4444;
+    opacity: 1;
+    transform: scale(1.1);
+}
+
+.removeAttachment svg {
+    font-size: 16px;
+}
+
+.formActions {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 16px;
+    padding-top: 16px;
+    border-top: 1px solid #F1F5F9;
+}
+
+.attachmentButtons {
+    display: flex;
+    gap: 12px;
+}
+
+.attachButton {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 12px 16px;
+    background: #FFFFFF;
+    border: 1px solid #E2E8F0;
+    border-radius: 10px;
+    color: #475569;
+    cursor: pointer;
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    font-size: 14px;
+    font-weight: 500;
+    text-decoration: none;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+}
+
+.attachButton:hover {
+    background: #F8FAFC;
+    border-color: #CBD5E1;
+    color: #334155;
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+}
+
+.attachButton svg {
+    font-size: 20px;
+}
+
+.submitButton {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    border: none;
+    border-radius: 12px;
+    padding: 14px 24px;
+    color: white;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    font-size: 15px;
+    letter-spacing: -0.01em;
+    box-shadow: 0 4px 14px rgba(102, 126, 234, 0.25);
+}
+
+.submitButton:hover:not(:disabled) {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 25px rgba(102, 126, 234, 0.35);
+}
+
+.submitButton:active {
+    transform: translateY(0);
+}
+
+.submitButton:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    transform: none;
+    box-shadow: none;
+}
+
+.submitButton svg {
+    font-size: 18px;
+}
+
+.spinner {
+    width: 18px;
+    height: 18px;
+    border: 2px solid rgba(255, 255, 255, 0.3);
+    border-radius: 50%;
+    border-top-color: white;
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+/* Responsive Design Moderne */
+@media (max-width: 768px) {
+    .postCreator {
+        padding: 20px;
+        margin-bottom: 20px;
+        border-radius: 12px;
+        margin-left: -8px;
+        margin-right: -8px;
+    }
+
+    .userAvatar {
+        width: 44px;
+        height: 44px;
+        font-size: 16px;
+    }
+
+    .placeholder {
+        font-size: 15px;
+        padding: 12px 18px;
+    }
+
+    .expandButton {
+        width: 40px;
+        height: 40px;
+    }
+
+    .contentInput {
+        font-size: 15px;
+        padding: 14px 18px;
+        min-height: 100px;
+    }
+
+    .formActions {
+        flex-direction: column;
+        gap: 16px;
+        align-items: stretch;
+    }
+
+    .attachmentButtons {
+        width: 100%;
+        justify-content: center;
+    }
+
+    .submitButton {
+        width: 100%;
+        justify-content: center;
+        padding: 16px;
+    }
+
+    .attachmentPreview {
+        grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+        gap: 12px;
+        padding: 16px;
+    }
+
+    .attachment {
+        height: 120px;
+    }
+}

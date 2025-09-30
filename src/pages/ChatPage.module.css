@@ -1,0 +1,76 @@
+/* Styles pour ChatPage */
+.chatContainer {
+    display: flex;
+    height: 100vh;
+    background: #f8f9fa;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+}
+
+.chatMain {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    background: white;
+}
+
+/* Écran d'accueil */
+.welcomeScreen {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+}
+
+.welcomeContent {
+    text-align: center;
+    max-width: 400px;
+    padding: 40px;
+}
+
+.welcomeIcon {
+    font-size: 64px;
+    margin-bottom: 24px;
+    opacity: 0.9;
+}
+
+.welcomeTitle {
+    font-size: 28px;
+    font-weight: 700;
+    margin: 0 0 16px 0;
+    background: linear-gradient(45deg, #ffffff, #e3f2fd);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+}
+
+.welcomeText {
+    font-size: 16px;
+    line-height: 1.6;
+    opacity: 0.9;
+    margin: 0;
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+    .chatContainer {
+        flex-direction: column;
+    }
+
+    .chatMain {
+        height: calc(100vh - 60px);
+    }
+
+    .welcomeContent {
+        padding: 20px;
+    }
+
+    .welcomeTitle {
+        font-size: 24px;
+    }
+
+    .welcomeText {
+        font-size: 14px;
+    }
+}

@@ -1,0 +1,13 @@
+{% extends "messaging/base/base_email.html" %}
+
+{% block email_title %}Test Template{% endblock %}
+
+{% block preheader %}Test preheader{% endblock %}
+
+{% block email_heading %}Hello Test!{% endblock %}
+
+{% block content %}
+    <p style="color: #4a5568; font-size: 16px; margin: 0;">
+        This is a simple test template.
+    </p>
+{% endblock %}

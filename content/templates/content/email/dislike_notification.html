@@ -1,0 +1,51 @@
+{% extends "content/email/base/base_email.html" %}
+
+{% block email_title %}Content Feedback Notification - Homey Platform{% endblock %}
+
+{% block preheader %}You received feedback on your {{ content_type }} on Homey Platform{% endblock %}
+
+{% block header_content %}
+    <h1 style="color: #ffffff; font-size: 24px; font-weight: 600; margin: 20px 0 0 0;">
+        📝 Content Feedback
+    </h1>
+{% endblock %}
+
+{% block email_heading %}Hello {{ recipient.username }}!{% endblock %}
+
+{% block content %}
+    <p style="color: #555555; font-size: 16px; margin: 0 0 20px 0; line-height: 1.6;">
+        We wanted to let you know that <strong>{{ disliker.username }}</strong> provided feedback on your {{ content_type }} on <strong>Homey Platform</strong>.
+    </p>
+
+    <!-- User Info Component -->
+    {% include "content/components/user_info.html" with user=disliker action="gave feedback on your" item=content_type %}
+
+    <!-- Content Information -->
+    <h4 style="color: #333333; font-size: 16px; font-weight: 600; margin: 25px 0 10px 0;">
+        Your {% if content_type == 'post' %}Post{% elif content_type == 'comment' %}Comment{% endif %}:
+    </h4>
+
+    {% if content_type == 'post' %}
+        {% include "content/components/content_quote.html" with content=content.content %}
+    {% elif content_type == 'comment' %}
+        {% include "content/components/content_quote.html" with content=content.content %}
+    {% endif %}
+
+    <!-- Info Box with Encouragement -->
+    {% include "content/components/info_box.html" with title="💪 Keep Creating!" message="Feedback is part of the creative process. Every creator receives different reactions to their content. Keep sharing your thoughts and ideas with the Homey community!" %}
+
+    <!-- View Content Button -->
+    {% if content_type == 'post' %}
+        {% include "content/components/button.html" with url=content_url text="View Post" type="secondary" %}
+    {% elif content_type == 'comment' %}
+        {% include "content/components/button.html" with url=content_url text="View Comment" type="secondary" %}
+    {% endif %}
+
+    <p style="color: #6c757d; font-size: 14px; margin: 30px 0 0 0; line-height: 1.4;">
+        If you have any questions or concerns about this feedback, you can review your content or reach out to our support team.
+    </p>
+{% endblock %}
+
+{% block footer_text %}
+    This feedback notification helps you stay informed about community interactions with your content.
+{% endblock %}

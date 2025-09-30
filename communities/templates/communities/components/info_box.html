@@ -1,0 +1,26 @@
+<!-- Community Info Box Component -->
+<div class="card border-{{ type|default:'info' }} shadow h-100 py-2">
+    <div class="card-body">
+        <div class="row no-gutters align-items-center">
+            {% if icon %}
+            <div class="col-auto">
+                <div class="icon-circle bg-{{ type|default:'info' }}">
+                    <i class="{{ icon }} text-white"></i>
+                </div>
+            </div>
+            <div class="col ml-3">
+            {% else %}
+            <div class="col">
+            {% endif %}
+                {% if title %}
+                <div class="text-xs font-weight-bold text-{{ type|default:'info' }} text-uppercase mb-1">
+                    {{ title }}
+                </div>
+                {% endif %}
+                <div class="h6 mb-0 text-gray-800">
+                    {{ message|safe }}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>

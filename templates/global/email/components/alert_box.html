@@ -1,0 +1,18 @@
+<!-- Global Alert/Status Box Component -->
+<!-- Usage: {% include "global/email/components/alert_box.html" with alert_type="success" alert_title="..." alert_message="..." %} -->
+
+<table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="margin: 20px 0;">
+    <tr>
+        <td style="{% if alert_type == 'success' %}background-color: #d4edda; border: 1px solid #c3e6cb; color: #155724;{% elif alert_type == 'warning' %}background-color: #fff3cd; border: 1px solid #ffeaa7; color: #856404;{% elif alert_type == 'error' %}background-color: #f8d7da; border: 1px solid #f5c6cb; color: #721c24;{% else %}background-color: #d1ecf1; border: 1px solid #b8daff; color: #0c5460;{% endif %} border-radius: 6px; padding: 15px;">
+            {% if alert_title %}
+                <h4 style="margin: 0 0 8px 0; font-size: 16px; font-weight: 600;">
+                    {% if alert_type == 'success' %}✅{% elif alert_type == 'warning' %}⚠️{% elif alert_type == 'error' %}❌{% else %}ℹ️{% endif %}
+                    {{ alert_title }}
+                </h4>
+            {% endif %}
+            {% if alert_message %}
+                <p style="margin: 0; font-size: 14px; line-height: 1.4;">{{ alert_message }}</p>
+            {% endif %}
+        </td>
+    </tr>
+</table>

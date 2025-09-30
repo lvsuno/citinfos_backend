@@ -1,0 +1,662 @@
+/* Styles pour MunicipalityDashboard */
+
+/* Cover élégant pour les rubriques - Design minimaliste */
+.sectionCover {
+    background: #1E293B;
+    color: white;
+    padding: 60px 40px;
+    margin: -20px -20px 40px -20px;
+    border-radius: 0 0 24px 24px;
+    position: relative;
+    overflow: hidden;
+    box-shadow: 0 4px 20px rgba(30, 41, 59, 0.15);
+    border-bottom: 3px solid #06B6D4;
+}
+
+.sectionCover::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    right: 0;
+    width: 200px;
+    height: 200px;
+    background: rgba(6, 182, 212, 0.08);
+    border-radius: 50%;
+    transform: translate(50px, -50px);
+    pointer-events: none;
+}
+
+.sectionCover::after {
+    content: '';
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    width: 150px;
+    height: 150px;
+    background: rgba(132, 204, 22, 0.06);
+    border-radius: 50%;
+    transform: translate(-50px, 50px);
+    pointer-events: none;
+}
+
+.coverContent {
+    position: relative;
+    z-index: 2;
+    max-width: 800px;
+    margin: 0 auto;
+    text-align: left;
+}
+
+.sectionTitle {
+    font-size: 2.8rem;
+    font-weight: 700;
+    margin: 0 0 16px 0;
+    letter-spacing: -0.02em;
+    color: #ffffff;
+    line-height: 1.2;
+    text-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.sectionDescription {
+    font-size: 1.1rem;
+    line-height: 1.6;
+    margin: 0;
+    opacity: 0.9;
+    font-weight: 400;
+    max-width: 600px;
+    color: rgba(255, 255, 255, 0.85);
+}
+
+.loading {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    height: 100vh;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+}
+
+.spinner {
+    width: 50px;
+    height: 50px;
+    border: 4px solid rgba(255, 255, 255, 0.3);
+    border-top: 4px solid white;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+    margin-bottom: 20px;
+}
+
+@keyframes spin {
+    0% {
+        transform: rotate(0deg);
+    }
+
+    100% {
+        transform: rotate(360deg);
+    }
+}
+
+.error {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    height: 100vh;
+    text-align: center;
+    padding: 20px;
+}
+
+.error h2 {
+    color: #e74c3c;
+    margin-bottom: 16px;
+}
+
+.error button {
+    background: #3498db;
+    color: white;
+    border: none;
+    padding: 12px 24px;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 16px;
+    margin-top: 20px;
+    transition: background 0.3s ease;
+}
+
+.error button:hover {
+    background: #2980b9;
+}
+
+/* En-tête de municipalité */
+.municipalityHeader {
+    background: linear-gradient(135deg, #84CC16 0%, #65A30D 100%);
+    color: white;
+    padding: 32px 24px;
+    margin: -24px -24px 32px -24px;
+    border-radius: 0 0 20px 20px;
+}
+
+.municipalityInfo {
+    max-width: 1200px;
+    margin: 0 auto;
+}
+
+.municipalityTitle {
+    font-size: 48px;
+    font-weight: 700;
+    margin: 0 0 16px 0;
+    text-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+}
+
+.municipalityMeta {
+    display: flex;
+    gap: 24px;
+    flex-wrap: wrap;
+    font-size: 18px;
+    opacity: 0.95;
+}
+
+.region,
+.mrc,
+.population {
+    padding: 8px 16px;
+    background: rgba(255, 255, 255, 0.2);
+    border-radius: 20px;
+    backdrop-filter: blur(10px);
+    border: 1px solid rgba(255, 255, 255, 0.3);
+}
+
+/* Section d'accueil */
+.welcomeSection {
+    max-width: 1200px;
+    margin: 0 auto;
+}
+
+.welcomeCard {
+    background: white;
+    border-radius: 16px;
+    padding: 40px;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+    border: 1px solid rgba(132, 204, 22, 0.1);
+}
+
+.welcomeCard h2 {
+    color: #1e293b;
+    font-size: 32px;
+    font-weight: 700;
+    margin: 0 0 20px 0;
+}
+
+.welcomeCard p {
+    color: #64748b;
+    font-size: 18px;
+    line-height: 1.7;
+    margin: 0 0 32px 0;
+}
+
+.quickStats {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 24px;
+}
+
+.stat {
+    text-align: center;
+    padding: 24px;
+    background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
+    border-radius: 12px;
+    border: 2px solid rgba(132, 204, 22, 0.1);
+    transition: transform 0.3s ease, border-color 0.3s ease;
+}
+
+.stat:hover {
+    transform: translateY(-2px);
+    border-color: rgba(132, 204, 22, 0.3);
+}
+
+.statLabel {
+    display: block;
+    font-size: 14px;
+    font-weight: 600;
+    color: #64748b;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-bottom: 8px;
+}
+
+.statValue {
+    display: block;
+    font-size: 24px;
+    font-weight: 700;
+    color: #84CC16;
+}
+
+/* Contenu des sections */
+.sectionContent {
+    flex: 1;
+    padding: 0;
+}
+
+.sectionWrapper {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 0 20px;
+}
+
+.sectionWrapper h2 {
+    color: #1e293b;
+    font-size: 32px;
+    font-weight: 700;
+    margin: 0 0 16px 0;
+}
+
+.sectionWrapper>p {
+    color: #64748b;
+    font-size: 18px;
+    line-height: 1.6;
+    margin: 0 0 32px 0;
+}
+
+/* État "Bientôt disponible" */
+.comingSoon {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 80px 40px;
+    text-align: center;
+    background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
+    border-radius: 16px;
+    border: 2px dashed rgba(132, 204, 22, 0.3);
+}
+
+.comingSoonIcon {
+    font-size: 64px;
+    margin-bottom: 24px;
+    filter: grayscale(0.3);
+}
+
+.comingSoon p {
+    color: #64748b;
+    font-size: 18px;
+    font-style: italic;
+    margin: 0;
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+    .municipalityHeader {
+        padding: 24px 16px;
+        margin: -20px -20px 24px -20px;
+    }
+
+    .municipalityTitle {
+        font-size: 32px;
+    }
+
+    .municipalityMeta {
+        font-size: 14px;
+        gap: 12px;
+    }
+
+    .region,
+    .mrc,
+    .population {
+        padding: 6px 12px;
+        font-size: 14px;
+    }
+
+    .welcomeCard {
+        padding: 24px;
+    }
+
+    .welcomeCard h2 {
+        font-size: 24px;
+    }
+
+    .welcomeCard p {
+        font-size: 16px;
+    }
+
+    .quickStats {
+        grid-template-columns: 1fr;
+        gap: 16px;
+    }
+
+    .stat {
+        padding: 20px;
+    }
+
+    .statValue {
+        font-size: 20px;
+    }
+
+    .sectionWrapper h2 {
+        font-size: 24px;
+    }
+
+    .sectionWrapper>p {
+        font-size: 16px;
+    }
+
+    .comingSoon {
+        padding: 60px 20px;
+    }
+
+    .comingSoonIcon {
+        font-size: 48px;
+    }
+
+    .comingSoon p {
+        font-size: 16px;
+    }
+}
+
+@media (max-width: 480px) {
+    .municipalityTitle {
+        font-size: 28px;
+    }
+
+    .municipalityMeta {
+        flex-direction: column;
+        gap: 8px;
+    }
+
+    .welcomeCard {
+        padding: 20px;
+    }
+
+    .stat {
+        padding: 16px;
+    }
+}
+
+/* Nouvelles sections avec posts - Design Moderne */
+.sectionHeader {
+    background: linear-gradient(135deg, #FFFFFF 0%, #F8FAFC 100%);
+    border-radius: 20px;
+    border: 1px solid #F1F5F9;
+    padding: 32px;
+    margin-bottom: 24px;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    position: relative;
+    overflow: hidden;
+}
+
+.sectionHeader::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 4px;
+    background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
+}
+
+.sectionHeader:hover {
+    box-shadow: 0 8px 25px rgba(0, 0, 0, 0.08);
+    border-color: #E2E8F0;
+    transform: translateY(-1px);
+}
+
+.sectionHeader h2 {
+    color: #1E293B;
+    font-size: 32px;
+    font-weight: 800;
+    margin: 0 0 12px 0;
+    letter-spacing: -0.03em;
+    background: linear-gradient(135deg, #1E293B 0%, #334155 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+}
+
+.sectionHeader p {
+    color: #64748B;
+    font-size: 18px;
+    margin: 0;
+    line-height: 1.7;
+    font-weight: 400;
+}
+
+.postsSection {
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+}
+
+.welcomeSection .postsSection {
+    margin-top: 24px;
+}
+
+/* Welcome section moderne */
+.welcomeCard {
+    background: linear-gradient(135deg, #FFFFFF 0%, #F8FAFC 100%);
+    border-radius: 20px;
+    border: 1px solid #F1F5F9;
+    padding: 40px;
+    margin-bottom: 24px;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    position: relative;
+    overflow: hidden;
+}
+
+.welcomeCard::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 4px;
+    background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
+}
+
+.welcomeCard:hover {
+    box-shadow: 0 8px 25px rgba(0, 0, 0, 0.08);
+    border-color: #E2E8F0;
+    transform: translateY(-1px);
+}
+
+.welcomeCard h2 {
+    color: #1E293B;
+    font-size: 36px;
+    font-weight: 800;
+    margin: 0 0 16px 0;
+    letter-spacing: -0.03em;
+    background: linear-gradient(135deg, #1E293B 0%, #334155 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+}
+
+.welcomeCard p {
+    color: #64748B;
+    font-size: 18px;
+    line-height: 1.7;
+    margin-bottom: 32px;
+    font-weight: 400;
+}
+
+.quickStats {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 20px;
+}
+
+.stat {
+    background: linear-gradient(135deg, #F8FAFC 0%, #F1F5F9 100%);
+    border: 1px solid #E2E8F0;
+    border-radius: 16px;
+    padding: 24px;
+    text-align: center;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    position: relative;
+    overflow: hidden;
+}
+
+.stat::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 2px;
+    background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
+    transform: scaleX(0);
+    transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.stat:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 25px rgba(0, 0, 0, 0.08);
+    border-color: #CBD5E1;
+}
+
+.stat:hover::before {
+    transform: scaleX(1);
+}
+
+.statLabel {
+    display: block;
+    color: #64748B;
+    font-size: 14px;
+    font-weight: 600;
+    margin-bottom: 8px;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+.statValue {
+    display: block;
+    color: #1E293B;
+    font-size: 24px;
+    font-weight: 800;
+    letter-spacing: -0.025em;
+}
+
+/* Responsive pour les nouvelles sections */
+@media (max-width: 768px) {
+    .sectionCover {
+        padding: 40px 24px;
+        margin: -16px -16px 32px -16px;
+        border-radius: 0 0 20px 20px;
+        text-align: center;
+    }
+
+    .coverContent {
+        text-align: center;
+    }
+
+    .sectionTitle {
+        font-size: 2.2rem;
+        margin-bottom: 12px;
+    }
+
+    .sectionDescription {
+        font-size: 1rem;
+        max-width: 100%;
+    }
+
+    .sectionHeader {
+        padding: 24px;
+        margin-bottom: 20px;
+        border-radius: 16px;
+    }
+
+    .sectionHeader h2 {
+        font-size: 28px;
+    }
+
+    .sectionHeader p {
+        font-size: 16px;
+    }
+
+    .welcomeCard {
+        padding: 28px;
+        border-radius: 16px;
+    }
+
+    .welcomeCard h2 {
+        font-size: 28px;
+    }
+
+    .welcomeCard p {
+        font-size: 16px;
+        margin-bottom: 24px;
+    }
+
+    .quickStats {
+        grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+        gap: 16px;
+    }
+
+    .stat {
+        padding: 20px;
+    }
+
+    .statValue {
+        font-size: 20px;
+    }
+}
+
+@media (max-width: 480px) {
+    .sectionCover {
+        padding: 32px 20px;
+        margin: -12px -12px 24px -12px;
+        border-radius: 0 0 16px 16px;
+        text-align: center;
+    }
+
+    .sectionTitle {
+        font-size: 1.8rem;
+        line-height: 1.3;
+        margin-bottom: 10px;
+    }
+
+    .sectionDescription {
+        font-size: 0.95rem;
+        line-height: 1.5;
+        max-width: 100%;
+    }
+
+    .sectionCover::before,
+    .sectionCover::after {
+        display: none;
+    }
+
+    .sectionHeader {
+        padding: 20px;
+        margin: 0 -12px 16px -12px;
+        border-radius: 12px;
+    }
+
+    .sectionHeader h2 {
+        font-size: 24px;
+    }
+
+    .sectionHeader p {
+        font-size: 15px;
+    }
+
+    .welcomeCard {
+        padding: 20px;
+        margin: 0 -12px 20px -12px;
+        border-radius: 12px;
+    }
+
+    .welcomeCard h2 {
+        font-size: 24px;
+    }
+
+    .quickStats {
+        grid-template-columns: 1fr;
+        gap: 12px;
+    }
+
+    .stat {
+        padding: 16px;
+    }
+}

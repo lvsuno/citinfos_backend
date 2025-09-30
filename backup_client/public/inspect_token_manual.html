@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>JWT Token Inspector - Manual</title>
+    <style>
+        body {
+            font-family: monospace;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            max-width: 1000px;
+            margin: 0 auto;
+        }
+        button {
+            padding: 10px 20px;
+            margin: 5px;
+            background: #1976d2;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        button:hover { background: #1565c0; }
+        .token-data {
+            background: #f8f9fa;
+            padding: 10px;
+            border-radius: 4px;
+            white-space: pre-wrap;
+            overflow-x: auto;
+            margin: 10px 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔍 JWT Token Inspector (Manual)</h1>
+        <p>This page loads without auto-executing any functions.</p>
+        <p>Current URL: <strong id="current-url"></strong></p>
+
+        <button onclick="showTokens()">Show Tokens</button>
+
+        <div id="results"></div>
+    </div>
+
+    <script>
+        // Just show the URL, no auto-execution
+        document.getElementById('current-url').textContent = window.location.href;
+
+        function showTokens() {
+            const results = document.getElementById('results');
+            const access = localStorage.getItem('access_token');
+            const refresh = localStorage.getItem('refresh_token');
+
+            results.innerHTML = `
+                <div class="token-data">
+                    <strong>Access Token:</strong> ${access ? access.substring(0, 50) + '...' : 'Not found'}
+                    <br><br>
+                    <strong>Refresh Token:</strong> ${refresh ? refresh.substring(0, 50) + '...' : 'Not found'}
+                </div>
+            `;
+        }
+
+        console.log('Manual token inspector loaded');
+    </script>
+</body>
+</html>

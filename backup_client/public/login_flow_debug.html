@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Login Flow Debug</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            background-color: #f5f5f5;
+        }
+        .debug-container {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            max-width: 800px;
+            margin: 0 auto;
+        }
+        .step {
+            margin: 10px 0;
+            padding: 10px;
+            border-left: 3px solid #007bff;
+            background-color: #f8f9fa;
+        }
+        .step.success {
+            border-left-color: #28a745;
+            background-color: #d4edda;
+        }
+        .step.error {
+            border-left-color: #dc3545;
+            background-color: #f8d7da;
+        }
+        button {
+            background-color: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        button:hover {
+            background-color: #0056b3;
+        }
+        .token-display {
+            font-family: monospace;
+            background: #f1f1f1;
+            padding: 10px;
+            border-radius: 4px;
+            white-space: pre-wrap;
+            margin: 10px 0;
+            max-height: 200px;
+            overflow-y: auto;
+        }
+    </style>
+</head>
+<body>
+    <div class="debug-container">
+        <h1>🔍 Login Flow Debug Tool</h1>
+        <p>This tool will simulate the login flow step by step to identify where tokens are being cleared.</p>
+
+        <div>
+            <button onclick="debugLoginFlow()">🚀 Debug Full Login Flow</button>
+            <button onclick="testCurrentUser()">👤 Test getCurrentUser API</button>
+            <button onclick="inspectTokens()">🔍 Inspect Current Tokens</button>
+            <button onclick="clearResults()">🗑️ Clear Results</button>
+        </div>
+
+        <div id="results"></div>
+    </div>
+
+    <script>
+        let stepCounter = 0;
+
+        function addStep(message, type = 'info') {
+            stepCounter++;
+            const resultsDiv = document.getElementById('results');
+            const step = document.createElement('div');
+            step.className = `step ${type}`;
+            step.innerHTML = `<strong>Step ${stepCounter}:</strong> ${message}`;
+            resultsDiv.appendChild(step);
+        }
+
+        function displayTokens(label) {
+            const access = localStorage.getItem('access_token');
+            const refresh = localStorage.getItem('refresh_token');
+            const user = localStorage.getItem('user');
+
+            let tokenInfo = `${label}:\n`;
+            tokenInfo += `Access Token: ${access ? 'Present (' + access.substring(0, 50) + '...)' : 'MISSING'}\n`;
+            tokenInfo += `Refresh Token: ${refresh ? 'Present (' + refresh.substring(0, 50) + '...)' : 'MISSING'}\n`;
+            tokenInfo += `User Data: ${user ? 'Present' : 'MISSING'}\n`;
+
+            const tokenDisplay = document.createElement('div');
+            tokenDisplay.className = 'token-display';
+            tokenDisplay.textContent = tokenInfo;
+            document.getElementById('results').appendChild(tokenDisplay);
+        }
+
+        async function debugLoginFlow() {
+            clearResults();
+            addStep('Starting login flow debug...', 'info');
+
+            // Step 1: Check initial state
+            displayTokens('Initial State');
+
+            // Step 2: Simulate login
+            addStep('Attempting login with demo credentials...', 'info');
+            try {
+                const loginResponse = await fetch('http://localhost:8000/auth/login-with-verification-check/', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        username: 'demo',
+                        password: 'demo',
+                        remember_me: false
+                    }),
+                    credentials: 'include'
+                });
+
+                if (loginResponse.ok) {
+                    const loginData = await loginResponse.json();
+                    addStep(`Login API call successful: ${JSON.stringify(loginData, null, 2)}`, 'success');
+
+                    // Step 3: Manually store tokens (simulating verificationManager)
+                    if (loginData.access) {
+                        localStorage.setItem('access_token', loginData.access);
+                        addStep('Access token stored in localStorage', 'success');
+                    }
+                    if (loginData.refresh) {
+                        localStorage.setItem('refresh_token', loginData.refresh);
+                        addStep('Refresh token stored in localStorage', 'success');
+                    }
+                    if (loginData.user) {
+                        localStorage.setItem('user', JSON.stringify(loginData.user));
+                        addStep('User data stored in localStorage', 'success');
+                    }
+
+                    displayTokens('After Token Storage');
+
+                    // Step 4: Wait a moment and check if tokens are still there
+                    addStep('Waiting 1 second to see if tokens get cleared...', 'info');
+                    await new Promise(resolve => setTimeout(resolve, 1000));
+                    displayTokens('After 1 Second Wait');
+
+                    // Step 5: Test getCurrentUser API call
+                    addStep('Testing getCurrentUser API call...', 'info');
+                    await testCurrentUserInternal();
+
+                } else {
+                    const errorData = await loginResponse.json();
+                    addStep(`Login API call failed: ${loginResponse.status} - ${JSON.stringify(errorData)}`, 'error');
+                }
+
+            } catch (error) {
+                addStep(`Login error: ${error.message}`, 'error');
+            }
+        }
+
+        async function testCurrentUserInternal() {
+            const accessToken = localStorage.getItem('access_token');
+
+            if (!accessToken) {
+                addStep('No access token found for getCurrentUser test', 'error');
+                return;
+            }
+
+            try {
+                const response = await fetch('http://localhost:8000/auth/user-info/', {
+                    method: 'GET',
+                    headers: {
+                        'Authorization': `Bearer ${accessToken}`,
+                        'Content-Type': 'application/json',
+                    },
+                    credentials: 'include'
+                });
+
+                if (response.ok) {
+                    const userData = await response.json();
+                    addStep(`getCurrentUser API call successful: ${JSON.stringify(userData, null, 2)}`, 'success');
+                } else {
+                    const errorData = await response.json();
+                    addStep(`getCurrentUser API call failed: ${response.status} - ${JSON.stringify(errorData)}`, 'error');
+
+                    if (response.status === 401) {
+                        addStep('⚠️ This 401 error would trigger logout() and clearTokens() in the app!', 'error');
+                    }
+                }
+
+            } catch (error) {
+                addStep(`getCurrentUser error: ${error.message}`, 'error');
+                addStep('⚠️ This error would trigger logout() and clearTokens() in the app!', 'error');
+            }
+
+            displayTokens('After getCurrentUser API Call');
+        }
+
+        async function testCurrentUser() {
+            clearResults();
+            addStep('Testing getCurrentUser API call only...', 'info');
+            displayTokens('Before getCurrentUser Test');
+            await testCurrentUserInternal();
+        }
+
+        function inspectTokens() {
+            clearResults();
+            addStep('Inspecting current localStorage tokens...', 'info');
+            displayTokens('Current Token State');
+        }
+
+        function clearResults() {
+            document.getElementById('results').innerHTML = '';
+            stepCounter = 0;
+        }
+    </script>
+</body>
+</html>

@@ -1,0 +1,438 @@
+/* PostFeed.module.css - Design Moderne */
+
+.postFeed {
+    display: flex;
+    flex-direction: column;
+    gap: 24px;
+}
+
+.emptyState {
+    text-align: center;
+    padding: 80px 20px;
+    color: #64748B;
+}
+
+.emptyIcon {
+    font-size: 72px;
+    margin-bottom: 24px;
+    opacity: 0.6;
+}
+
+.emptyState h3 {
+    color: #1E293B;
+    font-size: 28px;
+    font-weight: 700;
+    margin-bottom: 12px;
+    letter-spacing: -0.025em;
+}
+
+.emptyState p {
+    font-size: 18px;
+    color: #64748B;
+    font-weight: 400;
+    line-height: 1.6;
+}
+
+/* Post individuel moderne */
+.post {
+    background: #FFFFFF;
+    border-radius: 16px;
+    border: 1px solid #F1F5F9;
+    overflow: hidden;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+}
+
+.post:hover {
+    box-shadow: 0 8px 25px rgba(0, 0, 0, 0.08);
+    border-color: #E2E8F0;
+    transform: translateY(-1px);
+}
+
+.postHeader {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 20px 24px 16px 24px;
+}
+
+.authorInfo {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+}
+
+.authorAvatar {
+    width: 48px;
+    height: 48px;
+    border-radius: 50%;
+    overflow: hidden;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    font-weight: 600;
+    font-size: 18px;
+    position: relative;
+    box-shadow: 0 4px 14px rgba(102, 126, 234, 0.15);
+}
+
+.authorAvatar::after {
+    content: '';
+    position: absolute;
+    inset: -2px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #667eea, #764ba2);
+    z-index: -1;
+    opacity: 0;
+    transition: opacity 0.3s ease;
+}
+
+.post:hover .authorAvatar::after {
+    opacity: 0.1;
+}
+
+.authorAvatar img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.authorDetails {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.authorName {
+    font-size: 17px;
+    font-weight: 700;
+    color: #1E293B;
+    margin: 0;
+    letter-spacing: -0.01em;
+}
+
+.postTime {
+    font-size: 14px;
+    color: #64748B;
+    font-weight: 500;
+}
+
+.moreButton {
+    background: none;
+    border: none;
+    color: #64748B;
+    cursor: pointer;
+    padding: 10px;
+    border-radius: 50%;
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.moreButton:hover {
+    background: #F1F5F9;
+    color: #334155;
+    transform: scale(1.05);
+}
+
+.postContent {
+    padding: 0 24px 20px 24px;
+}
+
+.postContent p {
+    margin: 0;
+    line-height: 1.7;
+    color: #334155;
+    font-size: 17px;
+    font-weight: 400;
+    word-wrap: break-word;
+    letter-spacing: -0.005em;
+}
+
+/* Pièces jointes modernes */
+.attachments {
+    margin-bottom: 0;
+}
+
+.singleAttachment {
+    width: 100%;
+    position: relative;
+    overflow: hidden;
+}
+
+.attachmentImage,
+.attachmentVideo {
+    width: 100%;
+    height: auto;
+    max-height: 600px;
+    object-fit: cover;
+    display: block;
+    transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.attachmentVideo {
+    background: #000;
+}
+
+.post:hover .attachmentImage,
+.post:hover .attachmentVideo {
+    transform: scale(1.02);
+}
+
+.multipleAttachments {
+    display: grid;
+    gap: 2px;
+    height: 450px;
+}
+
+.twoItems {
+    grid-template-columns: 1fr 1fr;
+}
+
+.threeItems {
+    grid-template-columns: 1fr 1fr;
+    grid-template-rows: 1fr 1fr;
+}
+
+.threeItems .attachmentItem:first-child {
+    grid-row: 1 / -1;
+}
+
+.fourPlusItems {
+    grid-template-columns: 1fr 1fr;
+    grid-template-rows: 1fr 1fr;
+}
+
+.attachmentItem {
+    position: relative;
+    overflow: hidden;
+    background: #F8FAFC;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.attachmentItem:hover {
+    transform: scale(1.02);
+}
+
+.attachmentItem img,
+.attachmentItem video {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.attachmentItem:hover img,
+.attachmentItem:hover video {
+    transform: scale(1.1);
+}
+
+.moreOverlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: linear-gradient(135deg, rgba(15, 23, 42, 0.8) 0%, rgba(30, 41, 59, 0.9) 100%);
+    backdrop-filter: blur(8px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: white;
+    font-size: 28px;
+    font-weight: 700;
+    letter-spacing: -0.025em;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.moreOverlay:hover {
+    background: linear-gradient(135deg, rgba(102, 126, 234, 0.8) 0%, rgba(118, 75, 162, 0.9) 100%);
+}
+
+/* Actions modernes */
+.postActions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 16px 24px 20px 24px;
+    border-top: 1px solid #F1F5F9;
+}
+
+.actionButton {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    background: none;
+    border: none;
+    padding: 12px 16px;
+    border-radius: 12px;
+    color: #64748B;
+    cursor: pointer;
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    font-size: 15px;
+    font-weight: 600;
+    position: relative;
+    overflow: hidden;
+}
+
+.actionButton::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: transparent;
+    transition: background 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    z-index: -1;
+}
+
+.actionButton:hover {
+    color: #334155;
+    transform: scale(1.02);
+}
+
+.actionButton:hover::before {
+    background: #F8FAFC;
+}
+
+.actionButton.liked {
+    color: #EF4444;
+    background: linear-gradient(135deg, rgba(239, 68, 68, 0.1) 0%, rgba(239, 68, 68, 0.05) 100%);
+}
+
+.actionButton.liked:hover {
+    background: linear-gradient(135deg, rgba(239, 68, 68, 0.15) 0%, rgba(239, 68, 68, 0.08) 100%);
+}
+
+.actionButton svg {
+    font-size: 22px;
+    transition: transform 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.actionButton:hover svg {
+    transform: scale(1.1);
+}
+
+.actionButton.liked svg {
+    animation: heartBeat 0.6s ease;
+}
+
+@keyframes heartBeat {
+    0% {
+        transform: scale(1);
+    }
+
+    25% {
+        transform: scale(1.2);
+    }
+
+    50% {
+        transform: scale(1.1);
+    }
+
+    75% {
+        transform: scale(1.15);
+    }
+
+    100% {
+        transform: scale(1.1);
+    }
+}
+
+/* États spéciaux */
+.actionButton:first-child {
+    margin-right: auto;
+}
+
+/* Responsive Design Moderne */
+@media (max-width: 768px) {
+    .post {
+        margin: 0 -12px;
+        border-radius: 12px;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+    }
+
+    .postHeader,
+    .postContent,
+    .postActions {
+        padding-left: 20px;
+        padding-right: 20px;
+    }
+
+    .authorAvatar {
+        width: 44px;
+        height: 44px;
+        font-size: 16px;
+    }
+
+    .authorName {
+        font-size: 16px;
+    }
+
+    .postContent p {
+        font-size: 16px;
+        line-height: 1.6;
+    }
+
+    .multipleAttachments {
+        height: 350px;
+    }
+
+    .actionButton {
+        padding: 10px 12px;
+        font-size: 14px;
+    }
+
+    .actionButton svg {
+        font-size: 20px;
+    }
+
+    .emptyState {
+        padding: 60px 20px;
+    }
+
+    .emptyIcon {
+        font-size: 56px;
+    }
+
+    .emptyState h3 {
+        font-size: 24px;
+    }
+
+    .emptyState p {
+        font-size: 16px;
+    }
+}
+
+@media (max-width: 480px) {
+    .postActions {
+        flex-wrap: wrap;
+        gap: 8px;
+        justify-content: space-between;
+    }
+
+    .actionButton {
+        flex: 1;
+        min-width: 0;
+        justify-content: center;
+        padding: 12px 8px;
+        font-size: 13px;
+    }
+
+    .actionButton span {
+        display: none;
+    }
+
+    .actionButton:first-child {
+        margin-right: 0;
+    }
+
+    .actionButton:first-child span {
+        display: inline;
+    }
+
+    .postFeed {
+        gap: 20px;
+    }
+}

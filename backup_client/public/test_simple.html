@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Simple Test</title>
+</head>
+<body>
+    <h1>Simple Test Page</h1>
+    <p>If you can see this, the file is being served correctly.</p>
+    <p>Current URL: <span id="url"></span></p>
+    <p>Tokens in localStorage:</p>
+    <ul>
+        <li>Access Token: <span id="access"></span></li>
+        <li>Refresh Token: <span id="refresh"></span></li>
+    </ul>
+
+    <script>
+        document.getElementById('url').textContent = window.location.href;
+        document.getElementById('access').textContent = localStorage.getItem('access_token') ? 'Found' : 'Not found';
+        document.getElementById('refresh').textContent = localStorage.getItem('refresh_token') ? 'Found' : 'Not found';
+
+        console.log('Simple test page loaded successfully');
+    </script>
+</body>
+</html>

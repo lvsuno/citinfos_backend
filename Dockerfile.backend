@@ -1,0 +1,91 @@
+FROM python:3.11-slim
+
+
+# System deps and libpostal from source (for reliability)
+RUN apt-get update && apt-get install -y \
+    build-essential \
+    libpq-dev \
+    libjpeg-dev \
+    zlib1g-dev \
+    curl \
+    git \
+    automake \
+    autoconf \
+    libtool \
+    pkg-config \
+    ca-certificates \
+    default-mysql-client \
+    postgresql-client \
+    # GeoDjango dependencies \
+    gdal-bin \
+    libgdal-dev \
+    libgeos-dev \
+    libproj-dev \
+    libspatialindex-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install libpostal from source (latest stable)
+RUN git clone https://github.com/openvenues/libpostal /opt/libpostal \
+    && cd /opt/libpostal \
+    && ./bootstrap.sh \
+    && ./configure --datadir=/usr/local/share/libpostal \
+    && make -j$(nproc) \
+    && make install \
+    && ldconfig \
+    && rm -rf /opt/libpostal
+
+
+# Install Python deps
+# Set workdir
+WORKDIR /app
+
+## ------------------------------------------------------------
+## Python virtual environment (placed outside /app to survive bind mount)
+## ------------------------------------------------------------
+COPY requirements.txt ./
+RUN python -m venv /opt/venv \
+    && . /opt/venv/bin/activate \
+    && pip install --upgrade pip \
+    && pip install --no-cache-dir -r requirements.txt
+
+# Ensure venv on PATH
+ENV VIRTUAL_ENV=/opt/venv
+ENV PATH="/opt/venv/bin:$PATH"
+
+
+# Copy only backend code and config (adjust as needed)
+COPY manage.py ./
+COPY middleware.py ./
+COPY requirements.txt ./
+COPY citinfos_backend/ ./citinfos_backend/
+COPY accounts/ ./accounts/
+COPY ai_conversations/ ./ai_conversations/
+COPY analytics/ ./analytics/
+COPY communities/ ./communities/
+COPY content/ ./content/
+COPY core/ ./core/
+COPY logs/ ./logs/
+COPY media/ ./media/
+COPY messaging/ ./messaging/
+COPY notifications/ ./notifications/
+COPY polls/ ./polls/
+COPY search/ ./search/
+COPY static/ ./static/
+    # COPY staticfiles/ ./staticfiles/
+COPY wsgi.py ./wsgi.py
+COPY GeoLite2-City.mmdb ./GeoLite2-City.mmdb
+
+COPY scripts/ ./scripts/
+
+# COPY clean_migrations.sh ./clean_migrations.sh
+# COPY auto_cascade_mysql.sh ./auto_cascade_mysql.sh
+# COPY ensure_mysql_cascade_constraints.sql ./ensure_mysql_cascade_constraints.sql
+
+# Fix line endings for Windows compatibility and set permissions
+RUN dos2unix scripts/clean_migrations.sh scripts/auto_cascade_postgres.sh scripts/create_admin_on_build.sh || true
+RUN chmod +x scripts/clean_migrations.sh scripts/auto_cascade_postgres.sh scripts/create_admin_on_build.sh
+
+# Collect static (for production)
+RUN mkdir -p /app/staticfiles
+
+ENV PYTHONUNBUFFERED=1

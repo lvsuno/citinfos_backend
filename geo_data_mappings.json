@@ -1,0 +1,149 @@
+{
+  "description": "Field mapping configurations for different data sources",
+  "version": "1.0",
+  "data_sources": {
+    "geoboundaries_ben": {
+      "description": "GeoBoundaries Benin ADM3 administrative boundaries",
+      "country_code": "BEN",
+      "boundary_types": {
+        "0": "pays",
+        "1": "départements",
+        "2": "communes",
+        "3": "arrondissements"
+      },
+      "detection_patterns": {
+        "filename": ["geoboundaries-ben-adm3"],
+        "fields": ["shapeName", "shapeType", "shapeGroup"]
+      },
+      "admin_levels": {
+        "3": {
+          "level": 3,
+          "name_fields": ["shapeName"],
+          "code_fields": ["admin_code", "shapeID"],
+          "parent_field": "parentName",
+          "filename_pattern": "ADM3"
+        }
+      }
+    },
+    "benin_salb": {
+      "description": "Benin SALB 2019 administrative boundaries",
+      "country_code": "BEN",
+      "boundary_types": {
+        "0": "pays",
+        "1": "départements",
+        "2": "communes",
+        "3": "arrondissements"
+      },
+      "detection_patterns": {
+        "filename": ["ben_", "benin"],
+        "fields": ["adm0_name", "adm1_name", "adm2_name"]
+      },
+      "admin_levels": {
+        "0": {
+          "level": 0,
+          "name_fields": ["adm0_name", "ADM0_NAME", "NAME", "name"],
+          "code_fields": ["admin0Pcod", "ADM0_CODE", "adm0_code", "CODE", "code"],
+          "parent_field": null,
+          "filename_pattern": "adm0"
+        },
+        "1": {
+          "level": 1,
+          "name_fields": ["adm1_name", "ADM1_NAME", "NAME", "name"],
+          "code_fields": ["admin1Pcod", "ADM1_CODE", "adm1_code", "CODE", "code"],
+          "parent_field": null,
+          "filename_pattern": "adm1"
+        },
+        "2": {
+          "level": 2,
+          "name_fields": ["adm2_name", "ADM2_NAME", "NAME", "name"],
+          "code_fields": ["admin2Pcod", "ADM2_CODE", "adm2_code", "CODE", "code"],
+          "parent_field": "adm1_name",
+          "filename_pattern": "adm2"
+        },
+        "3": {
+          "level": 3,
+          "name_fields": ["ADM3_NAME", "adm3_name", "NAME", "name"],
+          "code_fields": ["ADM3_CODE", "adm3_code", "CODE", "code"],
+          "parent_field": "ADM2_NAME",
+          "filename_pattern": "adm3"
+        }
+      }
+    },
+    "quebec_sda": {
+      "description": "Quebec SDA administrative boundaries",
+      "country_code": "CAN",
+      "boundary_types": {
+        "0": "pays",
+        "1": "province",
+        "2": "régions",
+        "3": "mrc",
+        "4": "municipalités",
+        "5": "arrondissements"
+      },
+      "detection_patterns": {
+        "filename": ["quebec_regio", "quebec_mrc", "quebec_munic", "quebec_arron", "QUEBEC_regio", "QUEBEC_mrc", "QUEBEC_munic", "QUEBEC_arron"],
+        "fields": ["RES_NM_REG", "MRS_NM_MRC", "MUS_NM_MUN", "ARS_NM_ARR"]
+      },
+      "admin_levels": {
+        "2": {
+          "level": 2,
+          "name_fields": ["RES_NM_REG"],
+          "code_fields": ["RES_CO_REG", "RES_NO_IND"],
+          "parent_field": null,
+          "boundary_type": "régions",
+          "filename_pattern": "regio"
+        },
+        "3": {
+          "level": 3,
+          "name_fields": ["MRS_NM_MRC"],
+          "code_fields": ["MRS_CO_MRC", "MRS_NO_IND"],
+          "parent_field": "MRS_NM_REG",
+          "boundary_type": "mrc",
+          "filename_pattern": "mrc"
+        },
+        "4": {
+          "level": 4,
+          "name_fields": ["MUS_NM_MUN"],
+          "code_fields": ["MUS_CO_GEO", "MUS_NO_IND"],
+          "parent_field": "MUS_NM_MRC",
+          "boundary_type": "municipalités",
+          "filename_pattern": "munic"
+        },
+        "5": {
+          "level": 5,
+          "name_fields": ["ARS_NM_ARR"],
+          "code_fields": ["ARS_CO_ARR", "ARS_NO_IND"],
+          "parent_field": "ARS_NM_MUN",
+          "boundary_type": "arrondissements",
+          "filename_pattern": "arron"
+        }
+      }
+    },
+    "quebec_comet": {
+      "description": "Quebec Metropolitan Communities",
+      "country_code": "CAN",
+      "boundary_types": {
+        "0": "pays",
+        "1": "communautés métropolitaines",
+        "2": "régions",
+        "3": "mrc",
+        "4": "municipalités",
+        "5": "arrondissements"
+      },
+      "detection_patterns": {
+        "filename": ["quebec_comet", "QUEBEC_comet"],
+        "fields": ["CMS_NM_COM", "CMS_CO_COM", "CMS_DE_IND"]
+      },
+      "admin_levels": {
+        "1": {
+          "level": 1,
+          "name_fields": ["CMS_NM_COM"],
+          "code_fields": ["CMS_CO_COM", "CMS_NO_IND"],
+          "parent_field": null,
+          "boundary_type": "communautés métropolitaines",
+          "filename_pattern": "comet"
+        }
+      }
+    }
+  }
+}

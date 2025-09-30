@@ -1,0 +1,60 @@
+{% extends "communities/base/base_email.html" %}
+
+{% block preheader %}You've been assigned as a moderator{% endblock %}
+
+{% block email_title %}Moderator Assignment - Equipment Database{% endblock %}
+
+{% block header_content %}
+<h2 style="color: #ffffff; font-size: 24px; font-weight: 600; margin: 20px 0 0 0; text-align: center;">
+    Moderator Assignment Notification
+</h2>
+{% endblock %}
+
+{% block email_heading %}You have been added as a moderator{% endblock %}
+
+{% block content %}
+<p style="color: #333333; font-size: 16px; line-height: 1.6; margin: 0 0 20px 0;">
+    Hello {{ user.user.first_name|default:user.user.username }},
+</p>
+
+<p style="color: #333333; font-size: 16px; line-height: 1.6; margin: 0 0 20px 0;">
+    <strong>{{ assigned_by.user.first_name|default:assigned_by.user.username }}</strong> has assigned you as a moderator for the community <strong>{{ community.name }}</strong>.
+    {% if message %}
+        <br/><br/>
+        {% autoescape off %}{{ message|linebreaksbr }}{% endautoescape %}
+    {% endif %}
+</p>
+
+<!-- Info Box -->
+<div style="background-color: #f8f9fa; border-radius: 6px; padding: 20px; margin: 20px 0;">
+    <h3 style="color: #333333; font-size: 20px; font-weight: 600; margin: 0 0 15px 0;">Community Details</h3>
+    <ul style="color: #333333; font-size: 16px; line-height: 1.6; margin: 0; padding-left: 20px;">
+        <li><strong>Community:</strong> {{ community.name }}</li>
+        <li><strong>Assigned by:</strong> {{ assigned_by.user.first_name|default:assigned_by.user.username }}</li>
+    </ul>
+</div>
+
+{% include 'communities/components/warning_box.html' with title='Moderator Assigned' message=message only %}
+
+
+{# Single button to view notification #}
+<table role="presentation" cellspacing="0" cellpadding="0" border="0" style="margin: 30px 0;">
+    <tr>
+        <td style="border-radius: 6px; background-color: #6366f1; text-align: center;">
+            <a href="{{ notification_url }}"
+               style="background-color: #6366f1; border: 15px solid #6366f1; color: #ffffff; font-size: 16px; font-weight: bold; text-decoration: none; text-transform: uppercase; letter-spacing: 1px; display: block; border-radius: 6px;">
+                Click here to accept or decline your moderator role
+            </a>
+        </td>
+    </tr>
+</table>
+
+<p style="color: #666666; font-size: 14px; line-height: 1.6; margin: 0;">
+    If you have any questions about your moderator assignment, please contact the community creator or support.
+    You can manage your notification preferences in your profile settings.
+</p>
+{% endblock %}
+
+{% block footer_text %}
+This message was sent because you were assigned as a moderator in {{ community.name }}.
+{% endblock %}

@@ -1,0 +1,27 @@
+<!-- Button Component -->
+<table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%">
+    <tr>
+        <td style="text-align: center; padding: {% firstof padding "15px 0" %};">
+            <table role="presentation" cellspacing="0" cellpadding="0" border="0">
+                <tr>
+                    <td style="border-radius: 6px;
+                               background: {% if type == 'secondary' %}#f8f9fa{% elif type == 'success' %}linear-gradient(135deg, #28a745 0%, #20c997 100%){% elif type == 'danger' %}#f8f9fa{% else %}linear-gradient(135deg, #6372ff 0%, #5ca9fb 100%){% endif %};
+                               border: {% if type == 'secondary' %}2px solid #6372ff{% elif type == 'danger' %}2px solid #dc3545{% else %}none{% endif %};">
+                        <a href="{{ url }}"
+                           target="_blank"
+                           style="display: inline-block;
+                                  padding: {% if type == 'secondary' or type == 'danger' %}12px 25px{% else %}15px 30px{% endif %};
+                                  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+                                  font-size: {% if type == 'secondary' or type == 'danger' %}14px{% else %}16px{% endif %};
+                                  font-weight: 600;
+                                  color: {% if type == 'secondary' %}#6372ff{% elif type == 'danger' %}#dc3545{% else %}#ffffff{% endif %} !important;
+                                  text-decoration: none;
+                                  border-radius: 6px;">
+                            {{ text }}
+                        </a>
+                    </td>
+                </tr>
+            </table>
+        </td>
+    </tr>
+</table>

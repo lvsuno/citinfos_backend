@@ -1,0 +1,484 @@
+/*
+ * Base Email Styles for Messaging App
+ * This file is for development and maintainability.
+ * Styles should be inlined in the actual templates for email compatibility.
+ */
+
+/* ===== RESET STYLES ===== */
+* {
+    box-sizing: border-box;
+}
+
+body, table, td, p, a, li, blockquote {
+    -webkit-text-size-adjust: 100%;
+    -ms-text-size-adjust: 100%;
+}
+
+table, td {
+    mso-table-lspace: 0pt;
+    mso-table-rspace: 0pt;
+}
+
+img {
+    -ms-interpolation-mode: bicubic;
+    border: 0;
+    outline: none;
+    text-decoration: none;
+}
+
+/* ===== BASE BODY STYLES ===== */
+body {
+    margin: 0 !important;
+    padding: 0 !important;
+    background-color: #f8f9fa;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+    line-height: 1.6;
+    color: #333333;
+}
+
+/* ===== CONTAINER STYLES ===== */
+.email-wrapper {
+    background-color: #f8f9fa;
+    width: 100%;
+    padding: 20px;
+}
+
+.email-container {
+    max-width: 600px;
+    width: 100%;
+    background-color: #ffffff;
+    border-radius: 8px;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    margin: 0 auto;
+}
+
+/* ===== HEADER STYLES ===== */
+.email-header {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    padding: 40px 30px;
+    text-align: center;
+    border-radius: 8px 8px 0 0;
+}
+
+.email-header img {
+    max-width: 150px;
+    height: auto;
+    display: block;
+    margin: 0 auto;
+}
+
+.email-header h1 {
+    color: #ffffff;
+    font-size: 24px;
+    font-weight: 600;
+    margin: 20px 0 0 0;
+    text-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+}
+
+/* ===== CONTENT STYLES ===== */
+.email-content {
+    padding: 40px 30px;
+}
+
+.email-content h1 {
+    color: #333333;
+    font-size: 28px;
+    font-weight: 600;
+    margin: 0 0 20px 0;
+    text-align: center;
+    line-height: 1.2;
+}
+
+.email-content h2 {
+    color: #333333;
+    font-size: 22px;
+    font-weight: 600;
+    margin: 30px 0 15px 0;
+}
+
+.email-content p {
+    color: #555555;
+    font-size: 16px;
+    margin: 0 0 20px 0;
+    line-height: 1.6;
+}
+
+.email-content a {
+    color: #667eea;
+    text-decoration: none;
+}
+
+.email-content a:hover {
+    text-decoration: underline;
+}
+
+/* ===== BUTTON STYLES ===== */
+.btn-primary {
+    display: inline-block;
+    padding: 15px 30px;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: #ffffff !important;
+    text-decoration: none;
+    border-radius: 6px;
+    font-weight: 600;
+    font-size: 16px;
+    text-align: center;
+    margin: 20px 0;
+    transition: transform 0.2s ease-in-out;
+}
+
+.btn-primary:hover {
+    transform: translateY(-2px);
+}
+
+.btn-secondary {
+    display: inline-block;
+    padding: 12px 25px;
+    background-color: #f8f9fa;
+    color: #667eea !important;
+    text-decoration: none;
+    border: 2px solid #667eea;
+    border-radius: 6px;
+    font-weight: 600;
+    font-size: 14px;
+    text-align: center;
+}
+
+.btn-small {
+    padding: 8px 16px;
+    font-size: 12px;
+}
+
+.btn-center {
+    text-align: center;
+    margin: 30px 0;
+}
+
+/* ===== MESSAGING COMPONENT STYLES ===== */
+
+/* Message Bubble */
+.message-bubble {
+    background-color: #f8f9fa;
+    border: 1px solid #e9ecef;
+    border-radius: 12px;
+    padding: 15px 20px;
+    margin: 15px 0;
+    position: relative;
+}
+
+.message-bubble.sent {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: #ffffff;
+    margin-left: 20px;
+}
+
+.message-bubble.received {
+    background-color: #ffffff;
+    border: 2px solid #e9ecef;
+    margin-right: 20px;
+}
+
+.message-bubble .message-text {
+    font-size: 14px;
+    line-height: 1.4;
+    margin: 0;
+    word-wrap: break-word;
+}
+
+.message-bubble .message-meta {
+    font-size: 11px;
+    opacity: 0.7;
+    margin-top: 8px;
+}
+
+/* User Info */
+.user-info {
+    display: flex;
+    align-items: center;
+    margin: 15px 0;
+}
+
+.user-info.compact {
+    margin: 10px 0;
+}
+
+.user-avatar {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #ffffff;
+    font-weight: 600;
+    margin-right: 12px;
+}
+
+.user-avatar.compact {
+    width: 32px;
+    height: 32px;
+    font-size: 12px;
+}
+
+.user-details h4 {
+    margin: 0 0 2px 0;
+    font-size: 14px;
+    font-weight: 600;
+    color: #333333;
+}
+
+.user-details p {
+    margin: 0;
+    font-size: 12px;
+    color: #6c757d;
+}
+
+/* Chat Thread */
+.chat-thread {
+    background-color: #f8f9fa;
+    border-radius: 8px;
+    padding: 20px;
+    margin: 20px 0;
+    border-left: 4px solid #667eea;
+}
+
+.chat-thread h3 {
+    margin: 0 0 10px 0;
+    font-size: 16px;
+    font-weight: 600;
+    color: #333333;
+}
+
+.chat-thread .thread-meta {
+    font-size: 12px;
+    color: #6c757d;
+    margin-bottom: 15px;
+}
+
+.chat-thread .thread-preview {
+    font-size: 14px;
+    color: #555555;
+    line-height: 1.4;
+    margin: 0;
+}
+
+/* Message Stats */
+.message-stats {
+    background-color: #e8f4fd;
+    border-radius: 8px;
+    padding: 20px;
+    text-align: center;
+    margin: 25px 0;
+}
+
+.message-stats .stats-grid {
+    display: flex;
+    justify-content: space-around;
+    align-items: center;
+}
+
+.message-stats .stat-item {
+    text-align: center;
+}
+
+.message-stats .stat-number {
+    font-size: 24px;
+    font-weight: 700;
+    color: #667eea;
+    margin: 0 0 5px 0;
+}
+
+.message-stats .stat-label {
+    font-size: 12px;
+    color: #6c757d;
+    margin: 0;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+/* ===== NOTIFICATION BOXES ===== */
+.mention-alert {
+    background-color: #fff3cd;
+    border: 1px solid #ffeaa7;
+    color: #856404;
+    border-radius: 6px;
+    padding: 15px;
+    margin: 20px 0;
+}
+
+.digest-summary {
+    background-color: #e8f4fd;
+    border: 1px solid #b8daff;
+    color: #0c5460;
+    border-radius: 6px;
+    padding: 20px;
+    margin: 20px 0;
+    text-align: center;
+}
+
+.batch-notification {
+    background-color: #f8f9fa;
+    border-left: 4px solid #667eea;
+    padding: 20px;
+    margin: 20px 0;
+}
+
+.tip-box {
+    background-color: #f8f9fa;
+    border-radius: 8px;
+    padding: 20px;
+    margin: 30px 0;
+    border-left: 4px solid #28a745;
+}
+
+.tip-box strong {
+    color: #495057;
+}
+
+/* ===== FOOTER STYLES ===== */
+.email-footer {
+    background-color: #f8f9fa;
+    padding: 30px;
+    text-align: center;
+    font-size: 14px;
+    color: #6c757d;
+    border-top: 1px solid #e9ecef;
+    border-radius: 0 0 8px 8px;
+}
+
+.email-footer p {
+    margin: 0 0 15px 0;
+}
+
+.email-footer .company-name {
+    font-weight: 600;
+    color: #333333;
+}
+
+.email-footer a {
+    color: #667eea;
+    text-decoration: none;
+}
+
+/* ===== DARK MODE SUPPORT ===== */
+@media (prefers-color-scheme: dark) {
+    body {
+        background-color: #1a1a1a !important;
+        color: #ffffff !important;
+    }
+
+    .email-container {
+        background-color: #2d2d2d !important;
+    }
+
+    .email-content h1,
+    .email-content h2 {
+        color: #ffffff !important;
+    }
+
+    .email-content p {
+        color: #cccccc !important;
+    }
+
+    .email-footer {
+        background-color: #2d2d2d !important;
+        border-top-color: #404040 !important;
+    }
+
+    .message-bubble.received {
+        background-color: #3d3d3d !important;
+        border-color: #555555 !important;
+    }
+
+    .chat-thread {
+        background-color: #3d3d3d !important;
+    }
+
+    .user-details h4 {
+        color: #ffffff !important;
+    }
+}
+
+/* ===== MOBILE RESPONSIVE ===== */
+@media only screen and (max-width: 600px) {
+    .email-wrapper {
+        padding: 10px !important;
+    }
+
+    .email-container {
+        width: 100% !important;
+        max-width: 100% !important;
+        border-radius: 0 !important;
+    }
+
+    .email-header {
+        padding: 30px 20px !important;
+        border-radius: 0 !important;
+    }
+
+    .email-content {
+        padding: 20px !important;
+    }
+
+    .email-content h1 {
+        font-size: 24px !important;
+    }
+
+    .email-content h2 {
+        font-size: 20px !important;
+    }
+
+    .email-footer {
+        padding: 20px !important;
+        border-radius: 0 !important;
+    }
+
+    .btn-primary,
+    .btn-secondary {
+        display: block !important;
+        width: 100% !important;
+        padding: 15px !important;
+    }
+
+    .message-bubble {
+        margin-left: 0 !important;
+        margin-right: 0 !important;
+    }
+
+    .message-stats .stats-grid {
+        flex-direction: column !important;
+        gap: 15px;
+    }
+
+    .user-info {
+        flex-direction: column !important;
+        text-align: center !important;
+    }
+
+    .user-avatar {
+        margin: 0 0 10px 0 !important;
+    }
+}
+
+/* ===== OUTLOOK SPECIFIC FIXES ===== */
+/*[if mso]>
+table {
+    border-collapse: collapse;
+    border-spacing: 0;
+    border: none;
+    margin: 0;
+}
+
+div, table, td {
+    font-family: Arial, sans-serif !important;
+}
+
+.message-bubble {
+    border-radius: 0 !important;
+}
+
+.user-avatar {
+    border-radius: 0 !important;
+}
+<![endif]*/

@@ -1,0 +1,296 @@
+/* CSS Module pour le Layout principal */
+
+.layout {
+    min-height: 100vh;
+    background-color: #F1F5F9;
+    font-family: 'Poppins', 'SF Pro Display', -apple-system, BlinkMacSystemFont, 'Segoe UI Variable', 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+    position: relative;
+    /* Enlever display: flex qui peut interférer avec position: fixed */
+}
+
+.content {
+    width: 100%;
+    min-height: 100vh;
+    margin-left: 0;
+    margin-top: 70px;
+    padding: 32px;
+    overflow-x: auto;
+    box-sizing: border-box;
+}
+
+/* Version desktop - largeur fixe pour les écrans larges */
+@media (min-width: 1024px) {
+    .content {
+        width: calc(100% - 320px);
+        /* Largeur totale moins espace pour sidebar (300px + margin) */
+        margin-left: 320px;
+        /* Espace fixe pour le sidebar */
+        max-width: 1400px;
+        /* Largeur maximale du contenu */
+    }
+}
+
+/* Pour les très grands écrans */
+@media (min-width: 1600px) {
+    .content {
+        width: 1400px;
+        /* Largeur fixe pour les très grands écrans */
+        margin-left: 350px;
+        /* Plus d'espace à gauche */
+        margin-right: auto;
+    }
+}
+
+.main {
+    background: transparent;
+    padding: 0;
+    min-height: calc(100vh - 102px);
+    /* hauteur totale moins topbar et padding */
+}
+
+/* Chat Overlay Styles */
+.chatOverlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(15, 23, 42, 0.8);
+    z-index: 1000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+    backdrop-filter: blur(8px);
+    animation: overlayFadeIn 0.3s ease;
+}
+
+@keyframes overlayFadeIn {
+    from {
+        opacity: 0;
+        backdrop-filter: blur(0px);
+    }
+
+    to {
+        opacity: 1;
+        backdrop-filter: blur(8px);
+    }
+}
+
+.chatContainer {
+    width: 100%;
+    max-width: 1200px;
+    height: 85vh;
+    max-height: 800px;
+    min-height: 500px;
+    background: white;
+    border-radius: 16px;
+    box-shadow: 0 25px 50px rgba(0, 0, 0, 0.25);
+    display: flex;
+    overflow: hidden;
+    position: relative;
+    border: 1px solid #e2e8f0;
+    transition: all 0.3s ease;
+    animation: modalSlideIn 0.3s ease;
+}
+
+@keyframes modalSlideIn {
+    from {
+        opacity: 0;
+        transform: scale(0.9) translateY(20px);
+    }
+
+    to {
+        opacity: 1;
+        transform: scale(1) translateY(0);
+    }
+}
+
+.chatMain {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    background: #fafafa;
+    min-width: 0;
+    /* Permet au flex de se rétrécir correctement */
+}
+
+.welcomeScreen {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%);
+}
+
+.welcomeContent {
+    text-align: center;
+    padding: 40px;
+    max-width: 400px;
+}
+
+.welcomeIcon {
+    font-size: 64px;
+    margin-bottom: 24px;
+    opacity: 0.8;
+}
+
+.welcomeTitle {
+    font-size: 24px;
+    font-weight: 700;
+    color: #0f172a;
+    margin-bottom: 16px;
+}
+
+.welcomeText {
+    font-size: 16px;
+    color: #64748b;
+    line-height: 1.6;
+    margin: 0;
+}
+
+.closeChatButton {
+    position: absolute;
+    top: 16px;
+    right: 16px;
+    background: rgba(15, 23, 42, 0.8);
+    color: white;
+    border: none;
+    border-radius: 50%;
+    width: 40px;
+    height: 40px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    font-size: 18px;
+    font-weight: bold;
+    z-index: 10;
+    transition: all 0.2s ease;
+}
+
+.closeChatButton:hover {
+    background: rgba(15, 23, 42, 1);
+    transform: scale(1.05);
+}
+
+/* Responsive design */
+@media (max-width: 1023px) {
+    .content {
+        margin-left: 0;
+        margin-top: 70px;
+        /* Garder l'espace pour TopBar */
+        padding: 16px 20px;
+    }
+
+    .main {
+        padding: 0;
+    }
+
+    /* Chat responsive optimisé pour tablette */
+    .chatOverlay {
+        padding: 15px;
+    }
+
+    .chatContainer {
+        height: 90vh;
+        max-height: none;
+        border-radius: 12px;
+    }
+
+    .welcomeContent {
+        padding: 20px;
+    }
+
+    .welcomeIcon {
+        font-size: 48px;
+        margin-bottom: 16px;
+    }
+
+    .welcomeTitle {
+        font-size: 20px;
+    }
+
+    .welcomeText {
+        font-size: 14px;
+    }
+}
+
+/* Mobile responsive */
+@media (max-width: 768px) {
+    .chatOverlay {
+        padding: 10px;
+        align-items: stretch;
+        /* Étendre en pleine hauteur sur mobile */
+    }
+
+    .chatContainer {
+        height: 100vh;
+        max-height: none;
+        min-height: 100vh;
+        border-radius: 0;
+        flex-direction: column;
+        /* Stack vertical sur mobile */
+        max-width: none;
+        margin: 0;
+    }
+
+    .chatMain {
+        flex: 1;
+        min-height: 0;
+    }
+
+    .welcomeContent {
+        padding: 16px;
+    }
+
+    .welcomeIcon {
+        font-size: 40px;
+        margin-bottom: 12px;
+    }
+
+    .welcomeTitle {
+        font-size: 18px;
+        margin-bottom: 12px;
+    }
+
+    .welcomeText {
+        font-size: 14px;
+        line-height: 1.4;
+    }
+
+    .closeChatButton {
+        top: 10px;
+        right: 10px;
+        width: 36px;
+        height: 36px;
+        font-size: 16px;
+        z-index: 100;
+    }
+}
+
+/* Très petit écran (phones en portrait) */
+@media (max-width: 480px) {
+    .chatOverlay {
+        padding: 0;
+    }
+
+    .chatContainer {
+        border-radius: 0;
+        height: 100vh;
+        max-width: 100vw;
+        width: 100vw;
+    }
+
+    .welcomeContent {
+        padding: 12px;
+    }
+
+    .welcomeTitle {
+        font-size: 16px;
+    }
+
+    .welcomeText {
+        font-size: 13px;
+    }
+}

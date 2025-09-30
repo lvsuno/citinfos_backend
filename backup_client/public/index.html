@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="en">
+    <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="%PUBLIC_URL%/vite.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>React + Cesium</title>
+    <!-- Configure Cesium base URL -->
+    <script>
+      window.CESIUM_BASE_URL = '%PUBLIC_URL%/cesium/';
+      // Suppress WebAssembly source map warnings
+      window.addEventListener('error', function(e) {
+        if (e.filename && e.filename.includes('WebAssembly.instantiate')) {
+          e.preventDefault();
+          return false;
+        }
+      });
+      // Configure for better WASM compatibility
+      if (typeof WebAssembly !== 'undefined') {
+        console.log('WebAssembly support detected');
+      }
+    </script>
+  </head>
+  <body>
+    <div id="root"></div>
+  </body>
+</html>

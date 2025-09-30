@@ -1,0 +1,117 @@
+{% extends "messaging/base/base_email.html" %}
+
+{% block email_title %}Daily Message Digest - Homey Platform{% endblock %}
+
+{% block preheader %}Your daily summary of {{ total_messages }} messages from {{ total_conversations }} conversations{% endblock %}
+
+{% block header_content %}
+    <h1 style="color: #ffffff; font-size: 24px; font-weight: 600; margin: 20px 0 0 0; text-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);">
+        📅 Daily Digest
+    </h1>
+{% endblock %}
+
+{% block email_heading %}
+    Your Daily Message Summary
+{% endblock %}
+
+{% block content %}
+    <!-- Summary stats -->
+    <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="margin: 0 0 30px 0;">
+        <tr>
+            <td style="text-align: center;">
+                <table role="presentation" cellspacing="0" cellpadding="0" border="0" style="margin: 0 auto;">
+                    <tr>
+                        <td style="background-color: #e3f2fd; padding: 20px; border-radius: 8px; text-align: center; margin-right: 10px;">
+                            <h2 style="color: #1976d2; font-size: 32px; font-weight: 700; margin: 0 0 5px 0;">{{ total_messages }}</h2>
+                            <p style="color: #666666; font-size: 14px; margin: 0;">Messages</p>
+                        </td>
+                        <td style="width: 20px;"></td>
+                        <td style="background-color: #f3e5f5; padding: 20px; border-radius: 8px; text-align: center;">
+                            <h2 style="color: #7b1fa2; font-size: 32px; font-weight: 700; margin: 0 0 5px 0;">{{ total_conversations }}</h2>
+                            <p style="color: #666666; font-size: 14px; margin: 0;">Conversations</p>
+                        </td>
+                    </tr>
+                </table>
+            </td>
+        </tr>
+    </table>
+
+    <p style="color: #6c757d; font-size: 16px; line-height: 1.5; margin: 0 0 30px 0; text-align: center;">
+        Here's what happened in your conversations yesterday.
+    </p>
+
+    <!-- Recent conversations -->
+    {% for conversation in recent_conversations %}
+        <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="margin: 0 0 25px 0; background-color: #f8f9fa; border-radius: 8px; overflow: hidden;">
+            <tr>
+                <td style="padding: 20px;">
+                    <!-- Chat thread component -->
+                    {% include "messaging/components/chat_thread.html" with conversation=conversation show_preview=True %}
+
+                    {% if conversation.latest_message %}
+                        <!-- Latest message bubble -->
+                        {% include "messaging/components/message_bubble.html" with message=conversation.latest_message compact=True %}
+                    {% endif %}
+
+                    <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="margin-top: 15px;">
+                        <tr>
+                            <td>
+                                <p style="color: #6c757d; font-size: 12px; margin: 0;">
+                                    {{ conversation.message_count }} message{{ conversation.message_count|pluralize }}
+                                    • Last activity: {{ conversation.updated_at|date:"g:i A" }}
+                                </p>
+                            </td>
+                            <td style="text-align: right;">
+                                {% include "messaging/components/button.html" with url=conversation.get_absolute_url text="View Chat" style="secondary" size="small" %}
+                            </td>
+                        </tr>
+                    </table>
+                </td>
+            </tr>
+        </table>
+    {% empty %}
+        <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="margin: 0 0 25px 0;">
+            <tr>
+                <td style="text-align: center; padding: 40px 20px;">
+                    <p style="color: #6c757d; font-size: 16px; margin: 0;">
+                        🌅 No new messages yesterday. Start a conversation to connect with others!
+                    </p>
+                </td>
+            </tr>
+        </table>
+    {% endfor %}
+
+    <!-- Action buttons -->
+    <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="margin: 30px 0;">
+        <tr>
+            <td style="text-align: center;">
+                {% include "messaging/components/button.html" with url=messages_url text="View All Messages" style="primary" %}
+
+                <table role="presentation" cellspacing="0" cellpadding="0" border="0" style="margin: 15px auto 0 auto;">
+                    <tr>
+                        <td style="text-align: center;">
+                            <a href="{{ settings_url }}" style="color: #667eea; text-decoration: none; font-size: 14px;">
+                                Manage digest settings
+                            </a>
+                        </td>
+                    </tr>
+                </table>
+            </td>
+        </tr>
+    </table>
+
+    <!-- Tips section -->
+    <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="margin-top: 30px;">
+        <tr>
+            <td style="background-color: #f8f9fa; padding: 20px; border-radius: 8px; border-left: 4px solid #28a745;">
+                <p style="color: #495057; font-size: 14px; line-height: 1.4; margin: 0;">
+                    <strong>💡 Tip:</strong> You can adjust how often you receive digest emails in your notification preferences. Choose from daily, weekly, or turn them off completely.
+                </p>
+            </td>
+        </tr>
+    </table>
+{% endblock %}
+
+{% block footer_text %}
+    This daily digest was sent to help you stay updated with your messaging activity on the Homey Platform.
+{% endblock %}

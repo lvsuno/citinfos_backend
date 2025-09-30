@@ -1,0 +1,36 @@
+{% extends "content/email/base/base_email.html" %}
+
+{% block email_title %}{{ liker.username }} liked your post - Homey Platform{% endblock %}
+
+{% block preheader %}{{ liker.username }} liked your post on Homey Platform{% endblock %}
+
+{% block header_content %}
+    <h1 style="color: #ffffff; font-size: 24px; font-weight: 600; margin: 20px 0 0 0;">
+        👍 Post Liked!
+    </h1>
+{% endblock %}
+
+{% block email_heading %}Hello {{ user.username }}!{% endblock %}
+
+{% block content %}
+    <p style="color: #555555; font-size: 16px; margin: 0 0 20px 0; line-height: 1.6;">
+        Great news! <strong>{{ liker.username }}</strong> liked your post on <strong>Homey Platform</strong>.
+    </p>
+
+    <!-- User Info Component -->
+    {% include "content/components/user_info.html" with user=liker action="liked your post" %}
+
+    <!-- Content Quote Component -->
+    {% include "content/components/content_quote.html" with content=post.content %}
+
+    <!-- View Post Button -->
+    {% include "content/components/button.html" with url=post_url text="View Post" type="primary" %}
+
+    <p style="color: #6c757d; font-size: 14px; margin: 30px 0 0 0; line-height: 1.4;">
+        Keep creating amazing content! Your posts are making an impact on the Homey community.
+    </p>
+{% endblock %}
+
+{% block footer_text %}
+    This like notification was sent because someone interacted with your content.
+{% endblock %}

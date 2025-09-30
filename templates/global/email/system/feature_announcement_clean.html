@@ -1,0 +1,105 @@
+{% extends "global/email/base/global_base_email.html" %}
+
+{% block title %}New Features Available{% endblock %}
+
+{% block header_title %}
+🎉 New Features Released
+{% endblock %}
+
+{% block email_body %}
+<div style="padding: 30px;">
+    <!-- Success Alert -->
+    {% include "global/email/components/working_alert.html" with title="What's New" message=feature_description %}
+
+    <h2 style="color: #333; margin: 25px 0 15px 0; font-size: 20px;">🚀 New Features & Improvements</h2>
+
+    {% if features %}
+    <div style="background-color: #f8f9fa; border: 1px solid #dee2e6; border-radius: 6px; padding: 20px; margin: 15px 0;">
+        <ul style="margin: 10px 0; padding-left: 20px; line-height: 1.6;">
+            {% for feature in features %}
+                <li style="margin-bottom: 8px;">
+                    <strong>{{ feature.title }}:</strong> {{ feature.description }}
+                </li>
+            {% endfor %}
+        </ul>
+    </div>
+    {% endif %}
+
+    {% if benefits %}
+    <h2 style="color: #333; margin: 25px 0 15px 0; font-size: 20px;">💡 Benefits</h2>
+    <div style="background-color: #e3f2fd; border-left: 4px solid #2196f3; padding: 20px; margin: 15px 0;">
+        <ul style="margin: 10px 0; padding-left: 20px; line-height: 1.6;">
+            {% for benefit in benefits %}
+                <li style="margin-bottom: 8px;">{{ benefit }}</li>
+            {% endfor %}
+        </ul>
+    </div>
+    {% endif %}
+
+    <h2 style="color: #333; margin: 25px 0 15px 0; font-size: 20px;">🏁 Getting Started</h2>
+    {% if getting_started_steps %}
+        <ol style="margin: 10px 0; padding-left: 20px; line-height: 1.6;">
+            {% for step in getting_started_steps %}
+                <li style="margin-bottom: 8px;">{{ step }}</li>
+            {% endfor %}
+        </ol>
+    {% else %}
+        <p style="line-height: 1.6;">
+            These features are automatically available in your account. Simply log in to start exploring!
+        </p>
+    {% endif %}
+
+    <!-- Call to Action -->
+    <table role="presentation" cellspacing="0" cellpadding="0" border="0" style="margin: 30px 0;">
+        <tr>
+            <td style="background-color: #4caf50; border-radius: 6px;">
+                <a href="{{ try_feature_url|default:'#' }}" style="display: inline-block; padding: 12px 30px; color: #ffffff; text-decoration: none; font-weight: bold; font-size: 16px; text-align: center;">
+                    Try New Features
+                </a>
+            </td>
+        </tr>
+    </table>
+
+    {% if tutorial_url %}
+    <table role="presentation" cellspacing="0" cellpadding="0" border="0" style="margin: 15px 0;">
+        <tr>
+            <td style="background-color: #17a2b8; border-radius: 6px;">
+                <a href="{{ tutorial_url }}" style="display: inline-block; padding: 12px 30px; color: #ffffff; text-decoration: none; font-weight: bold; font-size: 16px; text-align: center;">
+                    Watch Tutorial
+                </a>
+            </td>
+        </tr>
+    </table>
+    {% endif %}
+
+    <!-- Feedback Section -->
+    <div style="background-color: #fff3e0; border: 1px solid #ffcc02; border-radius: 6px; padding: 20px; margin: 20px 0;">
+        <h3 style="margin: 0 0 10px 0; color: #ef6c00;">💬 We'd love your feedback!</h3>
+        <p style="margin: 5px 0; color: #e65100; line-height: 1.6;">
+            Try out these new features and let us know what you think. Your feedback helps us build better products for you.
+        </p>
+        {% if feedback_url %}
+        <table role="presentation" cellspacing="0" cellpadding="0" border="0" style="margin: 15px 0;">
+            <tr>
+                <td style="background-color: #6f42c1; border-radius: 6px;">
+                    <a href="{{ feedback_url }}" style="display: inline-block; padding: 10px 20px; color: #ffffff; text-decoration: none; font-weight: bold; font-size: 14px; text-align: center;">
+                        Share Feedback
+                    </a>
+                </td>
+            </tr>
+        </table>
+        {% endif %}
+    </div>
+
+    {% if upcoming_features %}
+    <div style="background-color: #f8f9fa; padding: 20px; border-radius: 8px; border-left: 4px solid #6f42c1; margin: 20px 0;">
+        <h4 style="margin: 0 0 10px 0; color: #333;">🔮 Coming Soon:</h4>
+        <p style="margin: 0; color: #6c757d; line-height: 1.4;">{{ upcoming_features }}</p>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}
+
+{% block footer_text %}
+This feature announcement was sent to keep you updated on the latest improvements to the Equipment Platform.
+{% endblock %}
