@@ -666,6 +666,40 @@ def login_with_verification_check(request):
         municipality_name = admin_div.name
         user_profile_data['administrative_division'] = location_data
 
+    # Get last visited URL from previous session using UserEvent
+    last_visited_url = None
+    last_visited_time = None
+    try:
+        from accounts.models import UserEvent
+        from django.utils import timezone
+        from datetime import timedelta
+        
+        # Get the most recent profile_view or page visit event
+        # (within last 7 days to avoid very old data)
+        recent_cutoff = timezone.now() - timedelta(days=7)
+        
+        # Look for recent page view events with URL in metadata
+        recent_event = UserEvent.objects.filter(
+            user=profile,
+            created_at__gte=recent_cutoff,
+            metadata__has_key='url'  # Events that tracked a URL
+        ).order_by('-created_at').first()
+        
+        if recent_event and recent_event.metadata.get('url'):
+            last_visited_url = recent_event.metadata['url']
+            last_visited_time = recent_event.created_at
+            
+            # Calculate time since last visit
+            time_since_visit = (timezone.now() - last_visited_time) \
+                .total_seconds() / 60  # minutes
+            
+            logger.info(
+                f"Found last visited URL from UserEvent: "
+                f"{last_visited_url} ({time_since_visit:.1f} min ago)"
+            )
+    except Exception as e:
+        logger.warning(f"Failed to retrieve last visited URL: {e}")
+
     # Base response structure with session and JWT
     response_data = {
         'access': str(access_token),
@@ -684,7 +718,10 @@ def login_with_verification_check(request):
             'session_id': session_data['session_id'],
             'created': session_data.get('started_at'),
             'location': session_data.get('location_data', {}),
-            'reused': False  # No session reuse logic
+            'reused': False,  # No session reuse logic
+            'last_visited_url': last_visited_url,
+            'last_visited_time': last_visited_time.isoformat() if \
+                last_visited_time else None
         },
         'message': 'Login successful with new secure session'
     }
@@ -701,6 +738,77 @@ def login_with_verification_check(request):
         })
 
     return Response(response_data, status=status.HTTP_200_OK)
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def update_last_visited_url(request):
+    """
+    Track page visit by creating a UserEvent with URL in metadata.
+    This allows retrieving last visited page for smart redirect on next login.
+    """
+    url = request.data.get('url')
+    
+    if not url:
+        return Response({
+            'error': 'URL is required'
+        }, status=status.HTTP_400_BAD_REQUEST)
+    
+    try:
+        from django.utils import timezone
+        from accounts.models import UserEvent, UserSession
+        from rest_framework_simplejwt.tokens import UntypedToken
+        
+        # Get user profile
+        try:
+            profile = UserProfile.objects.get(
+                user=request.user, is_deleted=False
+            )
+        except UserProfile.DoesNotExist:
+            return Response({
+                'error': 'User profile not found'
+            }, status=status.HTTP_404_NOT_FOUND)
+        
+        # Get session ID from JWT token
+        auth_header = request.META.get('HTTP_AUTHORIZATION', '')
+        session = None
+        
+        if auth_header.startswith('Bearer '):
+            try:
+                token_str = auth_header.split(' ')[1]
+                token = UntypedToken(token_str)
+                session_id = token.payload.get('sid')
+                
+                if session_id:
+                    session = UserSession.objects.filter(
+                        session_id=session_id,
+                        is_active=True
+                    ).first()
+            except Exception as e:
+                logger.warning(f"Failed to extract session from token: {e}")
+        
+        # Create event to track page visit
+        UserEvent.objects.create(
+            user=profile,
+            session=session,
+            event_type='profile_view',  # Using existing event type
+            description=f'Page visit: {url}',
+            metadata={'url': url, 'timestamp': timezone.now().isoformat()},
+            success=True
+        )
+        
+        logger.info(f"Tracked page visit: {url}")
+        
+        return Response({
+            'success': True,
+            'message': 'Page visit tracked'
+        }, status=status.HTTP_200_OK)
+            
+    except Exception as e:
+        logger.error(f"Error tracking page visit: {e}")
+        return Response({
+            'error': f'Failed to track page visit: {str(e)}'
+        }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
 def verify_password_reset_token(token):

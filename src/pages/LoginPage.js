@@ -102,13 +102,40 @@ const LoginPage = () => {
                 console.log('🔍 DEBUG: user.municipality:', result.user?.municipality);
                 console.log('🔍 DEBUG: user.profile:', result.user?.profile);
                 console.log('🔍 DEBUG: Full user object keys:', Object.keys(result.user || {}));
+                console.log('🔍 DEBUG: Session data:', result.session);
 
                 // Get user's home division URL (fallback/default)
                 const userHomeUrl = getUserRedirectUrl(result.user);
                 console.log('🔍 DEBUG: User home URL:', userHomeUrl);
 
-                // Use smart redirect logic
-                const { url: redirectUrl, reason } = getSmartRedirectUrl(userHomeUrl);
+                // Check if backend provided last visited URL from previous session
+                let redirectUrl;
+                let reason;
+                
+                if (result.session?.last_visited_url) {
+                    const lastVisitedTime = result.session.last_visited_time;
+                    const timeSinceVisit = lastVisitedTime 
+                        ? (Date.now() - new Date(lastVisitedTime).getTime()) / 1000 / 60  // minutes
+                        : null;
+                    
+                    // If session was recent (< 30 min), use last visited URL
+                    if (timeSinceVisit !== null && timeSinceVisit < 30) {
+                        redirectUrl = result.session.last_visited_url;
+                        reason = `Backend session: last visit ${timeSinceVisit.toFixed(1)} min ago`;
+                        console.log('✅ Using last visited URL from backend session:', redirectUrl);
+                    } else {
+                        redirectUrl = userHomeUrl;
+                        reason = `Backend session: old visit (${timeSinceVisit?.toFixed(1) || 'unknown'} min ago)`;
+                        console.log('⏰ Session too old, going to home division');
+                    }
+                } else {
+                    // Fallback to localStorage-based smart redirect if no backend data
+                    const smartRedirect = getSmartRedirectUrl(userHomeUrl);
+                    redirectUrl = smartRedirect.url;
+                    reason = `LocalStorage fallback: ${smartRedirect.reason}`;
+                    console.log('📦 No backend session data, using localStorage');
+                }
+                
                 console.log('🎯 Smart redirect decision:', { redirectUrl, reason });
 
                 // Validate that the municipality route exists before redirecting

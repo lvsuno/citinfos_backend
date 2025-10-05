@@ -52,6 +52,8 @@ urlpatterns = [
          name='jwt_change_password'),
     path('api/auth/password-reset-confirm/', jwt_views.password_reset_confirm,
          name='jwt_password_reset_confirm'),
+    path('api/auth/update-last-visited/', jwt_views.update_last_visited_url,
+         name='update_last_visited_url'),
 
     # =========================================================================
     # UTILITY ENDPOINTS (ACTIVE - Commonly needed)

@@ -181,7 +181,7 @@ class ApiService {
         remember_me: rememberMe,
       });
 
-      const { access, refresh, user, verification_required } = response.data;
+      const { access, refresh, user, verification_required, session } = response.data;
 
       // Always set tokens and user data (session is created on backend)
       if (access && refresh && user) {
@@ -194,6 +194,7 @@ class ApiService {
             success: true,
             user,
             tokens: { access, refresh },
+            session,  // Include session data with last_visited_url
             verification_required: true,
             verification_status: response.data.verification_status,
             verification_message: response.data.verification_message,
@@ -208,6 +209,7 @@ class ApiService {
           success: true,
           user,
           tokens: { access, refresh },
+          session,  // Include session data with last_visited_url
           message: response.data.message || 'Login successful'
         };
       }
@@ -303,6 +305,17 @@ class ApiService {
     } catch (error) {
       console.error('Get current user error:', error);
       throw this.handleError(error);
+    }
+  }
+
+  async updateLastVisitedUrl(url) {
+    try {
+      const response = await this.api.post('/auth/update-last-visited/', { url });
+      return response.data;
+    } catch (error) {
+      console.error('Update last visited URL error:', error);
+      // Don't throw - this is not critical
+      return null;
     }
   }
 
