@@ -111,12 +111,9 @@ def enhance_session_async(session_id: str, request_data: dict, client_device_inf
                     resolved_location = location_cache_service.resolve_location_from_ip_data(
                         location_data
                     )
-                    enhanced_session_data['resolved_location'] = {
-                        'country_id': resolved_location.get('country_id'),
-                        'city_id': resolved_location.get('city_id'),
-                        'country_code': resolved_location.get('country_code'),
-                        'city_name': resolved_location.get('city_name')
-                    }
+                    # Use the complete resolved location data structure
+                    location_data = resolved_location
+                    enhanced_session_data['resolved_location'] = location_data
 
                     logger.info(f"Location data enhanced for session {session_id}")
                 else:

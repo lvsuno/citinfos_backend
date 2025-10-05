@@ -5,6 +5,7 @@ from . import jwt_views
 from . import public_views
 from . import contact_change_views
 from . import social_auth_views
+from . import geolocation_views
 
 router = DefaultRouter()
 router.register(r'users', views.UserViewSet, basename='user')
@@ -47,6 +48,10 @@ urlpatterns = [
     path('api/auth/logout/', jwt_views.jwt_logout, name='jwt_logout'),
     path('api/auth/user-info/', jwt_views.jwt_user_info,
          name='jwt_user_info'),
+    path('api/auth/change-password/', jwt_views.change_password,
+         name='jwt_change_password'),
+    path('api/auth/password-reset-confirm/', jwt_views.password_reset_confirm,
+         name='jwt_password_reset_confirm'),
 
     # =========================================================================
     # UTILITY ENDPOINTS (ACTIVE - Commonly needed)
@@ -90,6 +95,31 @@ urlpatterns = [
          name='social_login_url'),
     path('api/auth/social/apps/', social_auth_views.social_apps,
          name='social_apps'),
+
+    # =========================================================================
+    # GEOLOCATION ENDPOINTS (IP-based registration support)
+    # =========================================================================
+
+    # IP-based geolocation endpoints for user registration
+    path('api/auth/location-data/', geolocation_views.get_user_location_data,
+         name='get_user_location_data'),
+    path('api/auth/search-divisions/', geolocation_views.search_divisions,
+         name='search_divisions'),
+    path('api/auth/division-neighbors/<uuid:division_id>/',
+         geolocation_views.get_division_neighbors,
+         name='get_division_neighbors'),
+
+    # Administrative division browsing endpoints for map
+    path('api/auth/countries/', geolocation_views.get_countries,
+         name='get_countries'),
+    path('api/auth/divisions/', geolocation_views.get_divisions_by_level,
+         name='get_divisions_by_level'),
+    path('api/auth/divisions/<uuid:division_id>/geometry/',
+         geolocation_views.get_division_geometry,
+         name='get_division_geometry'),
+    path('api/auth/divisions/by-slug/',
+         geolocation_views.get_division_by_slug,
+         name='get_division_by_slug'),
 
     # Include router URLs for profiles
     path('api/', include(router.urls)),

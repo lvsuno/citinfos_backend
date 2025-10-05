@@ -52,6 +52,7 @@ env = environ.Env(
     # JWT Token Lifetime Settings
     JWT_ACCESS_TOKEN_LIFETIME_MINUTES=(int, 5),
     JWT_REFRESH_TOKEN_LIFETIME_DAYS=(int, 1),
+    PERSISTENT_SESSION_DURATION_DAYS=(int, 30),
     JWT_SLIDING_TOKEN_LIFETIME_MINUTES=(int, 5),
     JWT_SLIDING_TOKEN_REFRESH_LIFETIME_DAYS=(int, 1),
     # JWT Auto-Renewal Configuration
@@ -374,6 +375,11 @@ SESSION_CACHE_ALIAS = 'sessions'
 SESSION_COOKIE_AGE = SESSION_DURATION_HOURS * 60 * 60  # 4 hours
 SESSION_SAVE_EVERY_REQUEST = True
 SESSION_EXPIRE_AT_BROWSER_CLOSE = False
+
+# Persistent session duration for "remember me" functionality (in days)
+PERSISTENT_SESSION_DURATION_DAYS = env.int(
+    'PERSISTENT_SESSION_DURATION_DAYS', default=30
+)
 
 # Session cookie settings for Docker/cross-origin requests
 SESSION_COOKIE_HTTPONLY = True

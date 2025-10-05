@@ -321,52 +321,136 @@ class LocationCacheService:
             logger.debug(f"City lookup failed for ID {city_id}: {e}")
             return None
 
+    def get_administrative_division_by_id(self, division_id):
+        """
+        Get AdministrativeDivision object by ID with hybrid caching.
+
+        Args:
+            division_id: Administrative Division ID
+
+        Returns:
+            AdministrativeDivision object or None
+        """
+        if not division_id:
+            return None
+
+        cache_key = f"location:admin_division_id:{division_id}"
+        cached_data = self._get_from_cache(cache_key)
+
+        if cached_data is not None:
+            if cached_data is False:
+                return None  # Negative result cached
+            return cached_data
+
+        # Not in cache, fetch from database
+        try:
+            from core.models import AdministrativeDivision
+            division = AdministrativeDivision.objects.select_related(
+                'country', 'parent'
+            ).get(id=division_id)
+            self._set_in_cache(cache_key, division)
+            return division
+        except AdministrativeDivision.DoesNotExist:
+            # Cache negative result
+            self._set_in_cache(cache_key, False)
+            return None
+        except Exception as e:
+            logger.debug(f"Division lookup failed for ID {division_id}: {e}")
+            return None
+
+    def get_administrative_division_by_coordinates(self, lat, lng, country=None):
+        """
+        Get closest AdministrativeDivision by coordinates with caching.
+
+        Args:
+            lat: Latitude
+            lng: Longitude
+            country: Optional country to restrict search
+
+        Returns:
+            AdministrativeDivision object or None
+        """
+        if not lat or not lng:
+            return None
+
+        # Create cache key based on coordinates (rounded to reasonable precision)
+        lat_rounded = round(float(lat), 4)
+        lng_rounded = round(float(lng), 4)
+        country_filter = country.id if country else 'global'
+        cache_key = f"location:coords:{lat_rounded}:{lng_rounded}:{country_filter}"
+
+        cached_data = self._get_from_cache(cache_key)
+        if cached_data is not None:
+            if cached_data is False:
+                return None
+            return cached_data
+
+        # Not in cache, find closest division
+        try:
+            from django.contrib.gis.geos import Point
+            from django.contrib.gis.db.models.functions import Distance
+            from core.models import AdministrativeDivision
+
+            user_point = Point(lng, lat, srid=4326)
+
+            # Build query
+            queryset = AdministrativeDivision.objects.filter(
+                geometry__dwithin=(user_point, 0.1)  # ~10km
+            )
+
+            if country:
+                queryset = queryset.filter(country=country)
+
+            division = queryset.annotate(
+                distance=Distance('geometry', user_point)
+            ).order_by('distance').first()
+
+            # Cache result (even if None)
+            self._set_in_cache(cache_key, division or False)
+            return division
+
+        except Exception as e:
+            logger.debug(f"Coordinate division lookup failed: {e}")
+            return None
+
     def resolve_location_from_ip_data(
         self, ip_location: Dict[str, Any]
     ) -> Dict[str, Any]:
         """
-        Resolve Country/City objects from IP location data and return with IDs.
+        Resolve AdministrativeDivision from IP location data using coordinates.
 
         Args:
-            ip_location: Dictionary with country_code, city, region, etc.
+            ip_location: Dictionary with latitude, longitude, city, region, etc.
 
         Returns:
-            Dict with country/city objects and their IDs for storage
+            Dict with administrative division data for storage
         """
         result = {
-            'country': None,
-            'country_id': None,
-            'city': None,
-            'city_id': None,
-            'country_code': ip_location.get('country_code') or ip_location.get('country_iso_code'),
-            'city_name': ip_location.get('city'),
-            'region': ip_location.get('region')
+            'administrative_division_id': None,
+            'division_name': None,
+            'latitude': ip_location.get('latitude'),
+            'longitude': ip_location.get('longitude'),
+            'region': ip_location.get('region'),
+            'user_timezone': None,
+            'detected_timezone': ip_location.get('timezone'),
+            'timezone_source': 'ip_detection',
+            # Reference data (not part of core location_data but useful)
+            'original_city': ip_location.get('city'),
+            'country_iso_code': ip_location.get('country_code') or ip_location.get('country_iso_code'),
+            'country_name': None
         }
 
-        # Get country (handle both country_code and country_iso_code)
-        country_code = ip_location.get('country_code') or ip_location.get('country_iso_code')
-        if country_code:
-            country = self.get_country_by_code(country_code)
-            if country:
-                result['country'] = country
-                result['country_id'] = str(country.id)  # Convert UUID to string
+        # Get administrative division using coordinates
+        lat = ip_location.get('latitude')
+        lng = ip_location.get('longitude')
 
-        # Get city
-        if result['country'] and ip_location.get('city'):
-            city = self.get_city_by_name_and_country(
-                ip_location['city'], result['country']
-            )
-            if city:
-                result['city'] = city
-                result['city_id'] = str(city.id)  # Convert UUID to string
-            elif ip_location.get('region'):
-                # Fallback: try by region
-                city = self.get_city_by_name_and_country(
-                    ip_location['region'], result['country']
-                )
-                if city:
-                    result['city'] = city
-                    result['city_id'] = str(city.id)  # Convert UUID to string
+        if lat and lng:
+            division = self.get_administrative_division_by_coordinates(lat, lng)
+            if division:
+                result['administrative_division_id'] = str(division.id)
+                result['division_name'] = division.name
+                result['country_name'] = division.country.name
+                result['country_iso_code'] = division.country.iso2
 
         return result
 
@@ -374,35 +458,37 @@ class LocationCacheService:
         self, location_data: Dict[str, Any]
     ) -> Dict[str, Any]:
         """
-        Resolve Country/City objects from stored IDs with Redis caching.
+        Resolve AdministrativeDivision objects from stored IDs.
 
         Args:
-            location_data: Dictionary with country_id, city_id, etc.
+            location_data: Dictionary with administrative_division_id, etc.
 
         Returns:
-            Dict with resolved country/city objects
+            Dict with resolved administrative division objects
         """
         result = {
-            'country': None,
-            'city': None,
-            'country_code': location_data.get('country_code'),
-            'city_name': location_data.get('city_name'),
-            'region': location_data.get('region')
+            'administrative_division_id': location_data.get('administrative_division_id'),
+            'division_name': location_data.get('division_name'),
+            'region': location_data.get('region'),
+            'latitude': location_data.get('latitude'),
+            'longitude': location_data.get('longitude'),
+            'user_timezone': location_data.get('user_timezone'),
+            'detected_timezone': location_data.get('detected_timezone'),
+            'timezone_source': location_data.get('timezone_source', 'unknown'),
+            # Reference data
+            'original_city': location_data.get('original_city'),
+            'country_iso_code': location_data.get('country_iso_code'),
+            'country_name': location_data.get('country_name')
         }
 
-        # Get country by ID (much faster than by code)
-        country_id = location_data.get('country_id')
-        if country_id:
-            country = self.get_country_by_id(country_id)
-            if country:
-                result['country'] = country
-
-        # Get city by ID (much faster than by name)
-        city_id = location_data.get('city_id')
-        if city_id:
-            city = self.get_city_by_id(city_id)
-            if city:
-                result['city'] = city
+        # Get administrative division by ID to ensure current data (optional refresh)
+        division_id = location_data.get('administrative_division_id')
+        if division_id:
+            division = self.get_administrative_division_by_id(division_id)
+            if division:
+                result['division_name'] = division.name
+                result['country_name'] = division.country.name
+                result['country_iso_code'] = division.country.iso2
 
         return result
 
@@ -413,65 +499,45 @@ class LocationCacheService:
 
         Args:
             session_id: Session ID for cache key generation
-            location_data: Location data with country_id, city_id
+            location_data: Location data with administrative_division_id
         """
         session_timeout = SESSION_DURATION_HOURS * 3600
 
         try:
-            # Extend country cache
-            country_id = location_data.get('country_id')
-            if country_id:
-                country_cache_key = f"location:country_id:{country_id}"
+            # Extend administrative division cache
+            division_id = location_data.get('administrative_division_id')
+            if division_id:
+                division_cache_key = f"location:admin_division_id:{division_id}"
                 if self.use_redis:
-                    if self.redis_client.exists(country_cache_key):
+                    if self.redis_client.exists(division_cache_key):
                         self.redis_client.expire(
-                            country_cache_key, session_timeout
+                            division_cache_key, session_timeout
                         )
                         logger.debug(
-                            f"Extended country cache for session {session_id}"
+                            f"Extended division cache for session {session_id}"
                         )
                 else:
                     # For Django cache, re-set with new timeout
-                    country_data = cache.get(country_cache_key)
-                    if country_data is not None:
+                    division_data = cache.get(division_cache_key)
+                    if division_data is not None:
                         cache.set(
-                            country_cache_key, country_data, session_timeout
+                            division_cache_key, division_data, session_timeout
                         )
 
-            # Extend city cache
-            city_id = location_data.get('city_id')
-            if city_id:
-                city_cache_key = f"location:city_id:{city_id}"
+            # Extend coordinate-based cache if available
+            lat = location_data.get('latitude')
+            lng = location_data.get('longitude')
+            if lat and lng:
+                lat_rounded = round(float(lat), 4)
+                lng_rounded = round(float(lng), 4)
+                coord_cache_key = f"location:coords:{lat_rounded}:{lng_rounded}:global"
                 if self.use_redis:
-                    if self.redis_client.exists(city_cache_key):
-                        self.redis_client.expire(
-                            city_cache_key, session_timeout
-                        )
-                        logger.debug(
-                            f"Extended city cache for session {session_id}"
-                        )
+                    if self.redis_client.exists(coord_cache_key):
+                        self.redis_client.expire(coord_cache_key, session_timeout)
                 else:
-                    # For Django cache, re-set with new timeout
-                    city_data = cache.get(city_cache_key)
-                    if city_data is not None:
-                        cache.set(city_cache_key, city_data, session_timeout)
-
-            # Also extend by code cache keys if needed
-            country_code = location_data.get('country_code')
-            if country_code:
-                code_cache_key = (
-                    f"location:country_code:{country_code.upper()}"
-                )
-                if self.use_redis:
-                    if self.redis_client.exists(code_cache_key):
-                        self.redis_client.expire(
-                            code_cache_key, session_timeout
-                        )
-                else:
-                    # For Django cache, re-set with new timeout
-                    code_data = cache.get(code_cache_key)
-                    if code_data is not None:
-                        cache.set(code_cache_key, code_data, session_timeout)
+                    coord_data = cache.get(coord_cache_key)
+                    if coord_data is not None:
+                        cache.set(coord_cache_key, coord_data, session_timeout)
 
         except Exception as e:
             logger.debug(
@@ -485,44 +551,44 @@ class LocationCacheService:
 
         Args:
             session_id: Session ID for logging
-            location_data: Location data with country_id, city_id
+            location_data: Location data with administrative_division_id
         """
         try:
-            # Preload country if not in cache
-            country_id = location_data.get('country_id')
-            if country_id:
-                country_cache_key = f"location:country_id:{country_id}"
+            # Preload administrative division if not in cache
+            division_id = location_data.get('administrative_division_id')
+            if division_id:
+                division_cache_key = f"location:admin_division_id:{division_id}"
                 cache_exists = False
 
                 if self.use_redis:
-                    cache_exists = self.redis_client.exists(country_cache_key)
+                    cache_exists = self.redis_client.exists(division_cache_key)
                 else:
-                    cache_exists = cache.get(country_cache_key) is not None
+                    cache_exists = cache.get(division_cache_key) is not None
 
                 if not cache_exists:
-                    country = self.get_country_by_id(country_id)
-                    if country:
+                    division = self.get_administrative_division_by_id(division_id)
+                    if division:
                         logger.debug(
-                            f"Preloaded country cache for session {session_id}"
+                            f"Preloaded division cache for session {session_id}"
                         )
 
-            # Preload city if not in cache
-            city_id = location_data.get('city_id')
-            if city_id:
-                city_cache_key = f"location:city_id:{city_id}"
+            # Preload coordinate cache if available
+            lat = location_data.get('latitude')
+            lng = location_data.get('longitude')
+            if lat and lng:
+                lat_rounded = round(float(lat), 4)
+                lng_rounded = round(float(lng), 4)
+                coord_cache_key = f"location:coords:{lat_rounded}:{lng_rounded}:global"
+
                 cache_exists = False
-
                 if self.use_redis:
-                    cache_exists = self.redis_client.exists(city_cache_key)
+                    cache_exists = self.redis_client.exists(coord_cache_key)
                 else:
-                    cache_exists = cache.get(city_cache_key) is not None
+                    cache_exists = cache.get(coord_cache_key) is not None
 
                 if not cache_exists:
-                    city = self.get_city_by_id(city_id)
-                    if city:
-                        logger.debug(
-                            f"Preloaded city cache for session {session_id}"
-                        )
+                    # This will populate the coordinate cache
+                    self.get_administrative_division_by_coordinates(lat, lng)
 
         except Exception as e:
             logger.debug(
@@ -535,10 +601,8 @@ class LocationCacheService:
             if self.use_redis:
                 # Delete all location cache keys from Redis
                 for pattern in [
-                    'location:country_code:*',
-                    'location:country_id:*',
-                    'location:city_id:*',
-                    'location:city:*'
+                    'location:admin_division_id:*',
+                    'location:coords:*'
                 ]:
                     keys = self.redis_client.keys(pattern)
                     if keys:

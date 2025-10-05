@@ -68,7 +68,7 @@ export const addPost = (municipalityName, post) => {
     return newPost;
 };
 
-export default {
+const postsData = {
     getPostsByMunicipality,
     getPostsByMunicipalityAndSection,
     getSectionsByMunicipality,
@@ -76,3 +76,5 @@ export default {
     addPost,
     allPosts
 };
+
+export default postsData;

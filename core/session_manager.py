@@ -95,8 +95,15 @@ class SessionManager:
         from core.device_fingerprint import get_fast_device_fingerprint
         fast_fingerprint = get_fast_device_fingerprint(request)
 
-        # Calculate expiration
-        default_hours = getattr(settings, 'SESSION_DURATION_HOURS', 4)
+        # Calculate expiration based on persistent flag
+        if persistent:
+            # Remember me: 30 days
+            default_hours = getattr(
+                settings, 'PERSISTENT_SESSION_DURATION_DAYS', 30
+            ) * 24
+        else:
+            # Normal session: 4 hours
+            default_hours = getattr(settings, 'SESSION_DURATION_HOURS', 4)
         started_at = timezone.now()
         expires_at = started_at + timedelta(hours=default_hours)
 
@@ -315,7 +322,7 @@ class SessionManager:
         user_timezone: Optional[str] = None
     ) -> Dict[str, Any]:
         """
-        Resolve location data to include Country/City IDs for efficient
+        Resolve location data to include Country/Administrative Division IDs for efficient
         future lookups and both user-provided and detected timezones.
 
         Args:
@@ -323,7 +330,7 @@ class SessionManager:
             user_timezone: User's actual timezone from browser/device
 
         Returns:
-            Enhanced location data with Country/City IDs and timezone info
+            Enhanced location data with Country/Administrative Division IDs and timezone info
         """
         if not raw_location:
             return {}
@@ -338,14 +345,12 @@ class SessionManager:
 
             # Store both the resolved objects and IDs for efficient retrieval
             enhanced_location = {
-                # Original data
-                'country_code': resolved_location.get('country_code'),
-                'city_name': resolved_location.get('city_name'),
+                # Administrative division data
+                'division_name': resolved_location.get('division_name'),
                 'region': resolved_location.get('region'),
-
-                # Database IDs for fast future lookups
-                'country_id': resolved_location.get('country_id'),
-                'city_id': resolved_location.get('city_id'),
+                'administrative_division_id': resolved_location.get(
+                    'administrative_division_id'
+                ),
 
                 # Additional IP location data
                 'latitude': raw_location.get('latitude'),
@@ -367,18 +372,16 @@ class SessionManager:
     def _manual_location_resolution(self, raw_location, user_timezone):
         """
         Manual location resolution when cache service fails.
-        Directly queries the database for Country/City objects.
+        Directly queries the database for Country/Administrative Division objects.
         """
         try:
-            from core.models import Country
+            from core.models import AdministrativeDivision
 
             enhanced_location = {
                 # Original data
-                'country_code': raw_location.get('country_iso_code'),
-                'city_name': raw_location.get('city'),
+                'division_name': raw_location.get('city'),  # City is now part of administrative division
                 'region': raw_location.get('region'),
-                'country_id': None,
-                'city_id': None,
+                'administrative_division_id': None,
 
                 # Additional IP location data
                 'latitude': raw_location.get('latitude'),
@@ -390,25 +393,15 @@ class SessionManager:
                 'timezone_source': 'user' if user_timezone else 'ip_detection',
             }
 
-            # Try to get country ID
-            country_code = raw_location.get('country_iso_code')
-            if country_code:
+            # Try to get administrative division ID (search by name only)
+            division_name = raw_location.get('city')
+            if division_name:
                 try:
-                    country = Country.objects.get(iso2=country_code)
-                    enhanced_location['country_id'] = str(country.id)  # Convert UUID to string
-                except Country.DoesNotExist:
-                    pass
-
-            # Try to get city ID
-            city_name = raw_location.get('city')
-            if city_name and enhanced_location['country_id']:
-                try:
-                    city = City.objects.filter(
-                        name__iexact=city_name,
-                        country_id=enhanced_location['country_id']
+                    division = AdministrativeDivision.objects.filter(
+                        name__iexact=division_name
                     ).first()
-                    if city:
-                        enhanced_location['city_id'] = str(city.id)  # Convert UUID to string
+                    if division:
+                        enhanced_location['administrative_division_id'] = str(division.id)  # Convert UUID to string
                 except Exception:
                     pass
 
@@ -417,11 +410,9 @@ class SessionManager:
         except ImportError:
             # Models not available, return basic data
             return {
-                'country_code': raw_location.get('country_iso_code'),
-                'city_name': raw_location.get('city'),
+                'division_name': raw_location.get('city'),  # City is now part of administrative division
                 'region': raw_location.get('region'),
-                'country_id': None,
-                'city_id': None,
+                'administrative_division_id': None,
                 'user_timezone': user_timezone,
                 'detected_timezone': raw_location.get('timezone'),
                 'timezone_source': 'user' if user_timezone else 'ip_detection',
@@ -930,7 +921,7 @@ class SessionManager:
 
         return None
 
-    def fast_login_with_session_reuse(self, request, user_profile) -> Dict[str, Any]:
+    def fast_login_with_session_reuse(self, request, user_profile, persistent=False) -> Dict[str, Any]:
         """
         Optimized login that tries to reuse existing sessions first.
         Creates new session only if no valid session exists for this device.
@@ -938,6 +929,7 @@ class SessionManager:
         Args:
             request: Django request object
             user_profile: UserProfile instance
+            persistent: Whether this is a "remember me" session (30 days vs 4 hours)
 
         Returns:
             Dict with session data and 'reused' flag
@@ -959,7 +951,6 @@ class SessionManager:
             # Force immediate renewal without age check
             self.smart_renew_session_if_needed(
                 session_id,
-                request=request,
                 check_renew=False  # Force immediate extension
             )
 
@@ -978,8 +969,10 @@ class SessionManager:
             existing_session['reused'] = True
             return existing_session
 
-        # No existing session - create new minimal session
-        session_data = self.create_minimal_session_with_db(request, user_profile)
+        # No existing session - create new minimal session with persistent flag
+        session_data = self.create_minimal_session_with_db(
+            request, user_profile, persistent=persistent
+        )
         session_data['reused'] = False
         return session_data
 

@@ -11,6 +11,7 @@ const Layout = ({
     activeRubrique,
     onRubriqueChange,
     municipalityName,
+    pageDivision,
     children
 }) => {
     const { user } = useAuth();
@@ -170,6 +171,7 @@ const Layout = ({
                 isOpen={isSidebarOpen}
                 onClose={closeSidebar}
                 municipalityName={municipalityName}
+                pageDivision={pageDivision}
             />
 
             <TopBar onToggleSidebar={toggleSidebar} onChatToggle={toggleChat} />

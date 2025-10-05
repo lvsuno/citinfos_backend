@@ -11,15 +11,17 @@ import {
     LoginOutlined
 } from '@mui/icons-material';
 import { useAuth } from '../contexts/AuthContext';
-import { getUserRedirectUrl } from '../data/municipalitiesUtils';
+import { getUserRedirectUrl, getMunicipalityBySlug } from '../data/municipalitiesUtils';
+import { getSmartRedirectUrl, shouldRedirectFromUrl } from '../utils/navigationTracker';
 import styles from './LoginPage.module.css';
 
 const LoginPage = () => {
     const navigate = useNavigate();
     const { login } = useAuth();
     const [formData, setFormData] = useState({
-        email: '',
-        password: ''
+        usernameOrEmail: '',
+        password: '',
+        rememberMe: false
     });
     const [showPassword, setShowPassword] = useState(false);
     const [errors, setErrors] = useState({});
@@ -42,10 +44,19 @@ const LoginPage = () => {
     }, []);
 
     const handleChange = (e) => {
-        const { name, value } = e.target;
+        const { name, value, type, checked } = e.target;
+
+        // Handle checkbox inputs differently
+        const inputValue = type === 'checkbox' ? checked : value;
+
+        // Debug log for checkbox changes
+        if (type === 'checkbox') {
+            console.log(`Checkbox ${name} changed to:`, inputValue);
+        }
+
         setFormData(prev => ({
             ...prev,
-            [name]: value
+            [name]: inputValue
         }));
 
         // Clear errors when user starts typing
@@ -60,10 +71,8 @@ const LoginPage = () => {
     const validateForm = () => {
         const newErrors = {};
 
-        if (!formData.email) {
-            newErrors.email = 'L\'email est requis';
-        } else if (!/\S+@\S+\.\S+/.test(formData.email)) {
-            newErrors.email = 'Format d\'email invalide';
+        if (!formData.usernameOrEmail) {
+            newErrors.usernameOrEmail = 'Nom d\'utilisateur ou email requis';
         }
 
         if (!formData.password) {
@@ -84,11 +93,54 @@ const LoginPage = () => {
         setIsLoading(true);
 
         try {
-            const result = await login(formData.email, formData.password);
+            console.log('Login attempt with rememberMe:', formData.rememberMe);
+            const result = await login(formData.usernameOrEmail, formData.password, formData.rememberMe);
             if (result.success) {
-                // Rediriger vers la municipalité de l'utilisateur
-                const redirectUrl = getUserRedirectUrl(result.user);
-                navigate(redirectUrl);
+                // Always redirect to success page first (session is created)
+                console.log('🔍 DEBUG: User data received from server:', result.user);
+                console.log('🔍 DEBUG: user.location:', result.user?.location);
+                console.log('🔍 DEBUG: user.municipality:', result.user?.municipality);
+                console.log('🔍 DEBUG: user.profile:', result.user?.profile);
+                console.log('🔍 DEBUG: Full user object keys:', Object.keys(result.user || {}));
+
+                // Get user's home division URL (fallback/default)
+                const userHomeUrl = getUserRedirectUrl(result.user);
+                console.log('🔍 DEBUG: User home URL:', userHomeUrl);
+
+                // Use smart redirect logic
+                const { url: redirectUrl, reason } = getSmartRedirectUrl(userHomeUrl);
+                console.log('🎯 Smart redirect decision:', { redirectUrl, reason });
+
+                // Validate that the municipality route exists before redirecting
+                if (redirectUrl !== '/dashboard') {
+                    const urlParts = redirectUrl.split('/');
+                    if (urlParts.length >= 3) {
+                        const municipalitySlug = urlParts[2];
+                        console.log('🔍 DEBUG: Municipality slug to validate:', municipalitySlug);
+
+                        // Check if this municipality exists in our data
+                        const municipalityExists = getMunicipalityBySlug(municipalitySlug);
+                        console.log('🔍 DEBUG: Municipality exists:', !!municipalityExists);
+
+                        if (!municipalityExists) {
+                            console.warn('⚠️ Municipality not found in data, falling back to dashboard');
+                            navigate('/dashboard');
+                            return;
+                        }
+                    }
+                }
+
+                // Pass verification info if needed
+                if (result.verification_required) {
+                    navigate(redirectUrl, {
+                        state: {
+                            showVerificationModal: true,
+                            verificationMessage: result.verification_message || result.message
+                        }
+                    });
+                } else {
+                    navigate(redirectUrl);
+                }
             } else {
                 setErrors({ submit: result.error || 'Email ou mot de passe incorrect' });
             }
@@ -151,21 +203,21 @@ const LoginPage = () => {
                                     </Alert>
                                 )}
 
-                                {/* Email */}
+                                {/* Nom d'utilisateur ou Email */}
                                 <div className={styles.inputGroup}>
                                     <div className={styles.inputWrapper}>
                                         <EmailIcon className={styles.inputIcon} />
                                         <Form.Control
-                                            type="email"
-                                            name="email"
-                                            placeholder="votre@email.com"
-                                            value={formData.email}
+                                            type="text"
+                                            name="usernameOrEmail"
+                                            placeholder="Nom d'utilisateur ou email"
+                                            value={formData.usernameOrEmail}
                                             onChange={handleChange}
-                                            className={`${styles.formInput} ${errors.email ? styles.error : ''}`}
-                                            autoComplete="email"
+                                            className={`${styles.formInput} ${errors.usernameOrEmail ? styles.error : ''}`}
+                                            autoComplete="username"
                                         />
                                     </div>
-                                    {errors.email && <div className={styles.errorText}>{errors.email}</div>}
+                                    {errors.usernameOrEmail && <div className={styles.errorText}>{errors.usernameOrEmail}</div>}
                                 </div>
 
                                 {/* Mot de passe */}
@@ -197,7 +249,10 @@ const LoginPage = () => {
                                     <Form.Check
                                         type="checkbox"
                                         id="remember-me"
+                                        name="rememberMe"
                                         label="Se souvenir de moi"
+                                        checked={formData.rememberMe}
+                                        onChange={handleChange}
                                         className={styles.customCheckbox}
                                     />
                                     <Link to="/forgot-password" className={styles.forgotLink}>

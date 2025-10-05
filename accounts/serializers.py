@@ -1,74 +1,21 @@
 """Serializers for user registration, profile management, and authentication.
 This module contains serializers for user registration, profile updates,
 authentication, and other user-related functionalities."""
-import random
-import string
-from django.urls import reverse
 from rest_framework import serializers
 from django.contrib.auth.models import User
 from django.contrib.auth import authenticate
-from notifications.utils import NotificationService
 from .models import (
     UserProfile, ProfessionalProfile, UserSettings, Follow, Block,
     UserSession, UserEvent, VerificationCode, BadgeDefinition, UserBadge
 )
-from core.models import Country
-from core.utils import get_client_ip, get_location_from_ip
-try:
-    from postal.parser import parse_address
-    POSTAL_AVAILABLE = True
-except ImportError:
-    POSTAL_AVAILABLE = False
-    def parse_address(address):
-        """Fallback address parser when postal is not available."""
-        return {'address': address}
+from core.utils import get_client_ip
 
 
 # Registration serializer
 class RegisterSerializer(serializers.ModelSerializer):
     """Serializer for user registration with extended profile fields."""
 
-    def get_or_create_country_city(self, country_name, city_name):
-        """
-        Given country and city names, get or create the corresponding Country and City objects.
-        Returns (country_obj, city_obj)
-        Uses case-insensitive matching to handle user input variations.
-        """
-        country_obj = None
-        city_obj = None
 
-        if country_name:
-            # Normalize country name (title case)
-            country_name = country_name.strip().title()
-            country_obj, _ = Country.objects.get_or_create(
-                name__iexact=country_name,
-                defaults={'name': country_name}
-            )
-
-        if city_name:
-            # Normalize city name (title case)
-            city_name = city_name.strip().title()
-            if country_obj:
-                city_obj, _ = City.objects.get_or_create(
-                    name__iexact=city_name,
-                    country=country_obj,
-                    defaults={'name': city_name, 'country': country_obj}
-                )
-            else:
-                city_obj = City.objects.filter(name__iexact=city_name).first()
-                if not city_obj:
-                    city_obj = City.objects.create(name=city_name)
-        return country_obj, city_obj
-
-    def get_or_create_country_city_from_ip(self, ip: str):
-        """
-        Infer country and city from IP using core.utils.get_location_from_ip,
-        then get or create the corresponding Country and City objects.
-        """
-        location = get_location_from_ip(ip)
-        country_name = location.get('country')
-        city_name = location.get('city')
-        return self.get_or_create_country_city(country_name, city_name)
 
     email = serializers.EmailField(required=True)
     password = serializers.CharField(write_only=True, required=True)
@@ -79,26 +26,40 @@ class RegisterSerializer(serializers.ModelSerializer):
 
     # Additional fields for UserProfile
     bio = serializers.CharField(required=False, allow_blank=True, max_length=500)
-    country = serializers.CharField(required=False, allow_blank=True, max_length=100)
-    city = serializers.CharField(required=False, allow_blank=True, max_length=100)
-    address = serializers.CharField(required=False, allow_blank=True, max_length=500)
+    division_id = serializers.UUIDField(required=True)
+    # Municipality name for display/fallback purposes
+    municipality = serializers.CharField(
+        required=False, allow_blank=True, max_length=200
+    )
+    accept_terms = serializers.BooleanField(required=True)
 
     class Meta:
         model = User
         fields = ('username', 'email', 'password', 'password2',
                   'password_confirm', 'first_name', 'last_name',
-                  'phone_number', 'date_of_birth', 'bio', 'country', 'city', 'address')
+                  'phone_number', 'date_of_birth', 'bio', 'division_id',
+                  'municipality', 'accept_terms')
 
     def validate(self, attrs):
         password = attrs.get('password')
         # Accept both password2 and password_confirm
-        password_confirm = attrs.get('password2') or attrs.get('password_confirm')
+        password_confirm = (
+            attrs.get('password2') or attrs.get('password_confirm')
+        )
 
         if not password_confirm:
-            raise serializers.ValidationError({"password": "Password confirmation is required."})
+            raise serializers.ValidationError({
+                "password": "Password confirmation is required."
+            })
 
         if password != password_confirm:
             raise serializers.ValidationError({"password": "Password fields didn't match."})
+
+        # Validate accept_terms
+        if not attrs.get('accept_terms'):
+            raise serializers.ValidationError({
+                "accept_terms": "You must accept the terms and conditions."
+            })
 
         # Custom password strength validation
         if password:
@@ -163,7 +124,7 @@ class RegisterSerializer(serializers.ModelSerializer):
         if not value:
             raise serializers.ValidationError("Date of birth is required.")
 
-        from datetime import date, timedelta
+        from datetime import date
         today = date.today()
 
         # Check if date is not in the future
@@ -171,7 +132,10 @@ class RegisterSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError("Date of birth cannot be in the future.")
 
         # Check if age is reasonable (between 13-120 years old)
-        age = today.year - value.year - ((today.month, today.day) < (value.month, value.day))
+        age = (
+            today.year - value.year -
+            ((today.month, today.day) < (value.month, value.day))
+        )
         if age < 13:
             raise serializers.ValidationError("You must be at least 13 years old to register.")
         if age > 120:
@@ -198,9 +162,9 @@ class RegisterSerializer(serializers.ModelSerializer):
         phone_number = validated_data.pop('phone_number')
         date_of_birth = validated_data.pop('date_of_birth')
         bio = validated_data.pop('bio', None)
-        country_name = validated_data.pop('country', None)
-        city_name = validated_data.pop('city', None)
-        address = validated_data.pop('address', None)
+        division_id = validated_data.pop('division_id', None)
+        municipality = validated_data.pop('municipality', None)
+        accept_terms = validated_data.pop('accept_terms', False)
 
         # OPTIMIZATION: Use database transaction for atomic operations
         from django.db import transaction
@@ -216,30 +180,35 @@ class RegisterSerializer(serializers.ModelSerializer):
             profile_data = {
                 'phone_number': phone_number,
                 'date_of_birth': date_of_birth,
+                'accept_terms': accept_terms,
             }
 
             if bio is not None:
                 profile_data['bio'] = bio
-            # Persist provided address to the UserProfile so it can be used later
-            # by async location processing tasks.
-            if address:
-                profile_data['address'] = address
 
-            # OPTIMIZATION: Skip location processing during registration for speed
-            # Location data will be populated asynchronously after registration
-            country_obj = None
-            city_obj = None
+            # Handle administrative division assignment
+            division_obj = None
 
-            # Only process location if explicitly provided (no DB lookups)
-            if country_name or city_name:
-                # Skip DB operations - will be processed async
-                pass
-            elif address:
-                # Skip address parsing - will be processed async
-                pass
-            else:
-                # Skip IP location lookup - will be processed async
-                pass
+            if division_id:
+                try:
+                    from core.models import AdministrativeDivision
+                    division_obj = AdministrativeDivision.objects.get(
+                        id=division_id
+                    )
+                    profile_data['administrative_division'] = division_obj
+                    logger.info(
+                        f"Assigned division {division_obj.name} to user {user.pk}"
+                    )
+                except AdministrativeDivision.DoesNotExist:
+                    logger.warning(
+                        f"Division with ID {division_id} not found "
+                        f"for user {user.pk}"
+                    )
+                except Exception as e:
+                    logger.error(
+                        f"Error assigning division {division_id} "
+                        f"to user {user.pk}: {e}"
+                    )
 
             # Get or create the profile (signal should have created it, but be defensive)
             try:
@@ -252,30 +221,44 @@ class RegisterSerializer(serializers.ModelSerializer):
                 # Fallback: create profile if signal failed
                 profile = UserProfile.objects.create(user=user, **profile_data)
 
-        # OPTIMIZATION: Queue async tasks without waiting
-        request = self.context.get('request')
-        if request:
-            try:
-                from accounts.location_tasks import process_user_location_async
-                ip = get_client_ip(request)
-                process_user_location_async.delay(
-                    str(profile.id), country_name, city_name, address, ip
-                )
-            except Exception:
-                pass  # Silently ignore location processing errors
-
-        # Queue verification email generation and sending
+        # OPTIMIZATION: Queue async location tasks if no division provided
+        if not division_obj:
+            request = self.context.get('request')
+            if request:
+                try:
+                    from accounts.location_tasks import (
+                        async_location_processing_task
+                    )
+                    ip = get_client_ip(request)
+                    async_location_processing_task.delay(
+                        user.pk, ip, '',
+                        profile_email=user.email
+                    )
+                    logger.info(
+                        f"Queued location processing for user {user.pk} "
+                        f"with IP {ip}"
+                    )
+                except Exception as e:
+                    logger.error(
+                        f"Failed to queue location processing for "
+                        f"user {user.pk}: {e}"
+                    )        # Queue verification email generation and sending
         try:
-            from notifications.async_email_tasks import send_verification_email_async
+            from notifications.async_email_tasks import (
+                send_verification_email_async
+            )
             from accounts.models import VerificationCode
             import random
             import string
 
             # Generate verification code first
-            code = ''.join(random.choices(string.ascii_uppercase + string.digits, k=8))
+            code = ''.join(
+                random.choices(string.ascii_uppercase + string.digits, k=8)
+            )
 
             # Create verification code in database
-            VerificationCode.objects.filter(user=profile).delete()  # Remove any existing
+            # Remove any existing verification codes
+            VerificationCode.objects.filter(user=profile).delete()
             from django.utils import timezone
             from datetime import timedelta
             vcode = VerificationCode.objects.create(
@@ -316,7 +299,8 @@ class UserProfileSerializer(serializers.ModelSerializer):
             'id', 'user_username', 'user_email', 'user_first_name',
             'user_last_name', 'full_name', 'display_name', 'location',
             'role', 'phone_number', 'date_of_birth', 'bio',
-            'profile_picture', 'cover_media', 'cover_media_type', 'country', 'city',
+            'profile_picture', 'cover_media', 'cover_media_type',
+            'administrative_division',
             'is_private', 'show_email', 'show_phone', 'show_location',
             'is_verified', 'is_suspended', 'suspension_reason',
             'follower_count', 'following_count', 'posts_count',
@@ -363,7 +347,8 @@ class UserProfileUpdateSerializer(serializers.ModelSerializer):
         model = UserProfile
         fields = [
             'user', 'phone_number', 'date_of_birth', 'bio',
-            'profile_picture', 'cover_media', 'cover_media_type', 'country', 'city',
+            'profile_picture', 'cover_media', 'cover_media_type',
+            'administrative_division',
             'is_private', 'show_email', 'show_phone', 'show_location'
         ]
 
@@ -427,7 +412,7 @@ class VerificationCodeSerializer(serializers.Serializer):
 
 class LoginSerializer(serializers.Serializer):
     """Serializer for user login."""
-    username = serializers.CharField()
+    username_or_email = serializers.CharField()
     password = serializers.CharField(write_only=True)
     remember_me = serializers.BooleanField(required=False, default=False)
 
@@ -464,18 +449,29 @@ class LoginSerializer(serializers.Serializer):
     connection_type = serializers.CharField(required=False, allow_blank=True)
 
     def validate(self, attrs):
-        username = attrs.get('username')
+        username_or_email = attrs.get('username_or_email')
         password = attrs.get('password')
 
-        if username and password:
-            user = authenticate(username=username, password=password)
+        if username_or_email and password:
+            # First try to authenticate with username
+            user = authenticate(username=username_or_email, password=password)
+
+            # If that fails, try to find user by email and authenticate with username
+            if not user:
+                try:
+                    from django.contrib.auth.models import User
+                    user_obj = User.objects.get(email=username_or_email)
+                    user = authenticate(username=user_obj.username, password=password)
+                except User.DoesNotExist:
+                    pass
+
             if not user:
                 raise serializers.ValidationError('Invalid credentials')
             if not user.is_active:
                 raise serializers.ValidationError('Account is disabled')
             attrs['user'] = user
         else:
-            raise serializers.ValidationError('Username and password required')
+            raise serializers.ValidationError('Username/email and password required')
 
         return attrs
 

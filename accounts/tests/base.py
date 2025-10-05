@@ -4,7 +4,7 @@ from django.contrib.auth.models import User
 from rest_framework.test import APITestCase
 from accounts.models import UserProfile
 from core.jwt_test_mixin import JWTAuthTestMixin
-from core.models import Country
+from core.models import Country, AdministrativeDivision
 
 
 class AccountsAPITestCase(JWTAuthTestMixin, APITestCase):
@@ -52,15 +52,16 @@ class AccountsAPITestCase(JWTAuthTestMixin, APITestCase):
         self.jwt_token1 = self._create_jwt_token_with_session(self.user1)
         self.jwt_token2 = self._create_jwt_token_with_session(self.user2)
 
-        # Create test country and city for location tests
+        # Create test country and division for location tests
         self.country = Country.objects.create(
             name='Test Country',
             iso2='TC',
             iso3='TCT'
         )
-        self.city = City.objects.create(
-            name='Test City',
-            country=self.country
+        self.test_division = AdministrativeDivision.objects.create(
+            name='Test Division',
+            country=self.country,
+            admin_level=3  # Municipality level
         )
 
     def authenticate_user1(self):

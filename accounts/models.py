@@ -8,7 +8,7 @@ import uuid
 from django.db import models
 from django.contrib.auth.models import User
 from django.utils import timezone
-from core.models import Country, AdministrativeDivision
+from core.models import AdministrativeDivision
 
 # Utilities
 import uuid
@@ -179,21 +179,13 @@ class UserProfile(models.Model):
         choices=[('image', 'Image'), ('video', 'Video')],
         default='image'
     )
-    country = models.ForeignKey(
-        Country,
-        on_delete=models.SET_NULL,
-        null=True,
-        blank=True
-    )
-    city = models.ForeignKey(
+    administrative_division = models.ForeignKey(
         AdministrativeDivision,
         on_delete=models.SET_NULL,
         null=True,
         blank=True,
         help_text='User administrative division (city/municipality)'
     )
-
-    address = models.CharField(max_length=255, blank=True)
 
     # Privacy settings
     is_private = models.BooleanField(default=False)
@@ -204,6 +196,12 @@ class UserProfile(models.Model):
     allow_advertising = models.BooleanField(
         default=False,
         help_text='If True the user allows advertising/marketing content to be shown.'
+    )
+
+    # Terms and conditions acceptance
+    accept_terms = models.BooleanField(
+        default=False,
+        help_text='User has accepted terms and conditions during registration'
     )
 
     # Account status
@@ -446,8 +444,7 @@ class UserProfile(models.Model):
             models.Index(fields=['role']),
             models.Index(fields=['is_verified']),
             models.Index(fields=['is_suspended']),
-            models.Index(fields=['country']),
-            models.Index(fields=['city']),
+            models.Index(fields=['administrative_division']),
             models.Index(fields=['-last_active']),
             models.Index(fields=['polls_created_count']),
             models.Index(fields=['poll_votes_count']),
@@ -464,9 +461,9 @@ class UserProfile(models.Model):
 
     @property
     def location(self):
-        """Return the complete location as 'City, Country'."""
-        if self.city and self.country:
-            return f"{self.city.name}, {self.country.name}"
+        """Return the complete location as 'Division, Country'."""
+        if self.administrative_division and self.administrative_division.country:
+            return f"{self.administrative_division.name}, {self.administrative_division.country.name}"
         return None
 
     @property
@@ -1849,7 +1846,6 @@ class UserSession(models.Model):
                     f"{self.session_id}: {e}"
                 )
 
-
     def extend_session(self, additional_hours=None):
         """Extend the session expiration time in both database and Redis."""
         from django.utils import timezone
@@ -1859,8 +1855,16 @@ class UserSession(models.Model):
 
         # Calculate new expiration time
         if additional_hours is None:
-            # Use default session duration from settings
-            additional_hours = getattr(settings, 'SESSION_DURATION_HOURS', 4)
+            # Use persistent duration for remember me sessions
+            if self.persistent:
+                additional_hours = getattr(
+                    settings, 'PERSISTENT_SESSION_DURATION_DAYS', 30
+                ) * 24
+            else:
+                # Use default session duration from settings
+                additional_hours = getattr(
+                    settings, 'SESSION_DURATION_HOURS', 4
+                )
 
         new_expires_at = timezone.now() + timezone.timedelta(
             hours=additional_hours
@@ -2206,7 +2210,7 @@ class UserEvent(models.Model):
 
     # Geographic data
     # country = models.CharField(max_length=100, blank=True)
-    # city = models.CharField(max_length=100, blank=True)
+    # administrative_division = models.CharField(max_length=100, blank=True)
 
     # Success/failure tracking
     success = models.BooleanField(default=True)

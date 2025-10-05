@@ -1,29 +1,57 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import Layout from '../components/Layout';
+import VerifyAccount from '../components/VerifyAccount';
 import styles from './Dashboard.module.css';
 
 const Dashboard = () => {
     const navigate = useNavigate();
-    const { user } = useAuth();
-    const [activeRubrique, setActiveRubrique] = useState('Art');
+    const location = useLocation();
+    const { user, loading } = useAuth();
+    const [activeRubrique, setActiveRubrique] = useState('Accueil');
+    const [showVerificationModal, setShowVerificationModal] = useState(false);
+    const [verificationMessage, setVerificationMessage] = useState('');
 
-    // Si pas d'utilisateur connecté, rediriger vers la page de connexion
+    // No redirect for unauthenticated users - allow read-only access
+
+    // Handle verification modal display from login navigation
     useEffect(() => {
-        if (!user) {
-            navigate('/login');
+        if (location.state?.showVerificationModal) {
+            setShowVerificationModal(true);
+            setVerificationMessage(location.state.verificationMessage || '');
+
+            // Clear the state to prevent modal showing on refresh
+            navigate(location.pathname, { replace: true, state: {} });
         }
-    }, [user, navigate]);
+    }, [location.state, navigate, location.pathname]);
 
     const handleRubriqueChange = (rubrique) => {
         setActiveRubrique(rubrique);
         console.log('Rubrique sélectionnée:', rubrique);
     };
 
-    if (!user) {
-        return null; // Évite le flash pendant la redirection
+    // Afficher un spinner pendant le chargement de l'authentification
+    if (loading) {
+        return (
+            <Layout>
+                <div className={styles.loadingContainer}>
+                    <div className={styles.spinner}>Chargement...</div>
+                </div>
+            </Layout>
+        );
     }
+
+    // Allow access even without user authentication (read-only mode)
+
+    const handleVerificationSuccess = () => {
+        setShowVerificationModal(false);
+        // Optionally refresh user data or show success message
+    };
+
+    const handleVerificationClose = () => {
+        setShowVerificationModal(false);
+    };
 
     return (
         <Layout
@@ -39,6 +67,17 @@ const Dashboard = () => {
                 </p>
                 <p>Le contenu de cette section sera ajouté prochainement.</p>
             </div>
+
+            {/* Verification Modal - shows after login if verification required */}
+            {showVerificationModal && user && (
+                <VerifyAccount
+                    show={showVerificationModal}
+                    onHide={handleVerificationClose}
+                    onSuccess={handleVerificationSuccess}
+                    userEmail={user.email}
+                    message={verificationMessage}
+                />
+            )}
         </Layout>
     );
 };

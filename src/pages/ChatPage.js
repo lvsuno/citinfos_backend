@@ -177,6 +177,18 @@ const ChatPage = () => {
         setSelectedConversation(newConversation);
     };
 
+    if (!user) {
+        return (
+            <div className={styles.authRequired}>
+                <h2>Messages</h2>
+                <p>Connectez-vous pour accéder à vos messages</p>
+                <button onClick={() => window.location.href = '/login'} className={styles.loginButton}>
+                    Se connecter
+                </button>
+            </div>
+        );
+    }
+
     return (
         <div className={styles.chatContainer}>
             {/* Sidebar des conversations */}

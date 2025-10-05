@@ -22,7 +22,7 @@ const DebugUserInfo = () => {
             <h4>Debug User Info:</h4>
             <p><strong>ID:</strong> {user.id}</p>
             <p><strong>Nom:</strong> {user.firstName} {user.lastName}</p>
-            <p><strong>Email:</strong> {user.email}</p>
+            <p><strong>Username:</strong> {user.username}</p>
             <p><strong>Avatar:</strong> {user.avatar || 'AUCUN'}</p>
             {user.avatar && (
                 <div>

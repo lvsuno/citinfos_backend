@@ -1,50 +1,197 @@
 import React, { useState, useEffect } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { useMunicipality } from '../contexts/MunicipalityContext';
-import { searchMunicipalities, getMunicipalityBySlug } from '../data/municipalitiesUtils';
+import { getMunicipalityBySlug } from '../data/municipalitiesUtils';
+import { isValidUrlPath, getCountryByUrlPath, getAdminDivisionUrlPath, getCountryISO3ByUrlPath } from '../config/adminDivisions';
+import geolocationService from '../services/geolocationService';
+import { getCurrentDivision, setCurrentDivision, cleanupOldDivisionKeys } from '../utils/divisionStorage';
+import { trackPageVisit } from '../utils/navigationTracker';
 import Layout from '../components/Layout';
 import PostCreator from '../components/PostCreator';
 import PostFeed from '../components/PostFeed';
+import VerifyAccount from '../components/VerifyAccount';
+import apiService from '../services/apiService';
 import styles from './MunicipalityDashboard.module.css';
 
 const MunicipalityDashboard = () => {
     const { municipalitySlug, section = 'accueil' } = useParams();
     const navigate = useNavigate();
-    const { user } = useAuth();
-    const { activeMunicipality, switchMunicipality } = useMunicipality();
+    const location = useLocation();
+    const { user, loading: authLoading } = useAuth();
+    const { switchMunicipality } = useMunicipality();
+
+    // Separate state for page division (from URL) vs legacy municipality data
+    const [pageDivision, setPageDivision] = useState(null);
     const [municipality, setMunicipality] = useState(null);
     const [loading, setLoading] = useState(true);
     const [activeRubrique, setActiveRubrique] = useState(section || 'accueil');
     const [posts, setPosts] = useState([]);
+    const [showVerificationModal, setShowVerificationModal] = useState(false);
+    const [verificationMessage, setVerificationMessage] = useState('');
 
-    // Si pas d'utilisateur connecté, rediriger vers la page de connexion
+    // Detect current URL path (municipality, commune, city, etc.)
+    const currentUrlPath = location.pathname.split('/')[1];
+
+    // Validate that this URL path is supported
+    const isCurrentPathValid = isValidUrlPath(currentUrlPath);
+
+    // Get country configuration for this URL path
+    const countryConfig = getCountryByUrlPath(currentUrlPath);
+
+    // TEST: Make an API call to verify middleware is working
     useEffect(() => {
-        if (!user) {
-            navigate('/login');
+        console.log('🧪 [TEST] Municipality page mounted - testing API call');
+        const testApiCall = async () => {
+            try {
+                console.log('🧪 [TEST] Making test API call to /auth/user-info/');
+                const response = await apiService.get('/auth/user-info/');
+                console.log('🧪 [TEST] API call successful:', response.data);
+            } catch (error) {
+                console.log('🧪 [TEST] API call failed (expected if not logged in):', error.response?.status, error.response?.data);
+            }
+        };
+        testApiCall();
+    }, []);
+
+    // No redirect for unauthenticated users - allow read-only access
+
+    // Validate URL path and redirect if invalid
+    useEffect(() => {
+        if (!isCurrentPathValid && currentUrlPath !== 'municipality') {
+            // Invalid URL path detected - redirect to proper format
+            const defaultUrlPath = getAdminDivisionUrlPath();
+            console.log(`⚠️ Invalid URL path '${currentUrlPath}', redirecting to '${defaultUrlPath}'`);
+            navigate(`/${defaultUrlPath}/${municipalitySlug}${section ? `/${section}` : ''}`, { replace: true });
             return;
         }
-    }, [user, navigate]);
+    }, [currentUrlPath, municipalitySlug, section, navigate, isCurrentPathValid]);
 
     // Charger la municipalité basée sur le slug de l'URL
+    // Clean up old localStorage keys on mount
     useEffect(() => {
-        const loadMunicipality = () => {
-            const foundMunicipality = getMunicipalityBySlug(municipalitySlug);
+        cleanupOldDivisionKeys();
+    }, []);
 
-            if (foundMunicipality) {
-                setMunicipality(foundMunicipality);
-                switchMunicipality(foundMunicipality.nom);
-            } else {
-                // Si municipalité non trouvée, rediriger vers le dashboard général
+    // CRITICAL: Fetch division data from API using URL slug, not from user profile
+    useEffect(() => {
+        const loadPageDivision = async () => {
+            if (!municipalitySlug || !currentUrlPath) {
+                setLoading(false);
+                return;
+            }
+
+            // Get country ISO3 code from URL path (municipality->CAN, commune->BEN)
+            const countryISO3 = getCountryISO3ByUrlPath(currentUrlPath);
+
+            if (!countryISO3) {
+                console.error('❌ Could not determine country from URL path:', currentUrlPath);
                 navigate('/dashboard');
                 return;
             }
 
-            setLoading(false);
+            // Check if this division is already the current active one
+            const currentDivision = getCurrentDivision();
+            if (currentDivision &&
+                currentDivision.slug === municipalitySlug &&
+                currentDivision.country === countryISO3) {
+
+                console.log('� Division already loaded from single storage:', currentDivision.name);
+                setPageDivision(currentDivision);
+                switchMunicipality(currentDivision.name, currentDivision.id);
+
+                // Create municipality object
+                const foundMunicipality = getMunicipalityBySlug(municipalitySlug);
+                if (foundMunicipality) {
+                    setMunicipality({ ...foundMunicipality, ...currentDivision });
+                } else {
+                    setMunicipality({
+                        id: currentDivision.id,
+                        nom: currentDivision.name,
+                        name: currentDivision.name,
+                        region: currentDivision.parent?.name,
+                        fromApi: true,
+                        ...currentDivision
+                    });
+                }
+
+                setLoading(false);
+                return;
+            }
+
+            // Need to fetch new division from API
+            setLoading(true);
+
+            try {
+                console.log('🔍 Loading division from URL:', {
+                    slug: municipalitySlug,
+                    urlPath: currentUrlPath,
+                    countryISO3
+                });
+
+                // Fetch division data from API at country's default level
+                const result = await geolocationService.getDivisionBySlug(
+                    municipalitySlug,
+                    countryISO3
+                );
+
+                if (result.success && result.division) {
+                    console.log('✅ Page division loaded:', result.division.name);
+
+                    // Add slug to division data
+                    const divisionWithSlug = {
+                        ...result.division,
+                        slug: municipalitySlug,
+                        country: countryISO3
+                    };
+
+                    setPageDivision(divisionWithSlug);
+
+                    // Store as THE current active division (single source of truth)
+                    setCurrentDivision(divisionWithSlug);
+
+                    // Track this page visit for smart redirect
+                    trackPageVisit(location.pathname, {
+                        id: divisionWithSlug.id,
+                        name: divisionWithSlug.name,
+                        slug: municipalitySlug,
+                        country: countryISO3
+                    });
+
+                    // Also update context for backward compatibility
+                    switchMunicipality(divisionWithSlug.name, divisionWithSlug.id);
+
+                    // Try to find in local data for legacy support
+                    const foundMunicipality = getMunicipalityBySlug(municipalitySlug);
+                    if (foundMunicipality) {
+                        setMunicipality({ ...foundMunicipality, ...divisionWithSlug });
+                    } else {
+                        // Create municipality object from API data
+                        setMunicipality({
+                            id: divisionWithSlug.id,
+                            nom: divisionWithSlug.name,
+                            name: divisionWithSlug.name,
+                            region: divisionWithSlug.parent?.name,
+                            fromApi: true,
+                            ...divisionWithSlug
+                        });
+                    }
+                } else {
+                    console.error('❌ Division not found:', municipalitySlug);
+                    // Division not found - redirect to dashboard
+                    navigate('/dashboard');
+                }
+            } catch (error) {
+                console.error('❌ Error loading division:', error);
+                navigate('/dashboard');
+            } finally {
+                setLoading(false);
+            }
         };
 
-        loadMunicipality();
-    }, [municipalitySlug, switchMunicipality, navigate]);
+        loadPageDivision();
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [municipalitySlug, currentUrlPath]); // Reload when URL changes
 
     // Mettre à jour la rubrique active quand la section change
     useEffect(() => {
@@ -52,16 +199,39 @@ const MunicipalityDashboard = () => {
         setActiveRubrique(currentSection);
     }, [section]);
 
+    // Handle verification modal display from login navigation
+    useEffect(() => {
+        if (location.state?.showVerificationModal) {
+            setShowVerificationModal(true);
+            setVerificationMessage(location.state.verificationMessage || '');
+
+            // Clear the state to prevent modal showing on refresh
+            navigate(location.pathname, { replace: true, state: {} });
+        }
+    }, [location.state, navigate, location.pathname]);
+
     const handleRubriqueChange = (rubriquePathOrName) => {
         // Si c'est déjà un path (venant du Sidebar), l'utiliser directement
         // Sinon, c'est peut-être un nom, donc on essaie de le convertir
         const newSection = rubriquePathOrName.toLowerCase();
         setActiveRubrique(newSection);
-        navigate(`/municipality/${municipalitySlug}/${newSection}`);
+
+        // Use the current URL path or default to 'municipality' for backward compatibility
+        const urlPath = isCurrentPathValid ? currentUrlPath : 'municipality';
+        navigate(`/${urlPath}/${municipalitySlug}/${newSection}`);
     };
 
     const handlePostCreated = (newPost) => {
         setPosts(prevPosts => [newPost, ...prevPosts]);
+    };
+
+    const handleVerificationSuccess = () => {
+        setShowVerificationModal(false);
+        // Optionally refresh user data or show success message
+    };
+
+    const handleVerificationClose = () => {
+        setShowVerificationModal(false);
     };
 
     if (loading) {
@@ -73,9 +243,19 @@ const MunicipalityDashboard = () => {
         );
     }
 
-    if (!user) {
-        return null; // Évite le flash pendant la redirection
+    // Afficher un spinner pendant le chargement de l'authentification
+    if (authLoading) {
+        return (
+            <Layout>
+                <div className={styles.loading}>
+                    <div className={styles.spinner}></div>
+                    <p>Chargement...</p>
+                </div>
+            </Layout>
+        );
     }
+
+    // Allow access even without user authentication (read-only mode)
 
     if (!municipality) {
         return (
@@ -89,25 +269,33 @@ const MunicipalityDashboard = () => {
         );
     }
 
-    const subtitle = `Découvrez ${municipality.nom} - ${municipality.region} • ${municipality.population ? `${municipality.population.toLocaleString('fr-CA')} habitants` : 'Population non disponible'}`;
-
     return (
         <Layout
             activeRubrique={activeRubrique}
             onRubriqueChange={handleRubriqueChange}
-            municipalityName={municipality.nom}
+            municipalityName={pageDivision?.name || municipality.nom}
+            pageDivision={pageDivision}
         >
-
-
             <div className={styles.sectionContent}>
-                {renderSectionContent(activeRubrique, municipality, handlePostCreated, posts)}
+                {renderSectionContent(activeRubrique, municipality, handlePostCreated, posts, user, navigate, pageDivision)}
             </div>
+
+            {/* Verification Modal - shows after login if verification required */}
+            {showVerificationModal && user && (
+                <VerifyAccount
+                    show={showVerificationModal}
+                    onHide={handleVerificationClose}
+                    onSuccess={handleVerificationSuccess}
+                    userEmail={user.email}
+                    message={verificationMessage}
+                />
+            )}
         </Layout>
     );
 };
 
 // Fonction pour rendre le contenu spécifique à chaque section
-const renderSectionContent = (section, municipality, onPostCreated, posts) => {
+const renderSectionContent = (section, municipality, onPostCreated, posts, user, navigate, pageDivision) => {
     const sectionLower = section.toLowerCase();
 
     // Fonction pour obtenir le nom d'affichage de la section
@@ -159,17 +347,19 @@ const renderSectionContent = (section, municipality, onPostCreated, posts) => {
                         <div className={styles.coverContent}>
                             <h1 className={styles.sectionTitle}>Accueil - {municipality.nom}</h1>
                             <p className={styles.sectionDescription}>
-                                Découvrez l'activité de votre communauté, connectez-vous avec vos concitoyens et restez informé de tout ce qui se passe à {municipality.nom}.
+                                Découvrez l'activité de votre communauté, connectez-vous avec vos concitoyens et restez informés de tout ce qui se passe à {municipality.nom}.
                             </p>
                         </div>
                     </div>
 
                     <div className={styles.postsSection}>
-                        <PostCreator
-                            onPostCreated={onPostCreated}
-                            sectionName={getSectionDisplayName(sectionLower)}
-                            municipalityName={municipality.nom}
-                        />
+                        {user && (
+                            <PostCreator
+                                onPostCreated={onPostCreated}
+                                sectionName={getSectionDisplayName(sectionLower)}
+                                municipalityName={municipality.nom}
+                            />
+                        )}
                         <PostFeed
                             municipalityName={municipality.nom}
                         />
@@ -190,11 +380,13 @@ const renderSectionContent = (section, municipality, onPostCreated, posts) => {
                     </div>
 
                     <div className={styles.postsSection}>
-                        <PostCreator
-                            onPostCreated={onPostCreated}
-                            sectionName={getSectionDisplayName(sectionLower)}
-                            municipalityName={municipality.nom}
-                        />
+                        {user && (
+                            <PostCreator
+                                onPostCreated={onPostCreated}
+                                sectionName={getSectionDisplayName(sectionLower)}
+                                municipalityName={municipality.nom}
+                            />
+                        )}
                         <PostFeed
                             municipalityName={municipality.nom}
                             section={getSectionDisplayName(sectionLower)}

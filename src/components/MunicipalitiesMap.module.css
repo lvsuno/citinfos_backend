@@ -27,6 +27,8 @@
 }
 
 .regionInfo,
+.typeInfo,
+.codeInfo,
 .mrcInfo,
 .populationInfo {
     font-size: 14px;
@@ -36,6 +38,8 @@
 }
 
 .regionInfo strong,
+.typeInfo strong,
+.codeInfo strong,
 .mrcInfo strong,
 .populationInfo strong {
     color: #1E293B;
@@ -87,7 +91,8 @@
 }
 
 .legendIconBlue,
-.legendIconGreen {
+.legendIconGreen,
+.legendIconCyan {
     width: 12px;
     height: 12px;
     border-radius: 50%;
@@ -101,6 +106,10 @@
 
 .legendIconGreen {
     background: #84CC16;
+}
+
+.legendIconCyan {
+    background: #06b6d4;
 }
 
 /* Responsive */
@@ -168,4 +177,40 @@
 .leafletMap .leaflet-marker-icon:hover {
     transform: scale(1.1);
     filter: drop-shadow(0 4px 8px rgba(0, 0, 0, 0.2));
+}
+
+/* Loading state */
+.mapLoading {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background: rgba(255, 255, 255, 0.95);
+    backdrop-filter: blur(8px);
+    padding: 20px 32px;
+    border-radius: 12px;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+    z-index: 2000;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    font-size: 14px;
+    font-weight: 600;
+    color: #1E293B;
+    border: 1px solid rgba(226, 232, 240, 0.5);
+}
+
+.loadingSpinner {
+    width: 20px;
+    height: 20px;
+    border: 3px solid #E2E8F0;
+    border-top-color: #06b6d4;
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+    to {
+        transform: rotate(360deg);
+    }
 }

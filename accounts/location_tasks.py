@@ -6,116 +6,41 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-# Try to use libpostal's parse_address when available, otherwise provide a minimal fallback.
-try:
-    from postal.parser import parse_address as _postal_parse_address  # type: ignore
-    _POSTAL_AVAILABLE = True
-    def _parse_address(address):
-        """Return a dict mapping libpostal label->value.
-
-        libpostal returns a list of (value, label) tuples, e.g.
-        [("5", "house_number"), ("rue sainte-anne", "road"), ...].
-        This wrapper produces {'house_number': '5', 'road': 'rue sainte-anne', ...}.
-        """
-        parts = _postal_parse_address(address or '')
-        result = {}
-        for value, label in parts:
-            if label in result:
-                # join repeated labels (e.g., multiple road tokens)
-                result[label] = f"{result[label]} {value}"
-            else:
-                result[label] = value
-        return result
-except Exception:
-    _POSTAL_AVAILABLE = False
-    def _parse_address(address):
-        return {'address': address}
+# Location processing without address parsing
 
 
 @shared_task(bind=True, max_retries=3)
-def process_user_location_async(self, profile_id: str, country_name: str = None,
-                               city_name: str = None, address: str = None,
-                               ip_address: str = None):
+def process_user_location_async(self, profile_id: str, division_name: str = None, ip_address: str = None):
     """
     Process user location data asynchronously after registration.
-    This includes country/city creation and IP-based location detection.
+    This assigns administrative division based on division name or IP address.
     """
     try:
         from accounts.models import UserProfile
-        from core.models import Country
         from core.utils import get_location_from_ip
-        # Use postal parser fallback defined at module level
-        parse_address = _parse_address
 
         profile = UserProfile.objects.get(id=profile_id)
-
-        country_obj = None
-        city_obj = None
+        division_obj = None
 
         # Process location data based on what was provided
-        if country_name or city_name:
-            country_obj, city_obj = _get_or_create_country_city(country_name, city_name)
-        elif address:
-            # If parse_address is available use it, otherwise run a light-weight
-            # fallback that extracts country/city by splitting the address.
-            if _POSTAL_AVAILABLE:
-                try:
-                    # _parse_address returns a dict of token->value (see module-level wrapper)
-                    parsed = _parse_address(address)
-                    city_guess = parsed.get('city') # or parsed.get('city_district') or parsed.get('suburb')
-                    # libpostal sometimes returns province/state but not country; handle that below
-                    country_guess = parsed.get('country') # or parsed.get('state') or parsed.get('province')
-                except Exception:
-                    city_guess = None
-                    country_guess = None
-            else:
-                # Fallback: attempt to extract country and city from the end
-                # of the address string (common formats: '..., City, Country').
-                try:
-                    parts = [p.strip() for p in (address or '').split(',') if p.strip()]
-                    country_guess = parts[-1] if len(parts) >= 1 else None
-                    city_guess = parts[-2] if len(parts) >= 2 else None
-                except Exception:
-                    country_guess = None
-                    city_guess = None
-
-            # Normalize and map common province codes to country when needed
-            if country_guess:
-                # libpostal may return 'qc' or 'QC' for Quebec; normalize
-                cg = (country_guess or '').strip()
-                # common province codes that imply Canada
-                if len(cg) <= 3 and cg.lower() in {'qc', 'on', 'bc', 'ab', 'mb', 'nb', 'nl', 'ns', 'pe', 'sk', 'yt', 'nt', 'nu'}:
-                    country_guess = 'Canada'
-                else:
-                    country_guess = cg
-
-            country_obj, city_obj = _get_or_create_country_city(country_guess, city_guess)
+        if division_name:
+            division_obj = _find_division_by_name(division_name)
         elif ip_address:
             # Use full location lookup since this is async
             location = get_location_from_ip(ip_address)
             if location:
-                country_name = location.get('country')
-                city_name = location.get('city')
-                country_obj, city_obj = _get_or_create_country_city(country_name, city_name)
+                division_name = location.get('city')  # API returns 'city' key
+                division_obj = _find_division_by_name(division_name)
 
         # Update profile with location data
-        if country_obj or city_obj:
-            update_fields = []
-            if country_obj:
-                profile.country = country_obj
-                update_fields.append('country')
-            if city_obj:
-                profile.city = city_obj
-                update_fields.append('city')
-
-            profile.save(update_fields=update_fields)
-
+        if division_obj:
+            profile.administrative_division = division_obj
+            profile.save(update_fields=['administrative_division'])
 
         return {
             'success': True,
             'profile_id': profile_id,
-            'country': country_obj.name if country_obj else None,
-            'city': city_obj.name if city_obj else None
+            'division': division_obj.name if division_obj else None
         }
 
     except Exception as exc:
@@ -124,36 +49,29 @@ def process_user_location_async(self, profile_id: str, country_name: str = None,
         raise self.retry(exc=exc, countdown=60 * (2 ** self.request.retries))
 
 
-def _get_or_create_country_city(country_name, city_name):
+def _find_division_by_name(division_name):
     """
-    Helper function to get or create Country and City objects.
-    Returns (country_obj, city_obj)
+    Helper function to find existing AdministrativeDivision by name.
+
+    Returns division_obj or None
     """
-    from core.models import Country
+    from core.models import AdministrativeDivision
 
-    country_obj = None
-    city_obj = None
+    if not division_name:
+        return None
 
-    if country_name:
-        # Normalize country name (title case)
-        country_name = country_name.strip().title()
-        country_obj, _ = Country.objects.get_or_create(
-            name__iexact=country_name,
-            defaults={'name': country_name}
-        )
+    division_name = division_name.strip()
+    try:
+        division_obj = AdministrativeDivision.objects.filter(
+            name__iexact=division_name
+        ).first()
 
-    if city_name:
-        # Normalize city name (title case)
-        city_name = city_name.strip().title()
-        if country_obj:
-            city_obj, _ = City.objects.get_or_create(
-                name__iexact=city_name,
-                country=country_obj,
-                defaults={'name': city_name, 'country': country_obj}
-            )
+        if division_obj:
+            logger.info(f"Found administrative division: {division_name}")
         else:
-            city_obj = City.objects.filter(name__iexact=city_name).first()
-            if not city_obj:
-                city_obj = City.objects.create(name=city_name)
+            logger.warning(f"Administrative division '{division_name}' not found in database")
 
-    return country_obj, city_obj
+        return division_obj
+    except Exception as e:
+        logger.error(f"Error finding division '{division_name}': {e}")
+        return None

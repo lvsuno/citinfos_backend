@@ -244,9 +244,16 @@
     background: rgba(239, 68, 68, 0.05) !important;
 }
 
-.passwordToggle {
+.passwordActions {
     position: absolute;
     right: 16px;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    z-index: 2;
+}
+
+.passwordToggle {
     background: none;
     border: none;
     color: #64748B;
@@ -254,7 +261,6 @@
     padding: 4px;
     border-radius: 4px;
     transition: all 0.3s ease;
-    z-index: 2;
 }
 
 .passwordToggle:hover {

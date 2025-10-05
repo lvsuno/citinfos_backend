@@ -10,11 +10,11 @@ class UserProfileAdmin(admin.ModelAdmin):
 
     list_display = [
         'user', 'role', 'is_verified', 'is_suspended',
-        'country', 'city', 'follower_count', 'last_active'
+        'administrative_division', 'follower_count', 'last_active'
     ]
     list_filter = [
         'role', 'is_verified', 'is_suspended', 'is_private',
-        'country', 'created_at'
+        'administrative_division', 'created_at'
     ]
     search_fields = ['user__username', 'user__email', 'bio']
     readonly_fields = ['id', 'created_at', 'updated_at']
@@ -28,7 +28,7 @@ class UserProfileAdmin(admin.ModelAdmin):
                       'profile_picture', 'cover_media', 'cover_media_type')
         }),
         ('Location', {
-            'fields': ('country', 'city')
+            'fields': ('administrative_division',)
         }),
         ('Privacy Settings', {
             'fields': ('is_private', 'show_email', 'show_phone',

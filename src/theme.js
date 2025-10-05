@@ -111,63 +111,6 @@ const theme = createTheme({
         },
     },
 
-    typography: {
-        fontFamily: '"Inter", "Roboto", "Helvetica", "Arial", sans-serif',
-        h1: {
-            fontSize: '2.5rem',
-            fontWeight: 700,
-            lineHeight: 1.2,
-            color: '#1e293b',
-            letterSpacing: '-0.025em',
-        },
-        h2: {
-            fontSize: '2rem',
-            fontWeight: 600,
-            lineHeight: 1.3,
-            color: '#1e293b',
-            letterSpacing: '-0.025em',
-        },
-        h3: {
-            fontSize: '1.5rem',
-            fontWeight: 600,
-            lineHeight: 1.4,
-            color: '#1e293b',
-        },
-        h4: {
-            fontSize: '1.25rem',
-            fontWeight: 500,
-            lineHeight: 1.4,
-            color: '#1e293b',
-        },
-        h5: {
-            fontSize: '1.125rem',
-            fontWeight: 500,
-            lineHeight: 1.4,
-            color: '#1e293b',
-        },
-        h6: {
-            fontSize: '1rem',
-            fontWeight: 500,
-            lineHeight: 1.4,
-            color: '#1e293b',
-        },
-        body1: {
-            fontSize: '1rem',
-            lineHeight: 1.6,
-            color: '#475569',
-        },
-        body2: {
-            fontSize: '0.875rem',
-            lineHeight: 1.5,
-            color: '#64748b',
-        },
-        button: {
-            textTransform: 'none',
-            fontWeight: 500,
-            letterSpacing: '0.025em',
-        },
-    },
-
     components: {
         // Boutons avec style moderne
         MuiButton: {

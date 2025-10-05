@@ -19,17 +19,35 @@ import {
     Close as CloseIcon,
 } from '@mui/icons-material';
 import { useMunicipality } from '../contexts/MunicipalityContext';
+import { getCurrentDivision } from '../utils/divisionStorage';
 import MunicipalitySelector from './MunicipalitySelector';
 import styles from './Sidebar.module.css';
 import logo from '../assets/logo.png';
 
-const Sidebar = ({ activeRubrique, onRubriqueChange, isOpen, onClose, municipalityName }) => {
-    const { activeMunicipality, getMunicipalitySlug } = useMunicipality();
+const Sidebar = ({ activeRubrique, onRubriqueChange, isOpen, onClose, municipalityName, pageDivision }) => {
+    const { activeMunicipality, getMunicipalitySlug, getAdminLabels } = useMunicipality();
     const navigate = useNavigate();
     const { municipalitySlug } = useParams();
 
-    // Nom à afficher (priorité au prop, sinon contexte)
-    const displayName = municipalityName || activeMunicipality?.nom || 'Communauté';
+    // Obtenir les libellés adaptés à la division administrative
+    const adminLabels = getAdminLabels();
+
+    // Nom à afficher - PRIORITY: pageDivision from URL, then municipalityName prop, then context, then localStorage
+    let displayName = pageDivision?.name || municipalityName || activeMunicipality?.nom || activeMunicipality?.name;
+
+    // If still no name, check localStorage directly as last resort before fallback
+    if (!displayName) {
+        const currentDivision = getCurrentDivision();
+        displayName = currentDivision?.name || adminLabels.singular;
+    }
+
+    console.log('📋 Sidebar displayName sources:', {
+        pageDivision: pageDivision?.name,
+        municipalityName,
+        activeMunicipalityNom: activeMunicipality?.nom,
+        activeMunicipalityName: activeMunicipality?.name,
+        final: displayName
+    });
 
     // Rubriques pour la communauté - mix culturel et pratique
     const rubriques = [
@@ -97,16 +115,16 @@ const Sidebar = ({ activeRubrique, onRubriqueChange, isOpen, onClose, municipali
 
                 {/* Sélecteur de municipalité */}
                 <div className={styles.municipalitySection}>
-                    <MunicipalitySelector />
+                    <MunicipalitySelector currentPageDivision={pageDivision} />
 
-                    {/* Bouton Carte des municipalités */}
+                    {/* Bouton Carte des divisions administratives */}
                     <button
                         className={`${styles.rubriqueButton} ${styles.mapButton}`}
                         onClick={handleMapClick}
-                        title="Explorer toutes les municipalités sur une carte interactive"
+                        title={`Explorer toutes les ${adminLabels.plural} sur une carte interactive`}
                     >
                         <MapIcon className={styles.rubriqueIcon} />
-                        <span className={styles.rubriqueName}>Carte des municipalités</span>
+                        <span className={styles.rubriqueName}>{adminLabels.mapTitle}</span>
                     </button>
                 </div>
 

@@ -1,5 +1,6 @@
 // Utilitaires pour les municipalités du Québec
 import municipalitesData from './municipalites_quebec.json';
+import { getAdminDivisionUrlPath, getCurrentAdminDivision, getAdminDivisionLabels } from '../config/adminDivisions';
 
 /**
  * Obtenir toutes les municipalités du Québec
@@ -114,15 +115,18 @@ export const getMunicipalitySlug = (municipalityName) => {
 };
 
 /**
- * Génère l'URL complète vers la page d'une municipalité
- * @param {string} municipalityName - Le nom de la municipalité
- * @returns {string} L'URL vers la municipalité
+ * Génère l'URL complète vers la page d'une division administrative (municipalité, commune, etc.)
+ * @param {string} municipalityName - Le nom de la division administrative
+ * @param {string} section - La section par défaut (par défaut: 'accueil')
+ * @returns {string} L'URL vers la division administrative
  */
-export const getMunicipalityUrl = (municipalityName) => {
+export const getMunicipalityUrl = (municipalityName, section = 'accueil') => {
     const slug = getMunicipalitySlug(municipalityName);
     if (!slug) return '/dashboard'; // Fallback vers le dashboard générique
 
-    return `/municipality/${slug}`;
+    // Utiliser le type de division administrative dynamique
+    const adminDivisionPath = getAdminDivisionUrlPath();
+    return `/${adminDivisionPath}/${slug}/${section}`;
 };
 
 /**
@@ -148,9 +152,9 @@ export const getUserRedirectUrl = (user) => {
 };
 
 /**
- * Trouve une municipalité par son slug d'URL
- * @param {string} slug - Le slug de la municipalité
- * @returns {object|null} Les données de la municipalité ou null si non trouvée
+ * Trouve une division administrative par son slug d'URL
+ * @param {string} slug - Le slug de la division administrative
+ * @returns {object|null} Les données de la division administrative ou null si non trouvée
  */
 export const getMunicipalityBySlug = (slug) => {
     if (!slug) return null;
@@ -162,4 +166,21 @@ export const getMunicipalityBySlug = (slug) => {
         const villeSlug = getMunicipalitySlug(ville.nom);
         return villeSlug === slug;
     }) || null;
+};
+
+/**
+ * Obtient les informations sur le type de division administrative actuel
+ * @returns {object} Configuration de la division administrative
+ */
+export const getAdminDivisionInfo = () => {
+    return getCurrentAdminDivision();
+};
+
+/**
+ * Obtient les libellés localisés pour la division administrative actuelle
+ * @param {string} language - Langue (fr, en, etc.)
+ * @returns {object} Labels localisés
+ */
+export const getLocalizedAdminLabels = (language = 'fr') => {
+    return getAdminDivisionLabels(language);
 };

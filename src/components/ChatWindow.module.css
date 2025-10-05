@@ -109,21 +109,7 @@
     overflow-y: auto;
     padding: 16px 20px;
     background: linear-gradient(to bottom, #f8f9fa 0%, #ffffff 100%);
-    scrollbar-width: thin;
-    scrollbar-color: #bcc0c4 transparent;
-}
-
-.messagesContainer::-webkit-scrollbar {
-    width: 6px;
-}
-
-.messagesContainer::-webkit-scrollbar-track {
-    background: transparent;
-}
-
-.messagesContainer::-webkit-scrollbar-thumb {
-    background: #bcc0c4;
-    border-radius: 3px;
+    /* Using global scrollbar utilities defined in index.css */
 }
 
 .emptyMessages {

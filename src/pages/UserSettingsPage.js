@@ -169,6 +169,20 @@ const UserSettingsPage = () => {
         setSuccessMessage('');
     };
 
+    if (!user) {
+        return (
+            <Layout>
+                <div className={styles.authRequired}>
+                    <h2>Paramètres du compte</h2>
+                    <p>Connectez-vous pour accéder aux paramètres de votre compte</p>
+                    <button onClick={() => window.location.href = '/login'} className={styles.loginButton}>
+                        Se connecter
+                    </button>
+                </div>
+            </Layout>
+        );
+    }
+
     return (
         <Layout
             title="Paramètres du compte"

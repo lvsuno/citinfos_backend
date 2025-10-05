@@ -47,6 +47,13 @@ class OptimizedAuthenticationMiddleware(MiddlewareMixin):
 
             '/api/auth/refresh/',
 
+            # Geolocation endpoints (for registration and anonymous browsing)
+            '/api/auth/location-data/',  # IP-based location detection
+            '/api/auth/search-divisions/',  # Administrative division search
+            '/api/auth/countries/',  # List available countries
+            '/api/auth/divisions/',  # Browse divisions by country/level
+            '/api/auth/division-neighbors/',  # Get neighboring divisions
+
             # Alternative auth endpoints
             '/api/auth/change-password/',
             '/api/auth/password-reset/',
@@ -60,6 +67,10 @@ class OptimizedAuthenticationMiddleware(MiddlewareMixin):
             '/api/public-profiles/',
             '/api/public/profiles/',
             '/api/public/users/',
+
+            # Debug endpoints (no authentication required)
+            '/api/debug/',
+
             '/admin/',
             '/swagger/',
             '/redoc/',
@@ -463,8 +474,13 @@ class OptimizedAuthenticationMiddleware(MiddlewareMixin):
                 request
             )
 
-            # DEBUG: Log the fingerprint we're generating
+            # DEBUG: Log the fingerprint we're generating and the headers used
             logger.info(f"🔍 Generated fingerprint: {fast_fingerprint}")
+            logger.info(f"🔍 Headers used for fingerprint:")
+            logger.info(f"  - User-Agent: {request.META.get('HTTP_USER_AGENT', 'None')}")
+            logger.info(f"  - Accept: {request.META.get('HTTP_ACCEPT', 'None')}")
+            logger.info(f"  - Accept-Language: {request.META.get('HTTP_ACCEPT_LANGUAGE', 'None')}")
+            logger.info(f"  - Accept-Encoding: {request.META.get('HTTP_ACCEPT_ENCODING', 'None')}")
             logger.info(f"🔍 Looking for session with this fingerprint in Redis...")
 
             if not fast_fingerprint:
@@ -765,20 +781,6 @@ class OptimizedAuthenticationMiddleware(MiddlewareMixin):
     def _get_client_ip(self, request):
         """Get client IP address from request."""
         return get_client_ip(request)
-        """
-        Create new JWT tokens from valid session.
-        This method is deprecated - use TokenRenewalService instead.
-        """
-        try:
-            renewal_result = token_renewal_service.renew_jwt_token(None, session_id)
-            if renewal_result['success']:
-                return {
-                    'access': renewal_result['access_token'],
-                    'refresh': renewal_result['refresh_token']
-                }
-            return None
-        except Exception:
-            return None
 
 
 class SessionContextMiddleware(MiddlewareMixin):
@@ -811,22 +813,24 @@ class SessionContextMiddleware(MiddlewareMixin):
                 # Add location context to request
                 location_data = session_data.get('location_data', {})
                 request.user_location = {
-                    'country_id': location_data.get('country_id'),
-                    'city_id': location_data.get('city_id'),
-                    'country_code': location_data.get('country_code'),
-                    'city_name': location_data.get('city_name'),
+                    'administrative_division_id': location_data.get(
+                        'administrative_division_id'
+                    ),
+                    'division_name': location_data.get('division_name'),
                     'region': location_data.get('region'),
                     'latitude': location_data.get('latitude'),
                     'longitude': location_data.get('longitude'),
                     'user_timezone': location_data.get('user_timezone'),
-                    'detected_timezone': location_data.get('detected_timezone'),
+                    'detected_timezone': location_data.get(
+                        'detected_timezone'
+                    ),
                 }
 
                 # Add to request META for middleware compatibility
-                if location_data.get('country_code'):
-                    request.META['HTTP_X_USER_COUNTRY'] = location_data['country_code']
-                if location_data.get('city_name'):
-                    request.META['HTTP_X_USER_CITY'] = location_data['city_name']
+                if location_data.get('division_name'):
+                    request.META['HTTP_X_USER_DIVISION'] = (
+                        location_data['division_name']
+                    )
 
                 # Add device context
                 request.user_device = session_data.get('device_info', {})

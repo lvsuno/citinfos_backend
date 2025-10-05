@@ -660,3 +660,34 @@
         padding: 16px;
     }
 }
+/* Authentication prompt styles */
+.authPrompt {
+    background: #f8fafc;
+    border: 2px dashed #e2e8f0;
+    border-radius: 12px;
+    padding: 40px 20px;
+    text-align: center;
+    margin: 20px 0;
+}
+
+.authPrompt p {
+    color: #64748b;
+    margin: 0 0 16px 0;
+    font-size: 16px;
+}
+
+.loginButton {
+    background: #06b6d4;
+    color: white;
+    border: none;
+    padding: 12px 24px;
+    border-radius: 8px;
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: background-color 0.2s;
+}
+
+.loginButton:hover {
+    background: #0891b2;
+}

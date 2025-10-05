@@ -272,6 +272,34 @@
     line-height: 1.2;
 }
 
+/* Login button for non-authenticated users */
+.loginButton {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 20px;
+    background: linear-gradient(135deg, #06B6D4, #0891B2);
+    color: white;
+    border: none;
+    border-radius: 12px;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    font-family: inherit;
+    box-shadow: 0 2px 8px rgba(6, 182, 212, 0.2);
+}
+
+.loginButton:hover {
+    background: linear-gradient(135deg, #0891B2, #0E7490);
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(6, 182, 212, 0.3);
+}
+
+.loginButton:active {
+    transform: translateY(0);
+}
+
 /* Responsive design */
 @media (max-width: 1024px) {
     .topBar {

@@ -90,8 +90,8 @@ const PostCreator = ({ onPostCreated, sectionName, municipalityName }) => {
         if (user?.firstName && user?.lastName) {
             return `${user.firstName[0]}${user.lastName[0]}`.toUpperCase();
         }
-        if (user?.email) {
-            return user.email[0].toUpperCase();
+        if (user?.username) {
+            return user.username[0].toUpperCase();
         }
         return 'U';
     };

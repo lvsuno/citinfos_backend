@@ -44,10 +44,6 @@ const LandingPage = () => {
     window.open('https://www.youtube.com/', '_blank');
   };
 
-  const handleLogin = () => {
-    navigate('/login');
-  };
-
   const features = [
     {
       icon: <LocationOnOutlined className={styles.featureIcon} />,
@@ -145,11 +141,11 @@ const LandingPage = () => {
                   <Button
                     variant="outline-light"
                     className={styles.secondaryButton}
-                    onClick={handleLogin}
+                    onClick={() => navigate('/signup')}
                     size="lg"
                   >
                     <PlayArrowOutlined className={styles.buttonIcon} />
-                    <span>Se connecter</span>
+                    <span>Rejoindre maintenant</span>
                   </Button>
                 </div>
 

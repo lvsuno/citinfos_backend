@@ -20,15 +20,20 @@ def import_quebec_regions():
 
     # Get Canada and Quebec
     canada = Country.objects.get(name__icontains='Canada')
-    quebec_province = AdministrativeDivision.objects.get(
+    quebec_province = AdministrativeDivision.objects.filter(
         country=canada,
-        admin_level=1,
-        name='Quebec'
-    )
+        admin_level=1
+    ).filter(name__in=['Quebec', 'Québec']).first()
+
+    if not quebec_province:
+        print("❌ Quebec province not found at level 1!")
+        return 0
+
+    print(f"✓ Using Quebec province: {quebec_province.name}")
 
     # Open shapefile
     driver = ogr.GetDriverByName('ESRI Shapefile')
-    ds = driver.Open('/app/shapefiles/QUEBEC_regio_s.shp', 0)
+    ds = driver.Open('/app/shapefiles/quebec_adm/QUEBEC_regio_s.shp', 0)
     layer = ds.GetLayer()
 
     print(f'Processing {layer.GetFeatureCount()} regions...')
@@ -73,6 +78,7 @@ def import_quebec_regions():
             admin_level=2,
             name=name,
             admin_code=admin_code,
+            boundary_type='région',
             data_source='Quebec Administrative Data',
             area_geometry=geos_geom
         )

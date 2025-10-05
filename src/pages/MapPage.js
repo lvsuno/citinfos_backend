@@ -1,35 +1,134 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../contexts/AuthContext';
 import { useMunicipality } from '../contexts/MunicipalityContext';
 import { getMunicipalitiesStats, searchMunicipalities } from '../data/municipalitiesUtils';
+import { getCurrentDivision } from '../utils/divisionStorage';
 import Layout from '../components/Layout';
 import MunicipalitiesMap from '../components/MunicipalitiesMap';
+import geolocationService from '../services/geolocationService';
 import {
-    Search as SearchIcon,
     LocationOn as LocationIcon,
+    LocationOn,
     People as PeopleIcon,
     Public as PublicIcon,
     TrendingUp as TrendingUpIcon,
-    FilterAlt as FilterIcon,
     ArrowForward as ArrowForwardIcon,
-    AutoAwesome as AutoAwesomeIcon,
-    Explore as ExploreIcon
+    Explore as ExploreIcon,
+    ExpandMore as ExpandMoreIcon,
+    ExpandMore,
+    Check
 } from '@mui/icons-material';
 import styles from './MapPage.module.css';
 
 const MapPage = () => {
-    const { activeMunicipality, getMunicipalitySlug, switchMunicipality } = useMunicipality();
+    const { activeMunicipality, getMunicipalitySlug, switchMunicipality, getAdminLabels } = useMunicipality();
     const [selectedMunicipality, setSelectedMunicipality] = useState(activeMunicipality);
     const [searchQuery, setSearchQuery] = useState('');
-    const [searchResults, setSearchResults] = useState([]);
-    const [selectedRegion, setSelectedRegion] = useState('');
+
+    // Country and division selection state
+    const [countries, setCountries] = useState([]);
+    const [selectedCountry, setSelectedCountry] = useState(null);
+    const [level1Divisions, setLevel1Divisions] = useState([]);
+    const [selectedLevel1, setSelectedLevel1] = useState(null);
+    const [defaultLevelDivisions, setDefaultLevelDivisions] = useState([]);
+    const [selectedDefaultDivision, setSelectedDefaultDivision] = useState(null);
+    const [municipalitySearchTerm, setMunicipalitySearchTerm] = useState('');
+    const [dropdownOpen, setDropdownOpen] = useState(false);
+    const [loadingCountries, setLoadingCountries] = useState(true);
+    const [loadingLevel1, setLoadingLevel1] = useState(false);
+    const [loadingDefault, setLoadingDefault] = useState(false);
+
+    // Store the full division hierarchy from API
+    const [divisionHierarchy, setDivisionHierarchy] = useState(null);
+
+    // Obtenir les libellés adaptés à la division administrative
+    const adminLabels = getAdminLabels();
+
     const [stats, setStats] = useState(null);
     const [isVisible, setIsVisible] = useState(false);
     const [mousePosition, setMousePosition] = useState({ x: 0, y: 0 });
-    const searchInputRef = useRef(null);
     const navigate = useNavigate();
+    const { user, anonymousLocation } = useAuth();
 
-    // Animation d'apparition et suivi de la souris
+    // Helper to get effective location (priority: activeMunicipality > current division > user > anonymous)
+    const getEffectiveLocation = () => {
+        console.log('🔍 MapPage - Getting effective location...');
+        console.log('🔍 MapPage - Selected country:', selectedCountry?.iso3);
+
+        // PRIORITY 1: Use activeMunicipality from context (the division chosen in left menu)
+        // But validate it matches the selected country
+        if (activeMunicipality?.id) {
+            const municipalityCountry = activeMunicipality.country?.iso3 || activeMunicipality.country;
+
+            // If no country selected yet, or if municipality matches selected country, use it
+            if (!selectedCountry || municipalityCountry === selectedCountry.iso3) {
+                console.log('📍 MapPage - Using activeMunicipality from context:', activeMunicipality.name);
+                return {
+                    country: municipalityCountry || selectedCountry?.iso3,
+                    division_id: activeMunicipality.id,
+                    level_1_id: activeMunicipality.level_1_id || user?.location?.level_1_id,
+                    city: activeMunicipality.name || activeMunicipality.nom
+                };
+            } else {
+                console.log('⚠️ MapPage - activeMunicipality country mismatch:', municipalityCountry, 'vs', selectedCountry.iso3);
+            }
+        }
+
+        // PRIORITY 2: Use current active division from single storage
+        // But validate it matches the selected country
+        const currentDivision = getCurrentDivision();
+        console.log('📍 MapPage - localStorage check:', currentDivision ? currentDivision.name : 'NOT FOUND');
+
+        if (currentDivision) {
+            // If no country selected yet, or if division matches selected country, use it
+            if (!selectedCountry || currentDivision.country === selectedCountry.iso3) {
+                console.log('✅ MapPage - Using current division from localStorage:', currentDivision.name);
+                return {
+                    country: currentDivision.country,
+                    division_id: currentDivision.id,
+                    level_1_id: currentDivision.level_1_id,
+                    city: currentDivision.name
+                };
+            } else {
+                console.log('⚠️ MapPage - localStorage division country mismatch:', currentDivision.country, 'vs', selectedCountry.iso3);
+                // Don't use stored division if it's from a different country
+            }
+        }
+
+        // PRIORITY 3: Use user's location (if it matches selected country)
+        if (user?.location || user?.profile?.administrative_division) {
+            const userCountry = user.location?.country;
+
+            if (!selectedCountry || userCountry === selectedCountry.iso3 || userCountry === selectedCountry.name) {
+                console.log('📍 MapPage - Using user profile location');
+                return {
+                    country: user.location?.country,
+                    division_id: user.location?.division_id || user.profile?.administrative_division?.division_id,
+                    level_1_id: user.location?.level_1_id,
+                    city: user.location?.city || user.municipality
+                };
+            }
+        }
+
+        // PRIORITY 4: Use anonymous location (if it matches selected country)
+        if (anonymousLocation?.location) {
+            const anonCountry = anonymousLocation.country?.name;
+
+            if (!selectedCountry || anonCountry === selectedCountry.iso3 || anonCountry === selectedCountry.name) {
+                console.log('📍 MapPage - Using anonymous location');
+                return {
+                    country: anonymousLocation.country?.name,
+                    division_id: anonymousLocation.location?.administrative_division_id,
+                    level_1_id: null,
+                    city: anonymousLocation.location?.division_name
+                };
+            }
+        }
+
+        console.log('⚠️ MapPage - No location found matching selected country');
+        return null;
+    };    // Animation d'apparition et suivi de la souris
     useEffect(() => {
         setIsVisible(true);
 
@@ -44,6 +143,259 @@ const MapPage = () => {
         return () => window.removeEventListener('mousemove', handleMouseMove);
     }, []);
 
+    // Update selectedMunicipality when activeMunicipality changes (from left menu dropdown)
+    useEffect(() => {
+        if (activeMunicipality) {
+            console.log('📍 MapPage: activeMunicipality changed, updating map selection:', activeMunicipality);
+            setSelectedMunicipality(activeMunicipality);
+        }
+    }, [activeMunicipality]);
+
+    // Load countries on mount
+    useEffect(() => {
+        const loadCountries = async () => {
+            setLoadingCountries(true);
+            const result = await geolocationService.getCountries();
+
+            if (result.success) {
+                setCountries(result.countries);
+            }
+            setLoadingCountries(false);
+        };
+
+        loadCountries();
+    }, []); // Load countries only once on mount
+
+    // Fetch division details and auto-select country based on activeMunicipality or stored division
+    // This calls the API to get full division hierarchy (country + level 1 parent)
+    useEffect(() => {
+        if (!countries || countries.length === 0) {
+            return; // Wait for countries to load
+        }
+
+        const loadDivisionHierarchy = async () => {
+            let divisionId = null;
+
+            // PRIORITY 1: Use activeMunicipality ID
+            if (activeMunicipality?.id) {
+                divisionId = activeMunicipality.id;
+                console.log('🔍 MapPage - Using activeMunicipality ID:', divisionId);
+            }
+            // PRIORITY 2: Use current division from localStorage
+            else {
+                const currentDivision = getCurrentDivision();
+                if (currentDivision?.id) {
+                    divisionId = currentDivision.id;
+                    console.log('🔍 MapPage - Using localStorage division ID:', divisionId);
+                }
+            }
+
+            // If we have a division ID, fetch its full hierarchy via neighbors endpoint
+            if (divisionId) {
+                console.log('📡 MapPage - Fetching division hierarchy from API...');
+                const result = await geolocationService.getDivisionNeighbors(divisionId, 0);
+
+                if (result.success && result.division) {
+                    const division = result.division;
+                    console.log('✅ MapPage - Division hierarchy loaded:', division);
+
+                    // Store the full hierarchy for later use
+                    setDivisionHierarchy(division);
+
+                    // Extract country from division response
+                    if (division.country) {
+                        const countryToSelect = countries.find(c => c.iso3 === division.country.iso3);
+                        if (countryToSelect) {
+                            console.log('✅ MapPage - Country detected from API:', countryToSelect.name);
+                            setSelectedCountry(countryToSelect);
+                            return; // Done!
+                        }
+                    }
+                }
+            }
+
+            // FALLBACK: Try other detection methods if API call failed
+            let countryToSelect = null;
+
+            // Try activeMunicipality country property
+            if (activeMunicipality?.country) {
+                const municipalityCountry = activeMunicipality.country?.iso3 || activeMunicipality.country;
+                console.log('🌍 MapPage - Detecting country from activeMunicipality property:', municipalityCountry);
+                countryToSelect = countries.find(c => c.iso3 === municipalityCountry);
+            }
+
+            // Try localStorage division country
+            if (!countryToSelect) {
+                const currentDivision = getCurrentDivision();
+                if (currentDivision?.country) {
+                    console.log('🌍 MapPage - Detecting country from localStorage:', currentDivision.country);
+                    countryToSelect = countries.find(c => c.iso3 === currentDivision.country);
+                }
+            }
+
+            // Try user location
+            if (!countryToSelect) {
+                const effectiveLocation = getEffectiveLocation();
+                if (effectiveLocation?.country) {
+                    console.log('🌍 MapPage - Detecting country from user location:', effectiveLocation.country);
+                    countryToSelect = countries.find(c =>
+                        c.name === effectiveLocation.country ||
+                        c.iso2 === effectiveLocation.country ||
+                        c.iso3 === effectiveLocation.country
+                    );
+                } else if (anonymousLocation?.country) {
+                    console.log('🌍 MapPage - Detecting country from anonymous location');
+                    countryToSelect = countries.find(c =>
+                        c.name === anonymousLocation.country.name ||
+                        c.iso3 === anonymousLocation.country.iso3
+                    );
+                }
+            }
+
+            // FALLBACK: Default to Canada only if no country detected at all
+            if (!countryToSelect) {
+                console.log('🌍 MapPage - No country detected, defaulting to Canada');
+                countryToSelect = countries.find(c => c.iso3 === 'CAN');
+            }
+
+            if (countryToSelect) {
+                console.log('✅ MapPage - Selected country:', countryToSelect.name, countryToSelect.iso3);
+                setSelectedCountry(countryToSelect);
+            }
+        };
+
+        loadDivisionHierarchy();
+    }, [countries, activeMunicipality, user, anonymousLocation]); // React to activeMunicipality changes
+
+    // Load level 1 divisions when country is selected
+    useEffect(() => {
+        const loadLevel1Divisions = async () => {
+            if (!selectedCountry) {
+                setLevel1Divisions([]);
+                setSelectedLevel1(null);
+                setDefaultLevelDivisions([]); // Clear default divisions when country changes
+                setSelectedDefaultDivision(null); // Clear selected division
+                return;
+            }
+
+            setLoadingLevel1(true);
+            const result = await geolocationService.getDivisionsByLevel(
+                selectedCountry.id,
+                1, // Level 1
+                null,
+                100
+            );
+
+            if (result.success) {
+                setLevel1Divisions(result.divisions);
+
+                // Try to auto-select level 1 division from hierarchy API or user location
+                let level1ToSelect = null;
+
+                // PRIORITY 1: Use level_1_parent from division hierarchy API
+                if (divisionHierarchy?.level_1_parent) {
+                    console.log('📍 MapPage - Auto-selecting level 1 from hierarchy:', divisionHierarchy.level_1_parent.name);
+                    level1ToSelect = result.divisions.find(d => d.id === divisionHierarchy.level_1_parent.id);
+                }
+
+                // PRIORITY 2: Try effectiveLocation level_1_id
+                if (!level1ToSelect) {
+                    const effectiveLocation = getEffectiveLocation();
+                    if (effectiveLocation?.level_1_id) {
+                        level1ToSelect = result.divisions.find(d => d.id === effectiveLocation.level_1_id);
+                    } else if (user?.profile?.administrative_division?.admin_level === 1) {
+                        level1ToSelect = result.divisions.find(d => d.id === effectiveLocation?.division_id);
+                    }
+                }
+
+                // Fallback to first division if no match
+                if (!level1ToSelect && result.divisions.length > 0) {
+                    level1ToSelect = result.divisions[0];
+                }
+
+                if (level1ToSelect) {
+                    setSelectedLevel1(level1ToSelect);
+                }
+            }
+            setLoadingLevel1(false);
+        };
+
+        loadLevel1Divisions();
+    }, [selectedCountry, divisionHierarchy, user, anonymousLocation, activeMunicipality]);
+
+    // Load default level divisions when level 1 is selected
+    useEffect(() => {
+        const loadDefaultDivisions = async () => {
+            if (!selectedCountry || !selectedLevel1) {
+                setDefaultLevelDivisions([]);
+                setSelectedDefaultDivision(null);
+                return;
+            }
+
+            // CRITICAL: If hierarchy exists but country doesn't match, clear and return
+            // This prevents loading old country data when switching countries
+            if (divisionHierarchy && divisionHierarchy.country?.iso3 !== selectedCountry.iso3) {
+                console.log('⚠️ MapPage - Country mismatch detected, clearing divisions:', {
+                    hierarchyCountry: divisionHierarchy.country?.iso3,
+                    selectedCountry: selectedCountry.iso3
+                });
+                setDefaultLevelDivisions([]);
+                setSelectedDefaultDivision(null);
+                return; // Don't load - wait for hierarchy to be cleared
+            }
+
+            setLoadingDefault(true);
+
+            // Get division ID - only use hierarchy if it matches the selected country
+            let divisionId = null;
+
+            // PRIORITY 1: Use division from hierarchy API ONLY if country matches
+            if (divisionHierarchy?.id && divisionHierarchy?.country?.iso3 === selectedCountry.iso3) {
+                divisionId = divisionHierarchy.id;
+            }
+            // CRITICAL: If hierarchy exists but doesn't match OR is null, don't use any division
+            // This ensures we load alphabetically when switching countries
+            else {
+                divisionId = null;
+            }
+
+            // Load only 10 divisions (user's + 9 closest) if division available
+            // Otherwise load first 10 alphabetically
+            const result = await geolocationService.getDivisionsByLevel(
+                selectedCountry.id,
+                selectedCountry.default_admin_level,
+                selectedLevel1.id,
+                10,
+                divisionId  // Pass division to get closest ones (null if country changed)
+            );            if (result.success) {
+                setDefaultLevelDivisions(result.divisions);
+
+                // Auto-select the division ONLY if hierarchy matches current country
+                let defaultToSelect = null;
+
+                if (divisionId && divisionHierarchy?.country?.iso3 === selectedCountry.iso3) {
+                    defaultToSelect = result.divisions.find(d => d.id === divisionId);
+                }
+
+                // If not found by ID, try by name from hierarchy (only if country matches)
+                if (!defaultToSelect && divisionHierarchy?.name && divisionHierarchy?.country?.iso3 === selectedCountry.iso3) {
+                    defaultToSelect = result.divisions.find(d =>
+                        d.name.toLowerCase() === divisionHierarchy.name.toLowerCase()
+                    );
+                }
+
+                // Don't auto-select if country was changed - let user choose
+                if (defaultToSelect) {
+                    setSelectedDefaultDivision(defaultToSelect);
+                    setSelectedMunicipality(defaultToSelect);
+                }
+            }
+            setLoadingDefault(false);
+        };
+
+        loadDefaultDivisions();
+    }, [selectedCountry, selectedLevel1, divisionHierarchy, user, anonymousLocation, activeMunicipality]);
+
     // Charger les données statistiques
     useEffect(() => {
         const loadData = () => {
@@ -57,45 +409,89 @@ const MapPage = () => {
     // Gérer la recherche
     useEffect(() => {
         if (searchQuery.trim()) {
-            const results = searchMunicipalities(searchQuery, 5);
-            setSearchResults(results);
-        } else {
-            setSearchResults([]);
+            searchMunicipalities(searchQuery, 5);
         }
     }, [searchQuery]);
 
+    // Close dropdown when clicking outside
+    useEffect(() => {
+        const handleClickOutside = (event) => {
+            // Check if click is outside the dropdown
+            const dropdownElements = document.querySelectorAll('[class*="divisionSelectorWrapper"]');
+            let isOutside = true;
+
+            dropdownElements.forEach(element => {
+                if (element.contains(event.target)) {
+                    isOutside = false;
+                }
+            });
+
+            if (isOutside && dropdownOpen) {
+                setDropdownOpen(false);
+                setMunicipalitySearchTerm('');
+            }
+        };
+
+        if (dropdownOpen) {
+            document.addEventListener('mousedown', handleClickOutside);
+            return () => document.removeEventListener('mousedown', handleClickOutside);
+        }
+    }, [dropdownOpen]);
+
     const handleMunicipalitySelect = (municipality) => {
         setSelectedMunicipality(municipality);
+        setSelectedDefaultDivision(municipality);
         setSearchQuery('');
-        setSearchResults([]);
-    };
-
-    const handleSearchResultClick = (municipality) => {
-        setSelectedMunicipality(municipality);
-        setSearchQuery(municipality.nom);
-        setSearchResults([]);
     };
 
     const handleVisitMunicipality = () => {
         if (selectedMunicipality) {
-            switchMunicipality(selectedMunicipality.nom);
-            const slug = getMunicipalitySlug(selectedMunicipality.nom);
+            switchMunicipality(selectedMunicipality.name || selectedMunicipality.nom, selectedMunicipality.id);
+            const slug = getMunicipalitySlug(selectedMunicipality.name || selectedMunicipality.nom);
             navigate(`/municipality/${slug}`);
         }
     };
 
-    const handleRegionFilter = (region) => {
-        setSelectedRegion(region === selectedRegion ? '' : region);
+    const handleDefaultDivisionChange = (divisionId) => {
+        const division = defaultLevelDivisions.find(d => d.id === divisionId);
+        if (division) {
+            setSelectedDefaultDivision(division);
+            setSelectedMunicipality(division);
+        }
     };
 
-    const clearSearch = () => {
-        setSearchQuery('');
-        setSearchResults([]);
-        setSelectedMunicipality(null);
+    // Helper to get singular division type in French
+    const getDivisionTypeSingular = () => {
+        if (!selectedCountry) return 'Division';
+
+        // Map country's default_division_name to singular French form
+        const divisionName = selectedCountry.default_division_name?.toLowerCase();
+
+        const singularMap = {
+            'municipalités': 'Municipalité',
+            'municipalities': 'Municipalité',
+            'communes': 'Commune',
+            'villes': 'Ville',
+            'cities': 'Ville',
+            'arrondissements': 'Arrondissement',
+            'régions': 'Région',
+            'regions': 'Région',
+            'provinces': 'Province',
+            'départements': 'Département',
+            'departments': 'Département',
+            'préfectures': 'Préfecture',
+            'prefectures': 'Préfecture',
+        };
+
+        return singularMap[divisionName] || 'Division';
     };
+
+
+
+
 
     const title = "Explorez le Québec";
-    const subtitle = "Découvrez les municipalités du Québec";
+    const subtitle = `Découvrez les ${adminLabels.plural} du Québec`;
 
     return (
         <Layout
@@ -120,14 +516,223 @@ const MapPage = () => {
                                 <ExploreIcon className={styles.titleIcon} />
                             </div>
                             <div className={styles.titleContent}>
-                                <h1 className={styles.pageTitle}>Carte Interactive du Québec</h1>
+                                <h1 className={styles.pageTitle}>Carte Interactive</h1>
                                 <p className={styles.pageSubtitle}>
-                                    {stats?.totalMunicipalities || '1100+'} municipalités • {stats?.regions?.length || '17'} régions
+                                    Explorez les divisions administratives par pays
                                 </p>
                             </div>
                         </div>
                     </div>
 
+                    {/* Division selection filters */}
+                    <div className={styles.selectionFilters}>
+                        {/* Country selector */}
+                        <div className={styles.filterGroup}>
+                            <label className={styles.filterLabel}>Pays</label>
+                            <select
+                                className={styles.filterSelect}
+                                value={selectedCountry?.id || ''}
+                                onChange={(e) => {
+                                    const country = countries.find(c => c.id === e.target.value);
+                                    setSelectedCountry(country);
+                                    setSelectedLevel1(null);
+                                    setDefaultLevelDivisions([]);
+                                    setSelectedDefaultDivision(null); // Clear selected division when country changes
+                                    setDivisionHierarchy(null); // Clear hierarchy - we're browsing a different country now
+                                    setMunicipalitySearchTerm(''); // Clear search term
+                                    setDropdownOpen(false); // Close the dropdown to force re-render
+                                }}
+                                disabled={loadingCountries}
+                            >
+                                {loadingCountries ? (
+                                    <option>Chargement...</option>
+                                ) : (
+                                    <>
+                                        <option value="">Sélectionner un pays</option>
+                                        {countries.map(country => (
+                                            <option key={country.id} value={country.id}>
+                                                {country.name} ({country.iso3})
+                                            </option>
+                                        ))}
+                                    </>
+                                )}
+                            </select>
+                        </div>
+
+                        {/* Level 1 selector */}
+                        {selectedCountry && level1Divisions.length > 0 && (
+                            <div className={styles.filterGroup}>
+                                <label className={styles.filterLabel}>
+                                    {selectedCountry.admin_levels?.[1] || 'Niveau 1'}
+                                </label>
+                                <select
+                                    className={styles.filterSelect}
+                                    value={selectedLevel1?.id || ''}
+                                    onChange={(e) => {
+                                        const division = level1Divisions.find(d => d.id === e.target.value);
+                                        setSelectedLevel1(division);
+                                        setSelectedDefaultDivision(null);
+                                        setSelectedMunicipality(null);
+                                        setDefaultLevelDivisions([]); // Clear the list when level 1 changes
+                                        setMunicipalitySearchTerm(''); // Clear search term
+                                    }}
+                                    disabled={loadingLevel1}
+                                >
+                                    {loadingLevel1 ? (
+                                        <option>Chargement...</option>
+                                    ) : (
+                                        <>
+                                            <option value="">Sélectionner...</option>
+                                            {level1Divisions.map(division => (
+                                                <option key={division.id} value={division.id}>
+                                                    {division.name}
+                                                </option>
+                                            ))}
+                                        </>
+                                    )}
+                                </select>
+                            </div>
+                        )}
+
+                        {/* Default level selector (e.g., municipalities) */}
+                        {selectedCountry && selectedLevel1 && (
+                            <div className={styles.filterGroup}>
+                                <label className={styles.filterLabel}>
+                                    {selectedCountry.default_division_name || `Niveau ${selectedCountry.default_admin_level}`}
+                                </label>
+
+                                {/* Dropdown button with search inside */}
+                                <div className={styles.divisionSelectorWrapper}>
+                                    <button
+                                        type="button"
+                                        className={`${styles.divisionSelectorButton} ${dropdownOpen ? styles.open : ''}`}
+                                        onClick={() => setDropdownOpen(!dropdownOpen)}
+                                        disabled={loadingDefault}
+                                    >
+                                        <div className={styles.selectedDivision}>
+                                            {selectedDefaultDivision ? (
+                                                <div className={styles.divisionInfo}>
+                                                    <div className={styles.divisionName}>
+                                                        {selectedDefaultDivision.name}
+                                                    </div>
+                                                    {selectedDefaultDivision.parent_name && (
+                                                        <div className={styles.divisionRegion}>
+                                                            {selectedDefaultDivision.parent_name}
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            ) : (
+                                                <div className={styles.divisionInfo}>
+                                                    <div className={styles.divisionPlaceholder}>
+                                                        {defaultLevelDivisions.length > 0
+                                                            ? `Sélectionner une ${selectedCountry.default_division_name}...`
+                                                            : `Aucune ${selectedCountry.default_division_name} disponible`
+                                                        }
+                                                    </div>
+                                                </div>
+                                            )}
+                                        </div>
+                                        <ExpandMore className={`${styles.expandIcon} ${dropdownOpen ? styles.rotated : ''}`} />
+                                    </button>
+
+                                    {/* Dropdown menu with search */}
+                                    <div className={`${styles.divisionDropdownMenu} ${dropdownOpen ? styles.show : ''}`}>
+                                        <div className={styles.searchWrapper}>
+                                            <input
+                                                type="text"
+                                                className={styles.searchInput}
+                                                placeholder={`Rechercher une ${selectedCountry.default_division_name}...`}
+                                                value={municipalitySearchTerm}
+                                                onChange={async (e) => {
+                                                    const searchValue = e.target.value;
+                                                    setMunicipalitySearchTerm(searchValue);
+
+                                                    // Search via API if search term is >= 2 characters
+                                                    if (searchValue.trim().length >= 2) {
+                                                        const searchResult = await geolocationService.searchDivisions(
+                                                            selectedCountry.iso3,
+                                                            searchValue,
+                                                            20
+                                                        );
+
+                                                        if (searchResult.success) {
+                                                            setDefaultLevelDivisions(searchResult.results);
+                                                        }
+                                                    } else if (searchValue.trim().length === 0) {
+                                                        // Reload default 10 divisions when search is cleared
+                                                        // Only use hierarchy if it matches the current country
+                                                        let divisionId = null;
+
+                                                        if (divisionHierarchy?.id && divisionHierarchy?.country?.iso3 === selectedCountry.iso3) {
+                                                            divisionId = divisionHierarchy.id;
+                                                        }
+
+                                                        const result = await geolocationService.getDivisionsByLevel(
+                                                            selectedCountry.id,
+                                                            selectedCountry.default_admin_level,
+                                                            selectedLevel1.id,
+                                                            10,
+                                                            divisionId
+                                                        );
+
+                                                        if (result.success) {
+                                                            setDefaultLevelDivisions(result.divisions);
+                                                        }
+                                                    }
+                                                }}
+                                            />
+                                            <LocationOn className={styles.searchIcon} />
+                                        </div>
+
+                                        <div className={styles.dropdownContent}>
+                                            {loadingDefault ? (
+                                                <div className={styles.loadingState}>
+                                                    <div className={styles.loadingSpinner} />
+                                                    Chargement...
+                                                </div>
+                                            ) : defaultLevelDivisions.length > 0 ? (
+                                                defaultLevelDivisions.map((division) => {
+                                                    const isSelected = selectedDefaultDivision?.id === division.id;
+                                                    return (
+                                                        <button
+                                                            key={division.id}
+                                                            type="button"
+                                                            className={`${styles.divisionOption} ${isSelected ? styles.selected : ''}`}
+                                                            onClick={() => {
+                                                                handleDefaultDivisionChange(division.id);
+                                                                setDropdownOpen(false);
+                                                                setMunicipalitySearchTerm('');
+                                                            }}
+                                                        >
+                                                            <div className={styles.optionContent}>
+                                                                <div className={styles.optionInfo}>
+                                                                    <div className={styles.optionName}>
+                                                                        {division.name}
+                                                                    </div>
+                                                                    {division.parent_name && (
+                                                                        <div className={styles.optionDetails}>
+                                                                            {division.parent_name}
+                                                                        </div>
+                                                                    )}
+                                                                </div>
+                                                            </div>
+                                                            {isSelected && (
+                                                                <Check className={styles.checkIcon} />
+                                                            )}
+                                                        </button>
+                                                    );
+                                                })
+                                            ) : (
+                                                <div className={styles.noResults}>
+                                                    {municipalitySearchTerm ? `Aucune ${selectedCountry.default_division_name} trouvée pour "${municipalitySearchTerm}"` : `Aucune ${selectedCountry.default_division_name} disponible`}
+                                                </div>
+                                            )}
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+                    </div>
                 </div>
 
                 {/* Interface principale en grid */}
@@ -136,8 +741,9 @@ const MapPage = () => {
                     <div className={styles.mapArea}>
                         <div className={styles.mapContainer}>
                             <MunicipalitiesMap
-                                selectedMunicipality={selectedMunicipality}
+                                selectedMunicipality={selectedDefaultDivision}
                                 onMunicipalitySelect={handleMunicipalitySelect}
+                                selectedCountry={selectedCountry}
                                 height="500px"
                             />
 
@@ -176,7 +782,7 @@ const MapPage = () => {
                                         <PublicIcon className={styles.compactStatIcon} />
                                         <div>
                                             <div className={styles.compactStatNumber}>{stats.totalMunicipalities}</div>
-                                            <div className={styles.compactStatLabel}>Municipalités</div>
+                                            <div className={styles.compactStatLabel}>{adminLabels.plural}</div>
                                         </div>
                                     </div>
                                     <div className={styles.compactStatItem}>
@@ -202,7 +808,7 @@ const MapPage = () => {
                             <div className={styles.compactSelectedCard}>
                                 <div className={styles.compactCardHeader}>
                                     <LocationIcon className={styles.compactCardIcon} />
-                                    <span className={styles.compactCardTitle}>Sélectionné</span>
+                                    <span className={styles.compactCardTitle}>{getDivisionTypeSingular()} sélectionnée</span>
                                 </div>
                                 <div className={styles.compactSelectedContent}>
                                     <div className={styles.compactMunicipalityInfo}>
@@ -229,257 +835,6 @@ const MapPage = () => {
             </div>
         </Layout>
     );
-    {/* Header avec recherche */ }
-    <div className={styles.pageHeader}>
-        <div className={styles.headerContent}>
-            <div className={styles.titleSection}>
-                <div className={styles.iconContainer}>
-                    <ExploreIcon className={styles.titleIcon} />
-                </div>
-                <div>
-                    <h1 className={styles.pageTitle}>Carte Interactive du Québec</h1>
-                    <p className={styles.pageSubtitle}>
-                        Explorez {stats?.totalMunicipalities || '1100+'} municipalités
-                        réparties dans {stats?.regions?.length || '17'} régions
-                    </p>
-                </div>
-            </div>
-
-            {/* Barre de recherche moderne */}
-            <div className={styles.searchSection}>
-                <div className={styles.searchWrapper}>
-                    <SearchIcon className={styles.searchIcon} />
-                    <input
-                        ref={searchInputRef}
-                        type="text"
-                        className={styles.searchInput}
-                        placeholder="Rechercher une municipalité..."
-                        value={searchQuery}
-                        onChange={(e) => setSearchQuery(e.target.value)}
-                    />
-                    {searchQuery && (
-                        <button
-                            className={styles.clearButton}
-                            onClick={clearSearch}
-                        >
-                            ×
-                        </button>
-                    )}
-
-                    {/* Résultats de recherche */}
-                    {searchResults.length > 0 && (
-                        <div className={styles.searchResults}>
-                            {searchResults.map((municipality, index) => (
-                                <div
-                                    key={municipality.nom}
-                                    className={styles.searchResultItem}
-                                    onClick={() => handleSearchResultClick(municipality)}
-                                    style={{ animationDelay: `${index * 0.05}s` }}
-                                >
-                                    <LocationIcon className={styles.resultIcon} />
-                                    <div className={styles.resultInfo}>
-                                        <span className={styles.resultName}>{municipality.nom}</span>
-                                        <span className={styles.resultRegion}>{municipality.region}</span>
-                                    </div>
-                                    {municipality.population && (
-                                        <span className={styles.resultPopulation}>
-                                            {municipality.population.toLocaleString('fr-CA')}
-                                        </span>
-                                    )}
-                                </div>
-                            ))}
-                        </div>
-                    )}
-                </div>
-
-                {/* Filtres par région */}
-                {stats?.regions && (
-                    <div className={styles.filtersSection}>
-                        <FilterIcon className={styles.filterIcon} />
-                        <div className={styles.regionFilters}>
-                            {stats.regions.slice(0, 6).map((region) => (
-                                <button
-                                    key={region}
-                                    className={`${styles.regionFilter} ${selectedRegion === region ? styles.active : ''}`}
-                                    onClick={() => handleRegionFilter(region)}
-                                >
-                                    {region}
-                                </button>
-                            ))}
-                        </div>
-                    </div>
-                )}
-            </div>
-        </div>
-    </div>
-
-    {/* Contenu principal */ }
-    <div className={styles.mainContent}>
-        {/* Section carte */}
-        <div className={styles.mapSection}>
-            <div className={styles.mapContainer}>
-                <MunicipalitiesMap
-                    selectedMunicipality={selectedMunicipality}
-                    onMunicipalitySelect={handleMunicipalitySelect}
-                    height="600px"
-                />
-
-                {/* Overlay avec informations */}
-                {selectedMunicipality && (
-                    <div className={styles.mapOverlay}>
-                        <div className={styles.quickInfo}>
-                            <div className={styles.quickInfoHeader}>
-                                <LocationIcon className={styles.quickIcon} />
-                                <span className={styles.quickTitle}>{selectedMunicipality.nom}</span>
-                            </div>
-                            <button
-                                className={styles.quickVisitButton}
-                                onClick={handleVisitMunicipality}
-                            >
-                                Visiter
-                                <ArrowForwardIcon className={styles.quickButtonIcon} />
-                            </button>
-                        </div>
-                    </div>
-                )}
-            </div>
-        </div>
-
-        {/* Sidebar avec statistiques */}
-        <div className={styles.sidebarSection}>
-            {/* Statistiques générales */}
-            {stats && (
-                <div className={styles.statsCard}>
-                    <div className={styles.cardHeader}>
-                        <TrendingUpIcon className={styles.cardIcon} />
-                        <h3 className={styles.cardTitle}>Statistiques du Québec</h3>
-                    </div>
-                    <div className={styles.statsGrid}>
-                        <div className={styles.statItem}>
-                            <div className={styles.statIcon}>
-                                <PublicIcon />
-                            </div>
-                            <div className={styles.statContent}>
-                                <span className={styles.statNumber}>
-                                    {stats.totalMunicipalities}
-                                </span>
-                                <span className={styles.statLabel}>Municipalités</span>
-                            </div>
-                        </div>
-                        <div className={styles.statItem}>
-                            <div className={styles.statIcon}>
-                                <PeopleIcon />
-                            </div>
-                            <div className={styles.statContent}>
-                                <span className={styles.statNumber}>
-                                    {(stats.totalPopulation / 1000000).toFixed(1)}M
-                                </span>
-                                <span className={styles.statLabel}>Population</span>
-                            </div>
-                        </div>
-                        <div className={styles.statItem}>
-                            <div className={styles.statIcon}>
-                                <LocationIcon />
-                            </div>
-                            <div className={styles.statContent}>
-                                <span className={styles.statNumber}>
-                                    {stats.regions.length}
-                                </span>
-                                <span className={styles.statLabel}>Régions</span>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            )}
-
-            {/* Plus grandes villes */}
-            {stats?.largestCities && (
-                <div className={styles.topCitiesCard}>
-                    <div className={styles.cardHeader}>
-                        <AutoAwesomeIcon className={styles.cardIcon} />
-                        <h3 className={styles.cardTitle}>Principales Villes</h3>
-                    </div>
-                    <div className={styles.citiesList}>
-                        {stats.largestCities.slice(0, 5).map((city, index) => (
-                            <div
-                                key={city.nom}
-                                className={styles.cityItem}
-                                style={{ animationDelay: `${index * 0.1}s` }}
-                                onClick={() => handleSearchResultClick(city)}
-                            >
-                                <div className={styles.cityRank}>#{index + 1}</div>
-                                <div className={styles.cityInfo}>
-                                    <span className={styles.cityName}>{city.nom}</span>
-                                    <span className={styles.cityRegion}>{city.region}</span>
-                                </div>
-                                <div className={styles.cityPopulation}>
-                                    {city.population.toLocaleString('fr-CA')}
-                                </div>
-                            </div>
-                        ))}
-                    </div>
-                </div>
-            )}
-
-            {/* Municipalité sélectionnée */}
-            {selectedMunicipality && (
-                <div className={styles.selectedCard}>
-                    <div className={styles.cardHeader}>
-                        <LocationIcon className={styles.cardIcon} />
-                        <h3 className={styles.cardTitle}>Sélection Actuelle</h3>
-                    </div>
-                    <div className={styles.selectedContent}>
-                        <div className={styles.selectedMunicipality}>
-                            <h4 className={styles.municipalityName}>
-                                {selectedMunicipality.nom}
-                            </h4>
-                            <p className={styles.municipalityRegion}>
-                                📍 {selectedMunicipality.region}
-                            </p>
-                            {selectedMunicipality.population && (
-                                <p className={styles.municipalityPopulation}>
-                                    👥 {selectedMunicipality.population.toLocaleString('fr-CA')} habitants
-                                </p>
-                            )}
-                        </div>
-                        <button
-                            className={styles.visitButton}
-                            onClick={handleVisitMunicipality}
-                        >
-                            <span>Explorer {selectedMunicipality.nom}</span>
-                            <ArrowForwardIcon className={styles.buttonIcon} />
-                        </button>
-                    </div>
-                </div>
-            )}
-
-            {/* Guide d'utilisation */}
-            <div className={styles.guideCard}>
-                <div className={styles.cardHeader}>
-                    <ExploreIcon className={styles.cardIcon} />
-                    <h3 className={styles.cardTitle}>Guide d'Exploration</h3>
-                </div>
-                <div className={styles.guideList}>
-                    <div className={styles.guideItem}>
-                        <span className={styles.guideEmoji}>🔍</span>
-                        <span className={styles.guideText}>Utilisez la barre de recherche</span>
-                    </div>
-                    <div className={styles.guideItem}>
-                        <span className={styles.guideEmoji}>📍</span>
-                        <span className={styles.guideText}>Cliquez sur les marqueurs</span>
-                    </div>
-                    <div className={styles.guideItem}>
-                        <span className={styles.guideEmoji}>🌿</span>
-                        <span className={styles.guideText}>Filtrez par région</span>
-                    </div>
-                    <div className={styles.guideItem}>
-                        <span className={styles.guideEmoji}>🖱️</span>
-                        <span className={styles.guideText}>Naviguez avec la souris</span>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
 };
 
 export default MapPage;

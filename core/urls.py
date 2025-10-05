@@ -5,7 +5,7 @@ from .views import (
     DashboardStatsView, DashboardActivityView, DashboardTrendingView
 )
 from .views import api_timezones, api_countries, api_cities
-from .debug_views import debug_ip_location, debug_custom_ip_location
+from .debug_views import debug_ip_location, debug_custom_ip_location, debug_client_fingerprint
 from .timezone_api import (
     UpdateSessionTimezoneView,
     validate_community_timezone_access_api
@@ -64,6 +64,11 @@ urlpatterns = [
         'api/debug/custom-ip-location/',
         debug_custom_ip_location,
         name='debug-custom-ip-location'
+    ),
+    path(
+        'api/debug/client-fingerprint/',
+        debug_client_fingerprint,
+        name='debug-client-fingerprint'
     ),
 
     # Location/timezone endpoints

@@ -2,177 +2,22 @@
 JWT Authentication views for the accounts app.
 """
 import logging
-from rest_framework import status, serializers
+from rest_framework import status
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
-from rest_framework.exceptions import AuthenticationFailed
 from rest_framework_simplejwt.tokens import RefreshToken
-from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
-from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
-from rest_framework_simplejwt.exceptions import InvalidToken, TokenError
-from django.contrib.auth import authenticate, login, logout
-from django.contrib.auth.models import User
-from .models import UserProfile
+from rest_framework_simplejwt.views import TokenRefreshView
+from rest_framework_simplejwt.exceptions import  TokenError
 from django.conf import settings
+from django.contrib.auth import logout
+from django.contrib.auth.models import User
 from core.session_manager import session_manager
-from core.token_renewal import token_renewal_service
-from core.jwt_auth import jwt_auth_service
-from core.utils import get_device_info
+from .models import UserProfile
+
 from .serializers import UserDetailSerializer, RegisterSerializer
 
 logger = logging.getLogger(__name__)
-
-
-class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
-    """
-    Custom JWT token serializer that includes user profile data.
-    """
-    def validate(self, attrs):
-        """
-        Custom validation with SESSION-FIRST authentication flow.
-        CRITICAL: Session must be created and validated BEFORE JWT generation.
-        """
-        # First let base class authenticate and set self.user
-        super().validate(attrs)
-
-        request = self.context.get('request')
-
-        # Security checks first
-        if UserProfile.objects.filter(user=self.user, is_deleted=True).exists():
-            raise AuthenticationFailed('User profile has been deleted')
-
-        # Get or create user profile
-        try:
-            profile = UserProfile.objects.get(user=self.user, is_deleted=False)
-        except UserProfile.DoesNotExist:
-            profile = UserProfile.objects.create(user=self.user, role='normal')
-
-        # CRITICAL: SESSION CREATION FIRST
-        session_data = None
-        session_id = None
-
-        if request is not None and hasattr(request, 'session'):
-            try:
-                # Ensure Django session exists
-                if not request.session.session_key:
-                    request.session.create()
-
-                # Create or validate custom session in Redis/DB
-                device_info = get_device_info(request)
-                session_data = session_manager.create_session(
-                    request=request,
-                    user_profile=profile,
-                    merged_device_info=device_info
-                )
-
-                # CRITICAL: Validate session was created successfully
-                if not session_data or not session_data.get('session_id'):
-                    raise AuthenticationFailed('Session creation failed')
-
-                session_id = session_data['session_id']
-
-                # Verify session exists and is valid
-                if not session_manager.is_session_valid_for_jwt(session_id):
-                    raise AuthenticationFailed('Session validation failed')
-
-            except Exception as e:
-                logger.error(f"Session creation failed in token serializer: {e}")
-                raise AuthenticationFailed('Unable to establish secure session')
-
-        # JWT Creation ONLY AFTER Session Success
-        refresh = self.get_token(self.user)
-        access = refresh.access_token
-
-        # CRITICAL: Inject session ID into both tokens
-        if session_id:
-            refresh['sid'] = session_id
-            access['sid'] = session_id
-
-        # Build user payload with profile data
-        user_payload = {
-            'id': self.user.id,
-            'username': self.user.username,
-            'email': self.user.email,
-            'first_name': self.user.first_name,
-            'last_name': self.user.last_name,
-            'profile': {
-                'role': profile.role,
-                'is_verified': profile.is_verified,
-                'profile_picture': (
-                    profile.profile_picture.url
-                    if profile.profile_picture else None
-                ),
-            }
-        }
-
-        return {
-            'refresh': str(refresh),
-            'access': str(access),
-            'user': user_payload,
-        }
-
-    @classmethod
-    def get_token(cls, user):
-        token = super().get_token(user)
-
-        # Add custom claims to the token payload
-        token['username'] = user.username
-        token['email'] = user.email
-
-        # Add profile data if available
-        try:
-            profile = UserProfile.objects.get(user=user)
-            token['role'] = profile.role
-            token['is_verified'] = profile.is_verified
-        except UserProfile.DoesNotExist:
-            token['role'] = 'normal'
-            token['is_verified'] = False
-
-        return token
-
-class CustomTokenObtainPairView(TokenObtainPairView):
-    """
-    Custom JWT login view with session integration.
-    """
-    serializer_class = CustomTokenObtainPairSerializer
-
-    def post(self, request, *args, **kwargs):
-        response = super().post(request, *args, **kwargs)
-
-        if response.status_code == 200:
-            # Ensure Django session is established for hybrid model
-            user = authenticate(
-                username=request.data.get('username'),
-                password=request.data.get('password')
-            )
-            if user:
-                login(request, user)
-                try:
-                    # Ensure Redis/DB session is active and smart renewal
-                    sid = request.session.session_key
-                    if sid and session_manager.is_session_valid_for_jwt(sid):
-                        # SMART RENEWAL: Only extend when 1/4 validity remains
-                        session_manager.smart_renew_session_if_needed(sid)
-                    elif sid and hasattr(user, 'profile'):
-                        device_info = get_device_info(request)
-                        session_manager.create_session(
-                            request=request,
-                            user_profile=user.profile,
-                            merged_device_info=device_info
-                        )
-                except Exception:
-                    pass
-
-            # Backward compatibility: rename keys
-            data = response.data.copy()
-            if 'access' in data:
-                data['access_token'] = data.pop('access')
-            if 'refresh' in data:
-                data['refresh_token'] = data.pop('refresh')
-            response.data = data
-
-        return response
 
 
 class CustomTokenRefreshView(TokenRefreshView):
@@ -313,7 +158,14 @@ def jwt_logout(request):
                 token_str = auth_header.split(' ')[1]
                 token = UntypedToken(token_str)
                 session_id = token.payload.get('sid')
-            except Exception:
+                logger.info(
+                    f"Logout - Extracted session_id from access token: "
+                    f"{session_id}"
+                )
+            except Exception as e:
+                logger.warning(
+                    f"Failed to extract session_id from access token: {e}"
+                )
                 # If we can't extract session ID from token, try Django session
                 session_id = request.session.session_key
 
@@ -321,12 +173,18 @@ def jwt_logout(request):
         if refresh_token:
             try:
                 token = RefreshToken(refresh_token)
-                # Also extract session ID from refresh token if not found in access token
+                # Extract session ID from refresh token if not in access token
                 if not session_id:
                     session_id = token.payload.get('sid')
+                    logger.info(
+                        f"Logout - Extracted session_id from refresh "
+                        f"token: {session_id}"
+                    )
                 token.blacklist()
-            except Exception:
+                logger.info("Refresh token blacklisted successfully")
+            except Exception as e:
                 # If token is invalid, continue with logout anyway
+                logger.warning(f"Failed to blacklist refresh token: {e}")
                 pass
 
         # End the user session in the database if session ID found
@@ -342,16 +200,38 @@ def jwt_logout(request):
                     is_ended=False
                 )
 
+                logger.info(
+                    f"Found {user_sessions.count()} active session(s) "
+                    f"to end for session_id: {session_id}"
+                )
+
                 for session in user_sessions:
+                    logger.info(
+                        f"Ending session {session.session_id} for user "
+                        f"{session.user.user.username}"
+                    )
                     session.mark_ended(
                         reason='User logout',
                         when=timezone.now()
                     )
+                    logger.info(
+                        f"Session {session.session_id} ended successfully"
+                    )
 
-                logger.info(f"Ended {user_sessions.count()} sessions for logout")
+                logger.info(
+                    f"Ended {user_sessions.count()} sessions for logout"
+                )
 
             except Exception as e:
-                logger.warning(f"Failed to end user session during logout: {e}")
+                logger.error(
+                    f"Failed to end user session during logout: {e}"
+                )
+                import traceback
+                logger.error(f"Traceback: {traceback.format_exc()}")
+        else:
+            logger.warning(
+                "No session_id found - cannot end database session"
+            )
 
         # Hybrid approach: Invalidate Redis session
         from core.session_manager import session_manager
@@ -423,6 +303,38 @@ def jwt_user_info(request):
     """
     try:
         user_data = UserDetailSerializer(request.user).data
+
+        # Enrich with location data for municipality routing (matching login response)
+        try:
+            profile = UserProfile.objects.get(user=request.user, is_deleted=False)
+            if profile.administrative_division:
+                # Build complete administrative division data
+                admin_div = profile.administrative_division
+
+                # Find Level 1 ancestor (province/department) by traversing up
+                level_1_ancestor = admin_div.get_ancestor_at_level(1)
+
+                location_data = {
+                    'city': admin_div.name,
+                    'country': admin_div.country.name if admin_div.country else None,
+                    'division_id': str(admin_div.id),
+                    'admin_level': admin_div.admin_level,
+                    'boundary_type': admin_div.boundary_type,
+                    'parent_id': str(admin_div.parent.id) if admin_div.parent else None,
+                    'parent_name': admin_div.parent.name if admin_div.parent else None,
+                    # Add Level 1 ancestor info for map page cascading
+                    'level_1_id': str(level_1_ancestor.id) if level_1_ancestor else None,
+                    'level_1_name': level_1_ancestor.name if level_1_ancestor else None,
+                }
+                # Add to profile data to match login response structure
+                if 'profile' in user_data:
+                    user_data['profile']['administrative_division'] = location_data
+                # Also add at top level for compatibility
+                user_data['location'] = location_data
+                user_data['municipality'] = admin_div.name
+        except UserProfile.DoesNotExist:
+            pass
+
         # Include username at top level for test compatibility
         response_data = user_data.copy()
         response_data.update({
@@ -543,21 +455,18 @@ def login_with_verification_check(request):
     # Get authenticated user from serializer
     user = serializer.validated_data['user']
 
-    # Check verification status using the same logic as the session-based version
-    from .auth_backends import check_verification_expiry_on_login
+    # Step 1: Get user profile - ALWAYS needed for session creation
+    try:
+        profile = UserProfile.objects.get(user=user, is_deleted=False)
+    except UserProfile.DoesNotExist:
+        return Response({
+            'error': 'User profile not found',
+            'status': 'no_profile',
+            'message': 'User profile not found',
+            'code': 'NO_PROFILE'
+        }, status=status.HTTP_404_NOT_FOUND)
 
-    verification_status = check_verification_expiry_on_login(user)
-
-    if verification_status['verification_required']:
-        return Response(verification_status, status=status.HTTP_403_FORBIDDEN)
-    elif verification_status['status'] == 'no_profile':
-
-        return Response(verification_status, status=status.HTTP_404_NOT_FOUND)
-
-    # User is verified, proceed with SESSION-FIRST JWT login
-
-    # Step 1: Get user profile
-    profile = UserProfile.objects.get(user=user, is_deleted=False)
+    # Step 2: ALWAYS create session immediately after authentication
 
     # Step 2: OPTIMIZED SESSION CREATION (No reuse needed)
     session_data = None
@@ -592,10 +501,28 @@ def login_with_verification_check(request):
             'connection_type': serializer.validated_data.get('connection_type'),
         }.items() if v is not None}
 
-        # Create minimal session (no reuse logic needed)
+        # Get remember_me flag BEFORE creating session
         persistent = serializer.validated_data.get('remember_me', False)
-        session_data = session_manager.create_minimal_session_with_db(
+
+        # Use fast login with session reuse - reuses existing session
+        # from same device, passing persistent flag
+        session_data = session_manager.fast_login_with_session_reuse(
             request, profile, persistent=persistent)
+
+        # If session was reused and persistent flag changed, update it
+        if session_data.get('reused') and persistent:
+            try:
+                from accounts.models import UserSession
+                session = UserSession.objects.get(
+                    session_id=session_data['session_id']
+                )
+                if not session.persistent:
+                    # Update persistent flag AND extend expiration
+                    session.persistent = True
+                    session.extend_session()  # This recalculates expires_at for 30 days
+                    logger.info(f"Extended reused session to 30 days for remember_me")
+            except Exception as e:
+                logger.warning(f"Failed to update persistent flag on reused session: {e}")
 
         # Cache client fingerprint data for enhanced processing
         # if client_device_info:
@@ -604,8 +531,14 @@ def login_with_verification_check(request):
         #         session_data['session_id'], client_device_info
         #     )
 
-        logger.info("✨ Created new minimal session: "
-                    f"{session_data['session_id']}")
+        if session_data.get('reused'):
+            logger.info(
+                f"♻️ Reused existing session: "
+                f"{session_data['session_id']}")
+        else:
+            logger.info(
+                f"✨ Created new minimal session: "
+                f"{session_data['session_id']}")
 
         # Session successfully created - no need to validate again
         session_id = session_data['session_id']
@@ -660,8 +593,19 @@ def login_with_verification_check(request):
 
     # Step 3: JWT Creation ONLY AFTER Session Success
     try:
+        from datetime import timedelta
+        from django.conf import settings
+
         refresh = RefreshToken.for_user(user)
         access_token = refresh.access_token
+
+        # Extend refresh token lifetime for persistent sessions
+        if persistent:
+            # Override refresh token expiration for remember me
+            persistent_days = getattr(
+                settings, 'PERSISTENT_SESSION_DURATION_DAYS', 30
+            )
+            refresh.set_exp(lifetime=timedelta(days=persistent_days))
 
         # CRITICAL: Embed session ID in JWT
         session_id = session_data['session_id']
@@ -684,7 +628,11 @@ def login_with_verification_check(request):
             'code': 'JWT_CREATION_FAILED'
         }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
-    # Prepare user profile data
+    # Step 4: NOW check verification status (after session is created)
+    from .auth_backends import check_verification_expiry_on_login
+    verification_status = check_verification_expiry_on_login(user)
+
+    # Prepare user profile data including location
     user_profile_data = {
         'role': profile.role,
         'is_verified': profile.is_verified,
@@ -693,7 +641,33 @@ def login_with_verification_check(request):
         ),
     }
 
-    return Response({
+    # Add location data for municipality routing
+    location_data = None
+    municipality_name = None
+
+    if profile.administrative_division:
+        admin_div = profile.administrative_division
+
+        # Find Level 1 ancestor (province/department) by traversing up
+        level_1_ancestor = admin_div.get_ancestor_at_level(1)
+
+        location_data = {
+            'city': admin_div.name,
+            'country': admin_div.country.name if admin_div.country else None,
+            'division_id': str(admin_div.id),
+            'admin_level': admin_div.admin_level,
+            'boundary_type': admin_div.boundary_type,
+            'parent_id': str(admin_div.parent.id) if admin_div.parent else None,
+            'parent_name': admin_div.parent.name if admin_div.parent else None,
+            # Add Level 1 ancestor info for map page cascading
+            'level_1_id': str(level_1_ancestor.id) if level_1_ancestor else None,
+            'level_1_name': level_1_ancestor.name if level_1_ancestor else None,
+        }
+        municipality_name = admin_div.name
+        user_profile_data['administrative_division'] = location_data
+
+    # Base response structure with session and JWT
+    response_data = {
         'access': str(access_token),
         'refresh': str(refresh),
         'user': {
@@ -702,6 +676,8 @@ def login_with_verification_check(request):
             'email': user.email,
             'first_name': user.first_name,
             'last_name': user.last_name,
+            'municipality': municipality_name,  # For getUserRedirectUrl
+            'location': location_data,  # Full location object
             'profile': user_profile_data
         },
         'session': {
@@ -711,7 +687,20 @@ def login_with_verification_check(request):
             'reused': False  # No session reuse logic
         },
         'message': 'Login successful with new secure session'
-    }, status=status.HTTP_200_OK)
+    }
+
+    # Add verification status to response if verification is required
+    if verification_status['verification_required']:
+        response_data.update({
+            'verification_required': True,
+            'verification_status': verification_status['status'],
+            'verification_message': verification_status['message'],
+            'verification_code': verification_status.get('code'),
+            'verification_expiry': verification_status.get('expiry_time'),
+            'message': 'Login successful - email verification required'
+        })
+
+    return Response(response_data, status=status.HTTP_200_OK)
 
 
 def verify_password_reset_token(token):

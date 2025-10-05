@@ -13,7 +13,7 @@ from accounts.models import (
     UserProfile, ProfessionalProfile, UserSettings, Follow, Block,
     UserSession, UserEvent
 )
-from core.models import Country
+from core.models import Country, AdministrativeDivision
 from core.jwt_test_mixin import JWTAuthTestMixin
 
 
@@ -34,9 +34,10 @@ class AccountsModelTests(TestCase):
             iso2='TC',
             iso3='TCT'
         )
-        self.city = City.objects.create(
-            name='Test City',
-            country=self.country
+        self.test_division = AdministrativeDivision.objects.create(
+            name='Test Division',
+            country=self.country,
+            admin_level=3  # Municipality level
         )
 
     def test_user_profile_creation(self):
@@ -46,7 +47,7 @@ class AccountsModelTests(TestCase):
             role='normal',
             bio='Test bio',
             country=self.country,
-            city=self.city,
+            administrative_division=self.test_division,
             phone_number='+1234567890',
             date_of_birth='1990-01-01'
         )
@@ -55,7 +56,7 @@ class AccountsModelTests(TestCase):
         self.assertEqual(str(profile), 'testuser')
         self.assertEqual(profile.full_name, 'Test User')
         self.assertEqual(profile.display_name, 'Test User')
-        self.assertEqual(profile.location, 'Test City, Test Country')
+        self.assertEqual(profile.location, 'Test Division, Test Country')
         self.assertFalse(profile.is_private)
         self.assertFalse(profile.is_verified)
 

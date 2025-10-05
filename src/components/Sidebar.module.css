@@ -284,22 +284,48 @@
     font-weight: 500;
 }
 
-/* Scrollbar personnalisée */
+/* Scrollbar personnalisée - Cross-browser support */
+
+/* Firefox scrollbar styling */
+.sidebar {
+    scrollbar-width: thin;
+    scrollbar-color: rgba(132, 204, 22, 0.3) transparent;
+}
+
+.navigation {
+    scrollbar-width: thin;
+    scrollbar-color: rgba(132, 204, 22, 0.3) transparent;
+}
+
+/* Webkit scrollbar styling (Chrome, Safari, Edge) */
+.sidebar::-webkit-scrollbar,
 .navigation::-webkit-scrollbar {
-    width: 4px;
+    width: 6px;
 }
 
+.sidebar::-webkit-scrollbar-track,
 .navigation::-webkit-scrollbar-track {
-    background: transparent;
+    background: rgba(0, 0, 0, 0.1);
+    border-radius: 3px;
 }
 
+.sidebar::-webkit-scrollbar-thumb,
 .navigation::-webkit-scrollbar-thumb {
     background: rgba(132, 204, 22, 0.3);
-    border-radius: 2px;
+    border-radius: 3px;
+    border: 1px solid rgba(132, 204, 22, 0.1);
+    transition: background-color 0.3s ease;
 }
 
+.sidebar::-webkit-scrollbar-thumb:hover,
 .navigation::-webkit-scrollbar-thumb:hover {
     background: rgba(132, 204, 22, 0.5);
+    border-color: rgba(132, 204, 22, 0.2);
+}
+
+.sidebar::-webkit-scrollbar-thumb:active,
+.navigation::-webkit-scrollbar-thumb:active {
+    background: rgba(132, 204, 22, 0.7);
 }
 
 /* Version desktop */

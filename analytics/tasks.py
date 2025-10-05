@@ -135,26 +135,31 @@ def process_daily_analytics():
 def update_system_metrics():
     """Update system performance metrics"""
     try:
-
-        # Get database metrics
+        # Get database metrics using PostgreSQL-compatible queries
         with connection.cursor() as cursor:
-            cursor.execute("SHOW STATUS LIKE 'Queries'")
-            queries_result = cursor.fetchone()
-            total_queries = int(queries_result[1]) if queries_result else 0
+            # PostgreSQL equivalent to get connection count
+            cursor.execute("""
+                SELECT count(*)
+                FROM pg_stat_activity
+                WHERE state = 'active'
+            """)
+            active_connections = cursor.fetchone()[0] if cursor.fetchone else 0
 
-            cursor.execute("SHOW STATUS LIKE 'Uptime'")
-            uptime_result = cursor.fetchone()
-            uptime = int(uptime_result[1]) if uptime_result else 0
+            # Get database size
+            cursor.execute("""
+                SELECT pg_database_size(current_database())
+            """)
+            db_size = cursor.fetchone()[0] if cursor.fetchone else 0
 
-        # Create system metric record
+        # Create system metric records
         SystemMetric.objects.create(
-            metric_type='database_queries',
-            value=total_queries
+            metric_type='database_connections',
+            value=active_connections
         )
 
         SystemMetric.objects.create(
-            metric_type='database_query_time',
-            value=uptime,
+            metric_type='database_size_bytes',
+            value=db_size,
         )
 
         return f"Updated system metrics at {timezone.now()}"

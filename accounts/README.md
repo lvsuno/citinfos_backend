@@ -796,7 +796,7 @@ python manage.py test accounts.test_follow
 - **UserProfile**: Extends the User model with:
   - `role`: User's role (owner, normal, data_provider, professional, admin, moderator)
   - `phone_number`, `date_of_birth`, `bio`, `profile_picture`, `cover_media`, `cover_media_type`
-  - `country`, `city`: Foreign keys to location
+  - `country`: Foreign key to Country, `city`: Foreign key to AdministrativeDivision
   - Privacy: `is_private`, `show_email`, `show_phone`, `show_location`
   - Status: `is_verified`, `is_suspended`, `suspension_reason`
   - Analytics: `follower_count`, `following_count`, `posts_count`

@@ -66,9 +66,12 @@ const UserProfile = () => {
     if (!user) {
         return (
             <Layout>
-                <div className={styles.loadingContainer}>
-                    <div className={styles.loadingSpinner}></div>
-                    <p>Chargement du profil...</p>
+                <div className={styles.authRequired}>
+                    <h2>Profil utilisateur</h2>
+                    <p>Connectez-vous pour voir votre profil</p>
+                    <button onClick={() => window.location.href = '/login'} className={styles.loginButton}>
+                        Se connecter
+                    </button>
                 </div>
             </Layout>
         );
@@ -177,12 +180,14 @@ const UserProfile = () => {
                         <h2>Mes Publications</h2>
                     </div>
 
-                    {/* Créateur de posts */}
-                    <PostCreator
-                        onPostCreated={handlePostCreated}
-                        sectionName="Mon Profil"
-                        municipalityName={user.location?.city || 'Ma Ville'}
-                    />
+                    {/* Créateur de posts - seulement si authentifié */}
+                    {user && (
+                        <PostCreator
+                            onPostCreated={handlePostCreated}
+                            sectionName="Mon Profil"
+                            municipalityName={user.location?.city || 'Ma Ville'}
+                        />
+                    )}
 
                     {/* Feed des posts de l'utilisateur */}
                     {userPosts.length > 0 ? (

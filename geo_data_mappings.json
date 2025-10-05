@@ -81,23 +81,34 @@
         "5": "arrondissements"
       },
       "detection_patterns": {
-        "filename": ["quebec_regio", "quebec_mrc", "quebec_munic", "quebec_arron", "QUEBEC_regio", "QUEBEC_mrc", "QUEBEC_munic", "QUEBEC_arron"],
-        "fields": ["RES_NM_REG", "MRS_NM_MRC", "MUS_NM_MUN", "ARS_NM_ARR"]
+        "filename": ["quebec_regio", "quebec_mrc", "quebec_munic", "quebec_arron", "quebec_province", "QUEBEC_regio", "QUEBEC_mrc", "QUEBEC_munic", "QUEBEC_arron", "QUEBEC_province"],
+        "fields": ["RES_NM_REG", "MRS_NM_MRC", "MUS_NM_MUN", "ARS_NM_ARR", "PROV_NAME"]
       },
       "admin_levels": {
+        "1": {
+          "level": 1,
+          "name_fields": ["PROV_NAME"],
+          "code_fields": ["PROV_CODE", "PROV_ID"],
+          "parent_field": null,
+          "boundary_type": "province",
+          "filename_pattern": "province"
+        },
         "2": {
           "level": 2,
           "name_fields": ["RES_NM_REG"],
           "code_fields": ["RES_CO_REG", "RES_NO_IND"],
           "parent_field": null,
+          "parent_level": 1,
           "boundary_type": "régions",
-          "filename_pattern": "regio"
+          "filename_pattern": "regio",
+          "note": "Parent will be auto-detected as the only level 1 division (Québec province)"
         },
         "3": {
           "level": 3,
           "name_fields": ["MRS_NM_MRC"],
           "code_fields": ["MRS_CO_MRC", "MRS_NO_IND"],
           "parent_field": "MRS_NM_REG",
+          "parent_level": 2,
           "boundary_type": "mrc",
           "filename_pattern": "mrc"
         },
@@ -106,6 +117,7 @@
           "name_fields": ["MUS_NM_MUN"],
           "code_fields": ["MUS_CO_GEO", "MUS_NO_IND"],
           "parent_field": "MUS_NM_MRC",
+          "parent_level": 3,
           "boundary_type": "municipalités",
           "filename_pattern": "munic"
         },
@@ -114,34 +126,9 @@
           "name_fields": ["ARS_NM_ARR"],
           "code_fields": ["ARS_CO_ARR", "ARS_NO_IND"],
           "parent_field": "ARS_NM_MUN",
+          "parent_level": 4,
           "boundary_type": "arrondissements",
           "filename_pattern": "arron"
-        }
-      }
-    },
-    "quebec_comet": {
-      "description": "Quebec Metropolitan Communities",
-      "country_code": "CAN",
-      "boundary_types": {
-        "0": "pays",
-        "1": "communautés métropolitaines",
-        "2": "régions",
-        "3": "mrc",
-        "4": "municipalités",
-        "5": "arrondissements"
-      },
-      "detection_patterns": {
-        "filename": ["quebec_comet", "QUEBEC_comet"],
-        "fields": ["CMS_NM_COM", "CMS_CO_COM", "CMS_DE_IND"]
-      },
-      "admin_levels": {
-        "1": {
-          "level": 1,
-          "name_fields": ["CMS_NM_COM"],
-          "code_fields": ["CMS_CO_COM", "CMS_NO_IND"],
-          "parent_field": null,
-          "boundary_type": "communautés métropolitaines",
-          "filename_pattern": "comet"
         }
       }
     }

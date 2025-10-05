@@ -1,7 +1,10 @@
 import React, { useEffect, useState } from 'react';
-import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet';
+import { MapContainer, TileLayer, Marker, Popup, Polygon, useMap } from 'react-leaflet';
 import { Icon } from 'leaflet';
-import { getAllMunicipalities } from '../data/municipalitiesUtils';
+import { useNavigate } from 'react-router-dom';
+import { useMunicipality } from '../contexts/MunicipalityContext';
+import geolocationService from '../services/geolocationService';
+import { setCurrentDivision } from '../utils/divisionStorage';
 import styles from './MunicipalitiesMap.module.css';
 
 // Import CSS de Leaflet
@@ -39,86 +42,161 @@ const MapCenterController = ({ center, zoom }) => {
     return null;
 };
 
-const MunicipalitiesMap = ({ selectedMunicipality, onMunicipalitySelect, height = '500px' }) => {
-    const [municipalities, setMunicipalities] = useState([]);
-    const [mapCenter, setMapCenter] = useState([46.8139, -71.2082]); // Centre du Québec
+const MunicipalitiesMap = ({ selectedMunicipality, onMunicipalitySelect, selectedCountry, height = '500px' }) => {
+    const [divisionGeometry, setDivisionGeometry] = useState(null);
+    const [divisionCentroid, setDivisionCentroid] = useState(null);
+    const [mapCenter, setMapCenter] = useState([46.8139, -71.2082]); // Default: Quebec center
     const [mapZoom, setMapZoom] = useState(6);
+    const [loading, setLoading] = useState(false);
+    const navigate = useNavigate();
+    const { switchMunicipality, getMunicipalitySlug } = useMunicipality();
 
+    // Helper to get localized division type label
+    const getDivisionTypeLabel = () => {
+        if (!selectedCountry) return 'Division sélectionnée';
+
+        // Map country's default_division_name to singular French form
+        const divisionName = selectedCountry.default_division_name?.toLowerCase();
+
+        const singularMap = {
+            'municipalités': 'Municipalité',
+            'municipalities': 'Municipalité',
+            'communes': 'Commune',
+            'villes': 'Ville',
+            'cities': 'Ville',
+            'arrondissements': 'Arrondissement',
+            'régions': 'Région',
+            'regions': 'Région',
+            'provinces': 'Province',
+            'départements': 'Département',
+            'departments': 'Département',
+            'préfectures': 'Préfecture',
+            'prefectures': 'Préfecture',
+        };
+
+        const divisionType = singularMap[divisionName] || 'Division';
+        return `${divisionType} sélectionnée`;
+    };
+
+    // Fetch division geometry when selectedMunicipality changes
     useEffect(() => {
-        // Charger toutes les municipalités avec des coordonnées approximatives
-        const loadMunicipalities = () => {
-            const allMunicipalities = getAllMunicipalities();
+        const fetchDivisionGeometry = async () => {
+            if (!selectedMunicipality?.id) {
+                setDivisionGeometry(null);
+                setDivisionCentroid(null);
+                return;
+            }
 
-            // Pour cette démo, nous allons générer des coordonnées approximatives
-            // basées sur les régions. En production, vous devriez avoir les vraies coordonnées.
-            const municipalitiesWithCoords = allMunicipalities.map(municipality => {
-                const coords = getApproximateCoordinates(municipality);
-                return {
-                    ...municipality,
-                    latitude: coords[0],
-                    longitude: coords[1]
-                };
+            setLoading(true);
+            try {
+                // Fetch division details including geometry
+                const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:8000/api';
+                const response = await fetch(`${API_BASE_URL}/auth/divisions/${selectedMunicipality.id}/geometry/`);
+
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+
+                const data = await response.json();
+
+                if (data.success && data.geometry) {
+                    // Parse GeoJSON geometry
+                    const geom = data.geometry;
+
+                    // Convert geometry to Leaflet coordinates format
+                    let coordinates = null;
+                    if (geom.type === 'Polygon') {
+                        // Polygon: array of rings, each ring is array of [lng, lat]
+                        coordinates = geom.coordinates[0].map(coord => [coord[1], coord[0]]);
+                    } else if (geom.type === 'MultiPolygon') {
+                        // MultiPolygon: array of polygons
+                        coordinates = geom.coordinates.map(polygon =>
+                            polygon[0].map(coord => [coord[1], coord[0]])
+                        );
+                    }
+
+                    setDivisionGeometry({
+                        type: geom.type,
+                        coordinates
+                    });
+
+                    // Set centroid for marker
+                    if (data.centroid) {
+                        const centroid = [data.centroid.coordinates[1], data.centroid.coordinates[0]];
+                        setDivisionCentroid(centroid);
+                        setMapCenter(centroid);
+                        setMapZoom(10);
+                    }
+                }
+            } catch (error) {
+                console.error('Error fetching division geometry:', error);
+            } finally {
+                setLoading(false);
+            }
+        };
+
+        fetchDivisionGeometry();
+    }, [selectedMunicipality]);
+
+    const handleVisitDivision = () => {
+        if (selectedMunicipality?.name && selectedMunicipality?.boundary_type) {
+            // Update municipality context with both name and ID
+            switchMunicipality(selectedMunicipality.name, selectedMunicipality.id);
+
+            // Create slug from division name
+            const divisionSlug = selectedMunicipality.name
+                .toLowerCase()
+                .normalize('NFD')
+                .replace(/[\u0300-\u036f]/g, '')
+                .replace(/[^a-z0-9]/g, '-')
+                .replace(/-+/g, '-')
+                .replace(/^-|-$/g, '');
+
+            // Convert boundary type to singular English form for URL
+            const boundaryTypeMap = {
+                'municipalités': 'municipality',
+                'municipalities': 'municipality',
+                'commune': 'commune',
+                'communes': 'commune',
+                'city': 'city',
+                'cities': 'city',
+                'town': 'town',
+                'towns': 'town',
+                'village': 'village',
+                'villages': 'village'
+            };
+
+            // Get the mapped type or create slug from original boundary_type
+            let typeSlug = boundaryTypeMap[selectedMunicipality.boundary_type.toLowerCase()];
+
+            if (!typeSlug) {
+                // If not in map, create slug from boundary type
+                typeSlug = selectedMunicipality.boundary_type
+                    .toLowerCase()
+                    .normalize('NFD')
+                    .replace(/[\u0300-\u036f]/g, '')
+                    .replace(/[^a-z0-9]/g, '-')
+                    .replace(/-+/g, '-')
+                    .replace(/^-|-$/g, '');
+            }
+
+            // Store as current active division (single source of truth)
+            const countryCode = selectedMunicipality.country?.iso3 || 'CAN'; // Default to CAN
+            setCurrentDivision({
+                id: selectedMunicipality.id,
+                name: selectedMunicipality.name,
+                slug: divisionSlug,
+                country: countryCode,
+                parent: selectedMunicipality.parent_name ? { name: selectedMunicipality.parent_name } : null,
+                boundary_type: selectedMunicipality.boundary_type,
+                admin_level: selectedMunicipality.admin_level,
+                admin_code: selectedMunicipality.admin_code
             });
 
-            setMunicipalities(municipalitiesWithCoords);
-        };
-
-        loadMunicipalities();
-    }, []);
-
-    // Fonction pour obtenir des coordonnées approximatives par région
-    const getApproximateCoordinates = (municipality) => {
-        const regionCoords = {
-            'Bas-Saint-Laurent': [47.8, -68.5],
-            'Saguenay-Lac-Saint-Jean': [48.5, -72.0],
-            'Capitale-Nationale': [46.8, -71.2],
-            'Mauricie': [46.7, -72.8],
-            'Estrie': [45.5, -71.8],
-            'Montréal': [45.5, -73.6],
-            'Outaouais': [45.5, -75.7],
-            'Abitibi-Témiscamingue': [48.2, -78.0],
-            'Côte-Nord': [50.2, -66.4],
-            'Nord-du-Québec': [53.0, -77.0],
-            'Gaspésie-Îles-de-la-Madeleine': [48.8, -64.5],
-            'Chaudière-Appalaches': [46.5, -70.8],
-            'Laval': [45.6, -73.7],
-            'Lanaudière': [46.0, -73.8],
-            'Laurentides': [45.9, -74.2],
-            'Montérégie': [45.3, -73.2],
-            'Centre-du-Québec': [46.2, -72.5]
-        };
-
-        const baseCoords = regionCoords[municipality.region] || [46.8, -71.2];
-
-        // Ajouter une petite variation aléatoire pour éviter la superposition
-        const variation = 0.3;
-        const lat = baseCoords[0] + (Math.random() - 0.5) * variation;
-        const lng = baseCoords[1] + (Math.random() - 0.5) * variation;
-
-        return [lat, lng];
-    };
-
-    const handleMunicipalityClick = (municipality) => {
-        // Centrer la carte sur la municipalité
-        setMapCenter([municipality.latitude, municipality.longitude]);
-        setMapZoom(10);
-
-        // Callback pour le parent (pour afficher les infos dans la sidebar)
-        if (onMunicipalitySelect) {
-            onMunicipalitySelect(municipality);
+            // Navigate to /{boundary_type}/{division_name}
+            navigate(`/${typeSlug}/${divisionSlug}`);
         }
     };
-
-    // Mettre à jour le centre de la carte si une municipalité est sélectionnée
-    useEffect(() => {
-        if (selectedMunicipality) {
-            const selected = municipalities.find(m => m.nom === selectedMunicipality.nom);
-            if (selected) {
-                setMapCenter([selected.latitude, selected.longitude]);
-                setMapZoom(12);
-            }
-        }
-    }, [selectedMunicipality, municipalities]);
 
     return (
         <div className={styles.mapContainer} style={{ height }}>
@@ -135,57 +213,89 @@ const MunicipalitiesMap = ({ selectedMunicipality, onMunicipalitySelect, height 
                     url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
                 />
 
-                {municipalities.map((municipality) => {
-                    const isSelected = selectedMunicipality?.nom === municipality.nom;
+                {/* Display division polygon */}
+                {divisionGeometry && (
+                    <>
+                        {divisionGeometry.type === 'Polygon' ? (
+                            <Polygon
+                                positions={divisionGeometry.coordinates}
+                                pathOptions={{
+                                    color: '#06b6d4',
+                                    fillColor: '#06b6d4',
+                                    fillOpacity: 0.2,
+                                    weight: 2
+                                }}
+                            />
+                        ) : divisionGeometry.type === 'MultiPolygon' ? (
+                            divisionGeometry.coordinates.map((polygon, index) => (
+                                <Polygon
+                                    key={index}
+                                    positions={polygon}
+                                    pathOptions={{
+                                        color: '#06b6d4',
+                                        fillColor: '#06b6d4',
+                                        fillOpacity: 0.2,
+                                        weight: 2
+                                    }}
+                                />
+                            ))
+                        ) : null}
+                    </>
+                )}
 
-                    return (
-                        <Marker
-                            key={municipality.nom}
-                            position={[municipality.latitude, municipality.longitude]}
-                            icon={isSelected ? activeIcon : defaultIcon}
-                            eventHandlers={{
-                                click: () => handleMunicipalityClick(municipality),
-                            }}
-                        >
-                            <Popup>
-                                <div className={styles.popupContent}>
-                                    <h3 className={styles.municipalityName}>{municipality.nom}</h3>
+                {/* Display centroid marker */}
+                {divisionCentroid && selectedMunicipality && (
+                    <Marker
+                        position={divisionCentroid}
+                        icon={activeIcon}
+                    >
+                        <Popup>
+                            <div className={styles.popupContent}>
+                                <h3 className={styles.municipalityName}>
+                                    {selectedMunicipality.name}
+                                </h3>
+                                {selectedMunicipality.parent_name && (
                                     <p className={styles.regionInfo}>
-                                        <strong>Région:</strong> {municipality.region}
+                                        <strong>Parent:</strong> {selectedMunicipality.parent_name}
                                     </p>
-                                    {municipality.mrc && municipality.mrc !== municipality.region && (
-                                        <p className={styles.mrcInfo}>
-                                            <strong>MRC:</strong> {municipality.mrc}
-                                        </p>
-                                    )}
-                                    {municipality.population && (
-                                        <p className={styles.populationInfo}>
-                                            <strong>Population:</strong> {municipality.population.toLocaleString('fr-CA')} habitants
-                                        </p>
-                                    )}
-                                    <button
-                                        className={styles.visitButton}
-                                        onClick={() => handleMunicipalityClick(municipality)}
-                                    >
-                                        Visiter {municipality.nom}
-                                    </button>
-                                </div>
-                            </Popup>
-                        </Marker>
-                    );
-                })}
+                                )}
+                                {selectedMunicipality.boundary_type && (
+                                    <p className={styles.typeInfo}>
+                                        <strong>Type:</strong> {selectedMunicipality.boundary_type}
+                                    </p>
+                                )}
+                                {selectedMunicipality.admin_code && (
+                                    <p className={styles.codeInfo}>
+                                        <strong>Code:</strong> {selectedMunicipality.admin_code}
+                                    </p>
+                                )}
+                                <button
+                                    className={styles.visitButton}
+                                    onClick={handleVisitDivision}
+                                >
+                                    Visiter {selectedMunicipality.name}
+                                </button>
+                            </div>
+                        </Popup>
+                    </Marker>
+                )}
             </MapContainer>
 
-            <div className={styles.mapLegend}>
-                <div className={styles.legendItem}>
-                    <span className={styles.legendIconBlue}></span>
-                    <span>Municipalités</span>
+            {loading && (
+                <div className={styles.mapLoading}>
+                    <div className={styles.loadingSpinner} />
+                    Loading division...
                 </div>
-                <div className={styles.legendItem}>
-                    <span className={styles.legendIconGreen}></span>
-                    <span>Municipalité sélectionnée</span>
+            )}
+
+            {divisionGeometry && (
+                <div className={styles.mapLegend}>
+                    <div className={styles.legendItem}>
+                        <span className={styles.legendIconCyan}></span>
+                        <span>{getDivisionTypeLabel()}</span>
+                    </div>
                 </div>
-            </div>
+            )}
         </div>
     );
 };

@@ -426,7 +426,7 @@ class GlobalSearchEngine:
             'avatar': (user_profile.profile_picture.url
                       if user_profile.profile_picture else None),
             'role': user_profile.role,
-            'location': user_profile.city.name if user_profile.city else None,
+            'location': user_profile.administrative_division.name if user_profile.administrative_division else None,
             'stats': {
                 'followers': user_profile.follower_count,
                 'following': user_profile.following_count,

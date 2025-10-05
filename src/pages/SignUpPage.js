@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Container, Row, Col, Form, Button, Alert, Card } from 'react-bootstrap';
+import { Container, Row, Col, Form, Button, Alert, Card, Modal } from 'react-bootstrap';
 import { Link, useNavigate } from 'react-router-dom';
 import {
   PersonAdd as PersonAddIcon,
@@ -10,21 +10,27 @@ import {
   Email as EmailIcon,
   Person as PersonIcon,
   CalendarToday as CalendarIcon,
-  CheckCircle as CheckCircleIcon
+  Phone as PhoneIcon
 } from '@mui/icons-material';
 import { useAuth } from '../contexts/AuthContext';
 import { useMunicipality } from '../contexts/MunicipalityContext';
-import MunicipalitySelector from '../components/MunicipalitySelector';
+import EnhancedMunicipalitySelector from '../components/EnhancedMunicipalitySelector';
+import PasswordGenerator from '../components/PasswordGenerator';
+import VerifyAccount from '../components/VerifyAccount';
 import styles from './SignUpPage.module.css';
 
 const SignUpPage = () => {
   const [formData, setFormData] = useState({
     firstName: '',
     lastName: '',
+    username: '',
     email: '',
+    phoneNumber: '',
     password: '',
     confirmPassword: '',
     municipality: '',
+    divisionId: '',
+    divisionData: null,
     birthDate: '',
     acceptTerms: false
   });
@@ -34,6 +40,8 @@ const SignUpPage = () => {
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [isVisible, setIsVisible] = useState(false);
   const [mousePosition, setMousePosition] = useState({ x: 0, y: 0 });
+  const [showVerification, setShowVerification] = useState(false);
+  const [registrationEmail, setRegistrationEmail] = useState('');
 
   const { signUp } = useAuth();
   const { getMunicipalitySlug } = useMunicipality();
@@ -93,6 +101,14 @@ const SignUpPage = () => {
     }
   };
 
+  const handlePasswordSelect = (password) => {
+    setFormData(prev => ({ ...prev, password }));
+    // Clear password error if any
+    if (errors.password) {
+      setErrors(prev => ({ ...prev, password: '' }));
+    }
+  };
+
   const validateForm = () => {
     const newErrors = {};
 
@@ -104,10 +120,22 @@ const SignUpPage = () => {
       newErrors.lastName = 'Le nom est requis';
     }
 
+    if (!formData.username.trim()) {
+      newErrors.username = 'Le nom d\'utilisateur est requis';
+    } else if (formData.username.length < 3) {
+      newErrors.username = 'Le nom d\'utilisateur doit contenir au moins 3 caractères';
+    }
+
     if (!formData.email.trim()) {
       newErrors.email = 'L\'email est requis';
     } else if (!/\S+@\S+\.\S+/.test(formData.email)) {
       newErrors.email = 'Format d\'email invalide';
+    }
+
+    if (!formData.phoneNumber.trim()) {
+      newErrors.phoneNumber = 'Le numéro de téléphone est requis';
+    } else if (!/^[+]?[0-9\s\-\(\)]{8,}$/.test(formData.phoneNumber.replace(/\s/g, ''))) {
+      newErrors.phoneNumber = 'Format de numéro de téléphone invalide';
     }
 
     if (!formData.birthDate) {
@@ -115,7 +143,7 @@ const SignUpPage = () => {
     } else {
       const birthDate = new Date(formData.birthDate);
       const today = new Date();
-      const age = today.getFullYear() - birthDate.getFullYear();
+      let age = today.getFullYear() - birthDate.getFullYear();
       const monthDiff = today.getMonth() - birthDate.getMonth();
 
       if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
@@ -139,7 +167,11 @@ const SignUpPage = () => {
       newErrors.confirmPassword = 'Les mots de passe ne correspondent pas';
     }
 
-    if (!formData.municipality) {
+    if (!formData.municipality || !formData.divisionId) {
+      console.log('Validation failed for municipality:', {
+        municipality: formData.municipality,
+        divisionId: formData.divisionId
+      });
       newErrors.municipality = 'Veuillez sélectionner votre municipalité';
     }
 
@@ -159,18 +191,59 @@ const SignUpPage = () => {
     }
 
     setIsLoading(true);
-    try {
-      await signUp(formData);
+    setErrors({});
 
-      // Rediriger vers le dashboard de la municipalité sélectionnée
-      const municipalitySlug = getMunicipalitySlug(formData.municipality);
-      navigate(`/municipality/${municipalitySlug}`, { replace: true });
+    try {
+      const result = await signUp(formData);
+
+      if (result.success && result.requiresVerification) {
+        // Registration successful, show verification modal
+        setRegistrationEmail(result.email || formData.email);
+        setShowVerification(true);
+
+        // Clear the form
+        setFormData({
+          firstName: '',
+          lastName: '',
+          username: '',
+          email: '',
+          phoneNumber: '',
+          password: '',
+          confirmPassword: '',
+          municipality: '',
+          divisionId: '',
+          divisionData: null,
+          birthDate: '',
+          acceptTerms: false
+        });
+      } else if (result.success) {
+        // Direct success (shouldn't happen with new flow, but just in case)
+        const municipalitySlug = getMunicipalitySlug(formData.municipality);
+        navigate(`/municipality/${municipalitySlug}`, { replace: true });
+      }
     } catch (error) {
+      console.error('Registration error:', error);
       setErrors({ general: error.message || 'Erreur lors de l\'inscription' });
     } finally {
       setIsLoading(false);
     }
   };
+
+  const handleVerificationSuccess = (result) => {
+    // Close verification modal
+    setShowVerification(false);
+
+    // Navigate to user's municipality dashboard
+    if (result.user && result.user.municipality) {
+      const municipalitySlug = getMunicipalitySlug(result.user.municipality);
+      navigate(`/municipality/${municipalitySlug}`, { replace: true });
+    } else {
+      // Fallback to login page
+      navigate('/login', { replace: true });
+    }
+  };
+
+  // No manual close handler - modal can only close on successful verification
 
   return (
     <div className={styles.signupPage} onMouseMove={handleMouseMove}>
@@ -273,17 +346,60 @@ const SignUpPage = () => {
                   <div className={styles.inputGroup}>
                     <div className={styles.inputWrapper}>
                       <Form.Control
+                        type="text"
+                        name="username"
+                        placeholder="Nom d'utilisateur"
+                        value={formData.username}
+                        onChange={handleInputChange}
+                        className={`${styles.formInput} ${errors.username ? styles.error : ''}`}
+                        autoComplete="username"
+                        required
+                      />
+                      <PersonIcon className={styles.inputIcon} />
+                    </div>
+                    {errors.username && <div className={styles.errorText}>{errors.username}</div>}
+                    <div className={styles.inputHint}>
+                      Minimum 3 caractères, sera visible par les autres utilisateurs
+                    </div>
+                  </div>
+
+                  <div className={styles.inputGroup}>
+                    <div className={styles.inputWrapper}>
+                      <Form.Control
                         type="email"
                         name="email"
                         placeholder="Adresse email"
                         value={formData.email}
                         onChange={handleInputChange}
                         className={`${styles.formInput} ${errors.email ? styles.error : ''}`}
+                        autoComplete="email"
+                        data-form-type="other"
+                        data-lpignore="true"
                         required
                       />
                       <EmailIcon className={styles.inputIcon} />
                     </div>
                     {errors.email && <div className={styles.errorText}>{errors.email}</div>}
+                  </div>
+
+                  <div className={styles.inputGroup}>
+                    <div className={styles.inputWrapper}>
+                      <Form.Control
+                        type="tel"
+                        name="phoneNumber"
+                        placeholder="Numéro de téléphone"
+                        value={formData.phoneNumber}
+                        onChange={handleInputChange}
+                        className={`${styles.formInput} ${errors.phoneNumber ? styles.error : ''}`}
+                        autoComplete="tel"
+                        required
+                      />
+                      <PhoneIcon className={styles.inputIcon} />
+                    </div>
+                    {errors.phoneNumber && <div className={styles.errorText}>{errors.phoneNumber}</div>}
+                    <div className={styles.inputHint}>
+                      📱 Utilisé pour la vérification de compte et récupération en cas d'oubli
+                    </div>
                   </div>
 
                   <div className={styles.inputGroup}>
@@ -307,22 +423,28 @@ const SignUpPage = () => {
                   </div>
 
                   <div className={styles.inputGroup}>
-                    <div className={styles.inputGroup}>
-                      <MunicipalitySelector
-                        value={formData.municipality}
-                        onChange={(municipality) => {
-                          setFormData(prev => ({ ...prev, municipality }));
-                          setErrors(prev => ({ ...prev, municipality: '' }));
-                        }}
-                        placeholder="Rechercher votre municipalité..."
-                        error={errors.municipality}
-                        required
-                      />
-                    </div>
+                    <EnhancedMunicipalitySelector
+                      value={formData.municipality}
+                      onChange={(municipality, divisionData = null) => {
+                        console.log('Municipality onChange:', { municipality, divisionData });
+                        setFormData(prev => ({
+                          ...prev,
+                          municipality,
+                          divisionId: divisionData?.id || '',
+                          divisionData
+                        }));
+                        setErrors(prev => ({ ...prev, municipality: '' }));
+                      }}
+                      placeholder="Sélectionner votre municipalité..."
+                      error={errors.municipality}
+                      required
+                      autoDetectLocation={true}
+                      disableNavigation={true}
+                    />
                     {errors.municipality && <div className={styles.errorText}>{errors.municipality}</div>}
                     {formData.municipality && (
                       <div className={styles.selectedMunicipality}>
-                        ✓ Municipalité sélectionnée: <strong>{formData.municipality}</strong>
+                        ✓ Division sélectionnée: <strong>{formData.municipality}</strong>
                       </div>
                     )}
                   </div>
@@ -336,15 +458,19 @@ const SignUpPage = () => {
                         value={formData.password}
                         onChange={handleInputChange}
                         className={`${styles.formInput} ${errors.password ? styles.error : ''}`}
+                        autoComplete="new-password"
                         required
                       />
-                      <button
-                        type="button"
-                        className={styles.passwordToggle}
-                        onClick={() => setShowPassword(!showPassword)}
-                      >
-                        {showPassword ? <VisibilityOffIcon /> : <VisibilityIcon />}
-                      </button>
+                      <div className={styles.passwordActions}>
+                        <PasswordGenerator onPasswordSelect={handlePasswordSelect} />
+                        <button
+                          type="button"
+                          className={styles.passwordToggle}
+                          onClick={() => setShowPassword(!showPassword)}
+                        >
+                          {showPassword ? <VisibilityOffIcon /> : <VisibilityIcon />}
+                        </button>
+                      </div>
                     </div>
                     {errors.password && <div className={styles.errorText}>{errors.password}</div>}
                   </div>
@@ -358,15 +484,18 @@ const SignUpPage = () => {
                         value={formData.confirmPassword}
                         onChange={handleInputChange}
                         className={`${styles.formInput} ${errors.confirmPassword ? styles.error : ''}`}
+                        autoComplete="new-password"
                         required
                       />
-                      <button
-                        type="button"
-                        className={styles.passwordToggle}
-                        onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                      >
-                        {showConfirmPassword ? <VisibilityOffIcon /> : <VisibilityIcon />}
-                      </button>
+                      <div className={styles.passwordActions}>
+                        <button
+                          type="button"
+                          className={styles.passwordToggle}
+                          onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                        >
+                          {showConfirmPassword ? <VisibilityOffIcon /> : <VisibilityIcon />}
+                        </button>
+                      </div>
                     </div>
                     {errors.confirmPassword && <div className={styles.errorText}>{errors.confirmPassword}</div>}
                   </div>
@@ -432,6 +561,22 @@ const SignUpPage = () => {
           </Col>
         </Row>
       </Container>
+
+      {/* Email Verification Modal */}
+      <Modal
+        show={showVerification}
+        size="lg"
+        centered
+        backdrop="static"
+        keyboard={false}
+      >
+        <Modal.Body className="p-0">
+          <VerifyAccount
+            initialEmail={registrationEmail}
+            onSuccess={handleVerificationSuccess}
+          />
+        </Modal.Body>
+      </Modal>
     </div>
   );
 };

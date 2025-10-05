@@ -99,21 +99,7 @@
 .conversationsList {
     flex: 1;
     overflow-y: auto;
-    scrollbar-width: thin;
-    scrollbar-color: #bcc0c4 transparent;
-}
-
-.conversationsList::-webkit-scrollbar {
-    width: 6px;
-}
-
-.conversationsList::-webkit-scrollbar-track {
-    background: transparent;
-}
-
-.conversationsList::-webkit-scrollbar-thumb {
-    background: #bcc0c4;
-    border-radius: 3px;
+    /* Using global scrollbar utilities defined in index.css */
 }
 
 .conversationItem {

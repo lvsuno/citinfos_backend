@@ -296,10 +296,35 @@ class AdministrativeDivision(models.Model):
         """Return human-readable admin level name"""
         return dict(self.ADMIN_LEVELS).get(self.admin_level, 'Unknown')
 
+    def get_ancestor_at_level(self, target_level):
+        """
+        Get ancestor at specified level by traversing up the parent chain.
+        Much simpler than database queries - just follow parent links.
+
+        For Sherbrooke (level 4) → returns Québec (level 1)
+        For Commune (level 2) in Benin → returns Department (level 1)
+        """
+        if self.admin_level == target_level:
+            return self
+
+        if self.admin_level < target_level:
+            return None  # Can't go down, only up
+
+        current = self
+        while current and current.admin_level > target_level:
+            current = current.parent
+
+        if current and current.admin_level == target_level:
+            return current
+
+        return None
+
     def save(self, *args, **kwargs):
         # Auto-compute centroid and area from area_geometry
         if self.area_geometry:
-            self.centroid = self.area_geometry.centroid
+            # Use point_on_surface instead of centroid to guarantee point is inside polygon
+            # This is critical for irregular shapes like "TNO aquatique" where centroid can be outside
+            self.centroid = self.area_geometry.point_on_surface
             # Transform to Web Mercator for area calculation, then convert to km²
             area_m2 = self.area_geometry.transform(3857, clone=True).area
             self.area_sqkm = area_m2 / 1_000_000  # Convert to km²
@@ -716,7 +741,8 @@ class Announcement(models.Model):
 
         # Check geographic targeting
         if self.target_countries:
-            if user_profile.country not in self.target_countries:
+            if (user_profile.administrative_division and
+                user_profile.administrative_division.country not in self.target_countries):
                 return False
 
         if self.target_timezones:
@@ -724,7 +750,8 @@ class Announcement(models.Model):
                 return False
 
         if self.target_cities:
-            if user_profile.city not in self.target_cities:
+            if (user_profile.administrative_division and
+                user_profile.administrative_division not in self.target_cities):
                 return False
 
         if self.target_regions:

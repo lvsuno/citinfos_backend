@@ -204,25 +204,33 @@ class Command(BaseCommand):
 
         self.stdout.write(f"Found {len(shapefiles)} shapefiles to analyze...")
 
+        # Detect properties for all shapefiles first
+        shapefile_detections = []
         for shapefile_path in shapefiles:
+            detection = self.detect_shapefile_properties(shapefile_path)
+            if detection:
+                shapefile_detections.append({
+                    'path': shapefile_path,
+                    'detection': detection
+                })
+
+        # Sort by admin_level to ensure parents are created before children
+        shapefile_detections.sort(key=lambda x: x['detection'].get('admin_level', 999))
+
+        # Now import in order
+        for item in shapefile_detections:
+            shapefile_path = item['path']
+            detection = item['detection']
+
             self.stdout.write(f"\nAnalyzing {shapefile_path}...")
+            self.stdout.write(f"  Detected: {detection}")
 
             try:
-                detection = self.detect_shapefile_properties(shapefile_path)
-                if detection:
-                    self.stdout.write(f"  Detected: {detection}")
-
-                    if not self.dry_run:
-                        result = self.import_shapefile(**detection)
-                        self.stdout.write(
-                            self.style.SUCCESS(
-                                f"  Imported {result['created']} records"
-                            )
-                        )
-                else:
+                if not self.dry_run:
+                    result = self.import_shapefile(**detection)
                     self.stdout.write(
-                        self.style.WARNING(
-                            "  Could not auto-detect properties"
+                        self.style.SUCCESS(
+                            f"  Imported {result['created']} records"
                         )
                     )
 
@@ -230,6 +238,17 @@ class Command(BaseCommand):
                 self.stdout.write(
                     self.style.ERROR(
                         f"  Error processing {shapefile_path}: {e}"
+                    )
+                )
+
+        # Report any shapefiles that couldn't be detected
+        detected_paths = {item['path'] for item in shapefile_detections}
+        for shapefile_path in shapefiles:
+            if shapefile_path not in detected_paths:
+                self.stdout.write(f"\nAnalyzing {shapefile_path}...")
+                self.stdout.write(
+                    self.style.WARNING(
+                        "  Could not auto-detect properties"
                     )
                 )
 
@@ -526,6 +545,21 @@ class Command(BaseCommand):
         if admin_level <= 1:
             return None
 
+        # Determine the expected parent level
+        expected_parent_level = admin_level - 1
+        if field_config and 'parent_level' in field_config:
+            expected_parent_level = field_config['parent_level']
+
+        # Check if parent_level is specified without a parent_field (auto-find)
+        if field_config and 'parent_level' in field_config and not field_config.get('parent_field'):
+            # Find any division at the specified parent level
+            parent = AdministrativeDivision.objects.filter(
+                country=country,
+                admin_level=expected_parent_level
+            ).first()
+            if parent:
+                return parent
+
         parent_field = None
         if field_config:
             parent_field = field_config.get('parent_field')
@@ -533,7 +567,7 @@ class Command(BaseCommand):
         if not parent_field:
             # Fallback to generic parent fields
             parent_fields = [
-                f'ADM{admin_level-1}_NAME', f'adm{admin_level-1}_name',
+                f'ADM{expected_parent_level}_NAME', f'adm{expected_parent_level}_name',
                 'PARENT_NAME', 'parent_name'
             ]
         else:
@@ -547,7 +581,7 @@ class Command(BaseCommand):
                         return AdministrativeDivision.objects.get(
                             name=str(parent_name).strip(),
                             country=country,
-                            admin_level=admin_level-1
+                            admin_level=expected_parent_level
                         )
                     except AdministrativeDivision.DoesNotExist:
                         continue
