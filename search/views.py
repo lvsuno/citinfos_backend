@@ -11,7 +11,8 @@ import redis
 from .tasks import cache_recent_searches_by_user_type
 from .global_search import GlobalSearchEngine
 
-from postal.parser import parse_address
+# DISABLED: postal library not in use anymore
+# from postal.parser import parse_address
 
 # Import models for user search
 from accounts.models import UserProfile, Follow
@@ -55,14 +56,15 @@ class UserSearchQueryViewSet(viewsets.ModelViewSet):
         instance.save()
 
 
-class ParseAddressView(APIView):
-    def post(self, request):
-        address = request.data.get('address', '')
-        if not address:
-            return Response({'error': 'No address provided'}, status=400)
-        parsed = parse_address(address)
-        result = {component: value for value, component in parsed}
-        return Response(result)
+# DISABLED: postal library not in use anymore
+# class ParseAddressView(APIView):
+#     def post(self, request):
+#         address = request.data.get('address', '')
+#         if not address:
+#             return Response({'error': 'No address provided'}, status=400)
+#         parsed = parse_address(address)
+#         result = {component: value for value, component in parsed}
+#         return Response(result)
 
 
 class GlobalSearchView(APIView):

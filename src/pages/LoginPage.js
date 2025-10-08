@@ -13,6 +13,7 @@ import {
 import { useAuth } from '../contexts/AuthContext';
 import { getUserRedirectUrl, getMunicipalityBySlug } from '../data/municipalitiesUtils';
 import { getSmartRedirectUrl, shouldRedirectFromUrl } from '../utils/navigationTracker';
+import { getDefaultDivisionUrl } from '../utils/defaultDivisionRedirect';
 import styles from './LoginPage.module.css';
 
 const LoginPage = () => {
@@ -111,13 +112,13 @@ const LoginPage = () => {
                 // Check if backend provided last visited URL from previous session
                 let redirectUrl;
                 let reason;
-                
+
                 if (result.session?.last_visited_url) {
                     const lastVisitedTime = result.session.last_visited_time;
-                    const timeSinceVisit = lastVisitedTime 
+                    const timeSinceVisit = lastVisitedTime
                         ? (Date.now() - new Date(lastVisitedTime).getTime()) / 1000 / 60  // minutes
                         : null;
-                    
+
                     // If session was recent (< 30 min), use last visited URL
                     if (timeSinceVisit !== null && timeSinceVisit < 30) {
                         redirectUrl = result.session.last_visited_url;
@@ -135,7 +136,7 @@ const LoginPage = () => {
                     reason = `LocalStorage fallback: ${smartRedirect.reason}`;
                     console.log('📦 No backend session data, using localStorage');
                 }
-                
+
                 console.log('🎯 Smart redirect decision:', { redirectUrl, reason });
 
                 // Validate that the municipality route exists before redirecting
@@ -150,8 +151,9 @@ const LoginPage = () => {
                         console.log('🔍 DEBUG: Municipality exists:', !!municipalityExists);
 
                         if (!municipalityExists) {
-                            console.warn('⚠️ Municipality not found in data, falling back to dashboard');
-                            navigate('/dashboard');
+                            console.warn('⚠️ Municipality not found in data, falling back to default division');
+                            const defaultUrl = await getDefaultDivisionUrl(result.user, null);
+                            navigate(defaultUrl);
                             return;
                         }
                     }

@@ -34,6 +34,187 @@
     user-select: none;
 }
 
+/* Country Selector Styles */
+.countrySelectorWrapper {
+    position: relative;
+    margin-bottom: 12px;
+}
+
+.countrySelector {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: rgba(51, 65, 85, 0.4);
+    border: 1px solid rgba(71, 85, 105, 0.3);
+    border-radius: 8px;
+    padding: 8px 12px;
+    transition: all 0.3s ease;
+    position: relative;
+}
+
+.countrySelector:hover {
+    background: rgba(51, 65, 85, 0.6);
+    border-color: rgba(132, 204, 22, 0.3);
+}
+
+.countryIcon {
+    color: #84CC16 !important;
+    font-size: 18px !important;
+    flex-shrink: 0;
+}
+
+/* Simple select dropdown (≤20 countries) */
+.countryDropdownSelect {
+    flex: 1;
+    background: transparent;
+    border: none;
+    color: white;
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+    outline: none;
+    font-family: inherit;
+}
+
+.countryDropdownSelect option {
+    background: #1E293B;
+    color: white;
+    padding: 8px;
+}
+
+/* Searchable dropdown button (>20 countries) */
+.countryButton {
+    flex: 1;
+    background: transparent;
+    border: none;
+    color: white;
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+    outline: none;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    padding: 0;
+    font-family: inherit;
+}
+
+.countryName {
+    flex: 1;
+    text-align: left;
+}
+
+.countryExpandIcon {
+    color: #94A3B8 !important;
+    font-size: 20px !important;
+    transition: transform 0.3s ease;
+}
+
+.countryExpandIcon.open {
+    transform: rotate(180deg);
+}
+
+/* Searchable dropdown panel */
+.countryDropdown {
+    position: absolute;
+    top: calc(100% + 4px);
+    left: 0;
+    right: 0;
+    background: rgba(30, 41, 59, 0.98);
+    backdrop-filter: blur(10px);
+    border: 1px solid rgba(71, 85, 105, 0.5);
+    border-radius: 8px;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+    z-index: 1000;
+    max-height: 300px;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+}
+
+.countrySearchBox {
+    padding: 8px;
+    border-bottom: 1px solid rgba(71, 85, 105, 0.3);
+}
+
+.countrySearchInput {
+    width: 100%;
+    background: rgba(51, 65, 85, 0.5);
+    border: 1px solid rgba(71, 85, 105, 0.3);
+    border-radius: 6px;
+    padding: 8px 12px;
+    color: white;
+    font-size: 13px;
+    outline: none;
+    font-family: inherit;
+}
+
+.countrySearchInput:focus {
+    border-color: rgba(132, 204, 22, 0.5);
+    background: rgba(51, 65, 85, 0.7);
+}
+
+.countrySearchInput::placeholder {
+    color: #64748B;
+}
+
+.countryList {
+    overflow-y: auto;
+    max-height: 250px;
+}
+
+.countryOption {
+    width: 100%;
+    background: transparent;
+    border: none;
+    padding: 10px 12px;
+    color: white;
+    font-size: 14px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    font-family: inherit;
+    text-align: left;
+}
+
+.countryOption:hover {
+    background: rgba(132, 204, 22, 0.1);
+}
+
+.countryOption.selected {
+    background: rgba(132, 204, 22, 0.15);
+    color: #84CC16;
+}
+
+.countryOptionName {
+    flex: 1;
+}
+
+.checkIcon {
+    color: #84CC16 !important;
+    font-size: 18px !important;
+}
+
+.noResults {
+    padding: 16px;
+    text-align: center;
+    color: #64748B;
+    font-size: 13px;
+}
+
+.countryIndicator {
+    font-size: 12px;
+    color: #94A3B8;
+    padding: 6px 12px;
+    background: rgba(132, 204, 22, 0.1);
+    border-radius: 6px;
+    margin-bottom: 8px;
+    text-align: center;
+}
+
 /* Bouton principal du sélecteur */
 .selectorButton {
     width: 100%;
@@ -345,6 +526,33 @@
 
 /* Responsive */
 @media (max-width: 768px) {
+    .countrySelector {
+        padding: 6px 10px;
+    }
+
+    .countryDropdownSelect {
+        font-size: 13px;
+    }
+
+    .countryButton {
+        font-size: 13px;
+    }
+
+    .countrySearchInput {
+        font-size: 12px;
+        padding: 6px 10px;
+    }
+
+    .countryOption {
+        padding: 8px 10px;
+        font-size: 13px;
+    }
+
+    .countryIndicator {
+        font-size: 11px;
+        padding: 4px 8px;
+    }
+
     .selectorButton {
         padding: 14px 16px;
         min-height: 55px;

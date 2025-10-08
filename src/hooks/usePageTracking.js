@@ -20,7 +20,7 @@ export const usePageTracking = (divisionData = null) => {
         const now = Date.now();
 
         // Skip if URL hasn't changed or if too soon since last update
-        if (currentUrl === lastUrlRef.current || 
+        if (currentUrl === lastUrlRef.current ||
             now - lastUpdateRef.current < UPDATE_THROTTLE_MS) {
             return;
         }

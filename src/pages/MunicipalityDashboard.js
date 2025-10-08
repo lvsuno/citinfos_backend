@@ -7,11 +7,13 @@ import { isValidUrlPath, getCountryByUrlPath, getAdminDivisionUrlPath, getCountr
 import geolocationService from '../services/geolocationService';
 import { getCurrentDivision, setCurrentDivision, cleanupOldDivisionKeys } from '../utils/divisionStorage';
 import { trackPageVisit } from '../utils/navigationTracker';
+import { getDefaultDivisionUrl } from '../utils/defaultDivisionRedirect';
 import Layout from '../components/Layout';
-import PostCreator from '../components/PostCreator';
 import PostFeed from '../components/PostFeed';
+import PostCreationModal from '../components/PostCreationModal';
 import VerifyAccount from '../components/VerifyAccount';
 import apiService from '../services/apiService';
+import contentAPI from '../services/contentAPI';
 import styles from './MunicipalityDashboard.module.css';
 
 const MunicipalityDashboard = () => {
@@ -29,6 +31,7 @@ const MunicipalityDashboard = () => {
     const [posts, setPosts] = useState([]);
     const [showVerificationModal, setShowVerificationModal] = useState(false);
     const [verificationMessage, setVerificationMessage] = useState('');
+    const [showPostCreationModal, setShowPostCreationModal] = useState(false);
 
     // Detect current URL path (municipality, commune, city, etc.)
     const currentUrlPath = location.pathname.split('/')[1];
@@ -86,7 +89,9 @@ const MunicipalityDashboard = () => {
 
             if (!countryISO3) {
                 console.error('❌ Could not determine country from URL path:', currentUrlPath);
-                navigate('/dashboard');
+                // Redirect to default division instead of dashboard
+                const defaultUrl = await getDefaultDivisionUrl(user, null);
+                navigate(defaultUrl, { replace: true });
                 return;
             }
 
@@ -98,7 +103,16 @@ const MunicipalityDashboard = () => {
 
                 console.log('� Division already loaded from single storage:', currentDivision.name);
                 setPageDivision(currentDivision);
-                switchMunicipality(currentDivision.name, currentDivision.id);
+                switchMunicipality(
+                    currentDivision.name,
+                    currentDivision.id,
+                    {
+                        country: currentDivision.country,
+                        boundary_type: currentDivision.boundary_type,
+                        admin_level: currentDivision.admin_level,
+                        level_1_id: currentDivision.level_1_id
+                    }
+                );
 
                 // Create municipality object
                 const foundMunicipality = getMunicipalityBySlug(municipalitySlug);
@@ -158,8 +172,17 @@ const MunicipalityDashboard = () => {
                         country: countryISO3
                     });
 
-                    // Also update context for backward compatibility
-                    switchMunicipality(divisionWithSlug.name, divisionWithSlug.id);
+                    // Also update context with full division data
+                    switchMunicipality(
+                        divisionWithSlug.name,
+                        divisionWithSlug.id,
+                        {
+                            country: countryISO3,
+                            boundary_type: divisionWithSlug.boundary_type,
+                            admin_level: divisionWithSlug.admin_level,
+                            level_1_id: divisionWithSlug.level_1_id
+                        }
+                    );
 
                     // Try to find in local data for legacy support
                     const foundMunicipality = getMunicipalityBySlug(municipalitySlug);
@@ -178,12 +201,15 @@ const MunicipalityDashboard = () => {
                     }
                 } else {
                     console.error('❌ Division not found:', municipalitySlug);
-                    // Division not found - redirect to dashboard
-                    navigate('/dashboard');
+                    // Division not found - redirect to default division
+                    const defaultUrl = await getDefaultDivisionUrl(user, null);
+                    navigate(defaultUrl, { replace: true });
                 }
             } catch (error) {
                 console.error('❌ Error loading division:', error);
-                navigate('/dashboard');
+                // Error loading - redirect to default division
+                const defaultUrl = await getDefaultDivisionUrl(user, null);
+                navigate(defaultUrl, { replace: true });
             } finally {
                 setLoading(false);
             }
@@ -225,6 +251,30 @@ const MunicipalityDashboard = () => {
         setPosts(prevPosts => [newPost, ...prevPosts]);
     };
 
+    const handleOpenPostCreationModal = () => {
+        setShowPostCreationModal(true);
+    };
+
+    const handleClosePostCreationModal = () => {
+        setShowPostCreationModal(false);
+    };
+
+    const handlePostSubmit = async (postData) => {
+        try {
+            // Submit the post to the API
+            const createdPost = await contentAPI.createPost(postData);
+
+            // Add the new post to the local state
+            handlePostCreated(createdPost);
+
+            // Close the modal
+            setShowPostCreationModal(false);
+        } catch (error) {
+            console.error('Failed to create post:', error);
+            throw error; // Let the modal handle the error display
+        }
+    };
+
     const handleVerificationSuccess = () => {
         setShowVerificationModal(false);
         // Optionally refresh user data or show success message
@@ -262,8 +312,11 @@ const MunicipalityDashboard = () => {
             <div className={styles.error}>
                 <h2>Municipalité non trouvée</h2>
                 <p>La municipalité "{municipalitySlug}" n'a pas été trouvée.</p>
-                <button onClick={() => navigate('/dashboard')}>
-                    Retour au tableau de bord
+                <button onClick={async () => {
+                    const defaultUrl = await getDefaultDivisionUrl(user, null);
+                    navigate(defaultUrl, { replace: true });
+                }}>
+                    Retour à votre division
                 </button>
             </div>
         );
@@ -277,8 +330,15 @@ const MunicipalityDashboard = () => {
             pageDivision={pageDivision}
         >
             <div className={styles.sectionContent}>
-                {renderSectionContent(activeRubrique, municipality, handlePostCreated, posts, user, navigate, pageDivision)}
+                {renderSectionContent(activeRubrique, municipality, handlePostCreated, posts, user, navigate, pageDivision, handleOpenPostCreationModal)}
             </div>
+
+            {/* Post Creation Modal */}
+            <PostCreationModal
+                isOpen={showPostCreationModal}
+                onClose={handleClosePostCreationModal}
+                onSubmit={handlePostSubmit}
+            />
 
             {/* Verification Modal - shows after login if verification required */}
             {showVerificationModal && user && (
@@ -294,8 +354,21 @@ const MunicipalityDashboard = () => {
     );
 };
 
+// Helper function to get user initials (same as TopBar)
+const getUserInitials = (user) => {
+    if (!user) return 'U';
+
+    if (user.firstName && user.lastName) {
+        return `${user.firstName[0]}${user.lastName[0]}`.toUpperCase();
+    }
+    if (user.username) {
+        return user.username.substring(0, 2).toUpperCase();
+    }
+    return 'U';
+};
+
 // Fonction pour rendre le contenu spécifique à chaque section
-const renderSectionContent = (section, municipality, onPostCreated, posts, user, navigate, pageDivision) => {
+const renderSectionContent = (section, municipality, onPostCreated, posts, user, navigate, pageDivision, onOpenPostCreationModal) => {
     const sectionLower = section.toLowerCase();
 
     // Fonction pour obtenir le nom d'affichage de la section
@@ -341,27 +414,104 @@ const renderSectionContent = (section, municipality, onPostCreated, posts, user,
 
     switch (sectionLower) {
         case 'accueil':
+            const divisionName = pageDivision?.name || municipality.nom;
             return (
                 <div className={styles.sectionWrapper}>
                     <div className={styles.sectionCover}>
                         <div className={styles.coverContent}>
-                            <h1 className={styles.sectionTitle}>Accueil - {municipality.nom}</h1>
+                            <h1 className={styles.sectionTitle}>Accueil - {divisionName}</h1>
                             <p className={styles.sectionDescription}>
-                                Découvrez l'activité de votre communauté, connectez-vous avec vos concitoyens et restez informés de tout ce qui se passe à {municipality.nom}.
+                                Découvrez l'activité de votre communauté, connectez-vous avec vos concitoyens et restez informés de tout ce qui se passe à <strong>{divisionName}</strong>.
                             </p>
                         </div>
                     </div>
 
                     <div className={styles.postsSection}>
                         {user && (
-                            <PostCreator
-                                onPostCreated={onPostCreated}
-                                sectionName={getSectionDisplayName(sectionLower)}
-                                municipalityName={municipality.nom}
-                            />
+                            <div
+                                onClick={onOpenPostCreationModal}
+                                style={{
+                                    padding: '16px',
+                                    marginBottom: '20px',
+                                    backgroundColor: 'white',
+                                    borderRadius: '8px',
+                                    border: '1px solid #e1e8ed',
+                                    cursor: 'pointer',
+                                    transition: 'all 0.2s ease',
+                                }}
+                                onMouseEnter={(e) => {
+                                    e.currentTarget.style.borderColor = '#1da1f2';
+                                    e.currentTarget.style.backgroundColor = '#f7f9fa';
+                                }}
+                                onMouseLeave={(e) => {
+                                    e.currentTarget.style.borderColor = '#e1e8ed';
+                                    e.currentTarget.style.backgroundColor = 'white';
+                                }}
+                            >
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                                    <div
+                                        style={{
+                                            width: '40px',
+                                            height: '40px',
+                                            borderRadius: '50%',
+                                            backgroundColor: '#1E293B',
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            justifyContent: 'center',
+                                            overflow: 'hidden',
+                                            flexShrink: 0
+                                        }}
+                                    >
+                                        {user.profile?.profile_picture || user.avatar ? (
+                                            <img
+                                                src={user.profile?.profile_picture || user.avatar}
+                                                alt="Your avatar"
+                                                style={{
+                                                    width: '100%',
+                                                    height: '100%',
+                                                    objectFit: 'cover'
+                                                }}
+                                                onError={(e) => {
+                                                    e.target.style.display = 'none';
+                                                    const fallback = e.target.parentElement.querySelector('.fallback-initials');
+                                                    if (fallback) fallback.style.display = 'flex';
+                                                }}
+                                            />
+                                        ) : null}
+                                        <span
+                                            className="fallback-initials"
+                                            style={{
+                                                color: 'white',
+                                                fontWeight: 'bold',
+                                                fontSize: '16px',
+                                                display: (user.profile?.profile_picture || user.avatar) ? 'none' : 'flex',
+                                                alignItems: 'center',
+                                                justifyContent: 'center',
+                                                width: '100%',
+                                                height: '100%'
+                                            }}
+                                        >
+                                            {getUserInitials(user)}
+                                        </span>
+                                    </div>
+                                    <div
+                                        style={{
+                                            flex: 1,
+                                            padding: '10px 16px',
+                                            backgroundColor: '#f0f2f5',
+                                            borderRadius: '20px',
+                                            color: '#65676b',
+                                            fontSize: '15px'
+                                        }}
+                                    >
+                                        Quoi de neuf, {user.first_name || user.firstName || user.username} ?
+                                    </div>
+                                </div>
+                            </div>
                         )}
                         <PostFeed
-                            municipalityName={municipality.nom}
+                            municipalityName={divisionName}
+                            onCreatePostClick={onOpenPostCreationModal}
                         />
                     </div>
                 </div>
@@ -381,15 +531,91 @@ const renderSectionContent = (section, municipality, onPostCreated, posts, user,
 
                     <div className={styles.postsSection}>
                         {user && (
-                            <PostCreator
-                                onPostCreated={onPostCreated}
-                                sectionName={getSectionDisplayName(sectionLower)}
-                                municipalityName={municipality.nom}
-                            />
+                            <div
+                                onClick={onOpenPostCreationModal}
+                                style={{
+                                    padding: '16px',
+                                    marginBottom: '20px',
+                                    backgroundColor: 'white',
+                                    borderRadius: '8px',
+                                    border: '1px solid #e1e8ed',
+                                    cursor: 'pointer',
+                                    transition: 'all 0.2s ease',
+                                }}
+                                onMouseEnter={(e) => {
+                                    e.currentTarget.style.borderColor = '#1da1f2';
+                                    e.currentTarget.style.backgroundColor = '#f7f9fa';
+                                }}
+                                onMouseLeave={(e) => {
+                                    e.currentTarget.style.borderColor = '#e1e8ed';
+                                    e.currentTarget.style.backgroundColor = 'white';
+                                }}
+                            >
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                                    <div
+                                        style={{
+                                            width: '40px',
+                                            height: '40px',
+                                            borderRadius: '50%',
+                                            backgroundColor: '#1E293B',
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            justifyContent: 'center',
+                                            overflow: 'hidden',
+                                            flexShrink: 0
+                                        }}
+                                    >
+                                        {user.profile?.profile_picture || user.avatar ? (
+                                            <img
+                                                src={user.profile?.profile_picture || user.avatar}
+                                                alt="Your avatar"
+                                                style={{
+                                                    width: '100%',
+                                                    height: '100%',
+                                                    objectFit: 'cover'
+                                                }}
+                                                onError={(e) => {
+                                                    e.target.style.display = 'none';
+                                                    const fallback = e.target.parentElement.querySelector('.fallback-initials');
+                                                    if (fallback) fallback.style.display = 'flex';
+                                                }}
+                                            />
+                                        ) : null}
+                                        <span
+                                            className="fallback-initials"
+                                            style={{
+                                                color: 'white',
+                                                fontWeight: 'bold',
+                                                fontSize: '16px',
+                                                display: (user.profile?.profile_picture || user.avatar) ? 'none' : 'flex',
+                                                alignItems: 'center',
+                                                justifyContent: 'center',
+                                                width: '100%',
+                                                height: '100%'
+                                            }}
+                                        >
+                                            {getUserInitials(user)}
+                                        </span>
+                                    </div>
+                                    <div
+                                        style={{
+                                            flex: 1,
+                                            padding: '10px 16px',
+                                            backgroundColor: '#f0f2f5',
+                                            borderRadius: '20px',
+                                            color: '#65676b',
+                                            fontSize: '15px'
+                                        }}
+                                    >
+                                        Quoi de neuf, {user.first_name || user.firstName || user.username} ?
+                                    </div>
+                                </div>
+                            </div>
                         )}
                         <PostFeed
                             municipalityName={municipality.nom}
                             section={getSectionDisplayName(sectionLower)}
+                            onCreatePostClick={onOpenPostCreationModal}
                         />
                     </div>
                 </div>

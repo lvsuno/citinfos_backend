@@ -1,9 +1,15 @@
 import React from 'react';
+import { useNavigate } from 'react-router-dom';
+import { Add as AddIcon, EditNote as EditNoteIcon } from '@mui/icons-material';
+import { useAuth } from '../contexts/AuthContext';
 import { getPostsByMunicipality, getPostsByMunicipalityAndSection } from '../data/postsData';
 import Post from './Post';
 import styles from './PostFeed.module.css';
 
-const PostFeed = ({ municipalityName, section = null }) => {
+const PostFeed = ({ municipalityName, section = null, onCreatePostClick }) => {
+    const { user } = useAuth();
+    const navigate = useNavigate();
+
     if (!municipalityName) {
         return (
             <div className={styles.emptyState}>
@@ -19,13 +25,40 @@ const PostFeed = ({ municipalityName, section = null }) => {
         ? getPostsByMunicipalityAndSection(municipalityName, section)
         : getPostsByMunicipality(municipalityName);
 
+    const handleCreatePost = () => {
+        if (user) {
+            // If user is logged in and onCreatePostClick callback is provided, use it
+            if (onCreatePostClick) {
+                onCreatePostClick();
+            }
+            // Otherwise the PostCreator above the feed should be visible
+        } else {
+            // Redirect to login page
+            navigate('/login', {
+                state: {
+                    from: window.location.pathname,
+                    message: 'Connectez-vous pour créer une publication'
+                }
+            });
+        }
+    };
+
     if (!posts || posts.length === 0) {
         const sectionText = section ? ` dans la section "${section}"` : '';
         return (
             <div className={styles.emptyState}>
-                <div className={styles.emptyIcon}>📝</div>
+                <div className={styles.emptyIcon}>
+                    <EditNoteIcon style={{ fontSize: '4rem', color: '#06B6D4' }} />
+                </div>
                 <h3>Aucune publication pour le moment</h3>
-                <p>Soyez le premier à partager quelque chose d'intéressant{sectionText} à {municipalityName} !</p>
+                <p>Soyez le premier à partager quelque chose d'intéressant{sectionText} à <strong>{municipalityName}</strong> !</p>
+                <button
+                    className={styles.createPostButton}
+                    onClick={handleCreatePost}
+                >
+                    <AddIcon />
+                    {user ? 'Créer une publication' : 'Se connecter pour publier'}
+                </button>
             </div>
         );
     }

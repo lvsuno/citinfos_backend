@@ -45,10 +45,10 @@ const logout = async () => {
     try {
         setLoading(true);
         console.log('🚪 Starting logout process...');
-        
+
         // Track logout time for smart redirect
         trackLogout();
-        
+
         await apiService.logout();
         // ... rest of logout logic
     }
@@ -314,6 +314,6 @@ clearAllNavigationTracking();
 
 ---
 
-**Version:** 1.0  
-**Last Updated:** 5 octobre 2025  
+**Version:** 1.0
+**Last Updated:** 5 octobre 2025
 **Author:** Development Team

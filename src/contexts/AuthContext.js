@@ -278,10 +278,10 @@ export const AuthProvider = ({ children }) => {
         try {
             setLoading(true);
             console.log('🚪 Starting logout process...');
-            
+
             // Track logout time for smart redirect
             trackLogout();
-            
+
             await apiService.logout();
             console.log('✅ Backend logout completed');
         } catch (error) {

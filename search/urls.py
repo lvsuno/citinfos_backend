@@ -5,7 +5,7 @@ from .views import (
     UserSearchQueryViewSet,
     GlobalSearchView,
     QuickSearchView,
-    ParseAddressView,
+    # ParseAddressView,  # DISABLED: postal library not in use
     UserSearchView
 )
 
@@ -21,6 +21,6 @@ urlpatterns = [
     path('api/search/global/', GlobalSearchView.as_view(), name='global-search'),
     path('api/search/quick/', QuickSearchView.as_view(), name='quick-search'),
     path('api/search/users/', UserSearchView.as_view(), name='user-search'),
-    path('api/search/parse-address/', ParseAddressView.as_view(), name='parse-address'),
+    # path('api/search/parse-address/', ParseAddressView.as_view(), name='parse-address'),  # DISABLED: postal not in use
     path('api/', include(router.urls)),
 ]

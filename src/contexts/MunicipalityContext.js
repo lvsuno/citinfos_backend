@@ -18,26 +18,30 @@ export const MunicipalityProvider = ({ children }) => {
     const [activeMunicipality, setActiveMunicipality] = useState(null);
     const { user } = useAuth();
 
-    const switchMunicipality = useCallback((municipalityName, divisionId = null) => {
+    const switchMunicipality = useCallback(
+        (municipalityName, divisionId = null, additionalData = {}) => {
         // Rechercher la municipalité dans notre base de données
         const municipality = searchMunicipalities(municipalityName, 1)[0];
 
         if (municipality) {
-            // Found in local data - add division ID if provided
+            // Found in local data - add division ID and additional data
             const municipalityWithId = {
                 ...municipality,
-                id: divisionId || municipality.id
+                id: divisionId || municipality.id,
+                ...additionalData  // Merge any additional data (country, etc.)
             };
             setActiveMunicipality(municipalityWithId);
             // Note: We no longer persist to localStorage here
-            // Page divisions are cached with pageDivision_ prefix in MunicipalityDashboard
+            // Page divisions are cached with pageDivision_ prefix
         } else if (divisionId) {
-            // Not in local data but we have API data - create minimal municipality object
+            // Not in local data but we have API data
+            // Create municipality object with all available data
             const apiMunicipality = {
                 id: divisionId,
                 nom: municipalityName,
                 name: municipalityName,
-                fromApi: true
+                fromApi: true,
+                ...additionalData  // Include country and other data
             };
             setActiveMunicipality(apiMunicipality);
         }
@@ -125,6 +129,28 @@ export const MunicipalityProvider = ({ children }) => {
 
     // Fonctions pour obtenir les informations de division administrative
     const getAdminLabels = (language = 'fr') => {
+        // If we have an active municipality with country info, use that
+        if (activeMunicipality?.country) {
+            // Map ISO3 to ISO2 for config lookup
+            const iso3ToISO2 = {
+                'CAN': 'CA',
+                'BEN': 'BJ',
+                'USA': 'US',
+                'FRA': 'FR'
+            };
+
+            const countryISO2 = iso3ToISO2[activeMunicipality.country] || activeMunicipality.country;
+
+            // Get labels for specific country
+            const { getAdminDivisionLabels: getLabelsForCountry, ADMIN_DIVISIONS } = require('../config/adminDivisions');
+            const countryConfig = ADMIN_DIVISIONS[countryISO2];
+
+            if (countryConfig && countryConfig.adminDivision.labels[language]) {
+                return countryConfig.adminDivision.labels[language];
+            }
+        }
+
+        // Fallback to default (current system)
         return getLocalizedAdminLabels(language);
     };
 

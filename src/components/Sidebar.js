@@ -1,5 +1,5 @@
 import React from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams, useLocation } from 'react-router-dom';
 import {
     Home as HomeIcon,
     Palette as ArtIcon,
@@ -16,18 +16,31 @@ import {
     Business as CommerceIcon,
     LocationCity as CentreVilleIcon,
     Map as MapIcon,
+    MyLocation as MyLocationIcon,
     Close as CloseIcon,
 } from '@mui/icons-material';
+import { useAuth } from '../contexts/AuthContext';
 import { useMunicipality } from '../contexts/MunicipalityContext';
 import { getCurrentDivision } from '../utils/divisionStorage';
+import { getAdminDivisionUrlPath, isValidUrlPath } from '../config/adminDivisions';
+import { getDefaultDivisionUrl } from '../utils/defaultDivisionRedirect';
 import MunicipalitySelector from './MunicipalitySelector';
 import styles from './Sidebar.module.css';
 import logo from '../assets/logo.png';
 
 const Sidebar = ({ activeRubrique, onRubriqueChange, isOpen, onClose, municipalityName, pageDivision }) => {
+    const { user } = useAuth();
     const { activeMunicipality, getMunicipalitySlug, getAdminLabels } = useMunicipality();
     const navigate = useNavigate();
+    const location = useLocation();
     const { municipalitySlug } = useParams();
+
+    // Detect current URL path (municipality, commune, city, etc.)
+    const currentUrlPath = location.pathname.split('/')[1];
+    const isCurrentPathValid = isValidUrlPath(currentUrlPath);
+
+    // Use current URL path if valid, otherwise use default
+    const urlPath = isCurrentPathValid ? currentUrlPath : getAdminDivisionUrlPath();
 
     // Obtenir les libellés adaptés à la division administrative
     const adminLabels = getAdminLabels();
@@ -43,9 +56,11 @@ const Sidebar = ({ activeRubrique, onRubriqueChange, isOpen, onClose, municipali
 
     console.log('📋 Sidebar displayName sources:', {
         pageDivision: pageDivision?.name,
+        pageDivisionId: pageDivision?.id,
         municipalityName,
         activeMunicipalityNom: activeMunicipality?.nom,
         activeMunicipalityName: activeMunicipality?.name,
+        activeMunicipalityId: activeMunicipality?.id,
         final: displayName
     });
 
@@ -69,19 +84,26 @@ const Sidebar = ({ activeRubrique, onRubriqueChange, isOpen, onClose, municipali
 
     // Navigation spéciale pour la carte (au niveau global)
     const handleMapClick = () => {
-        navigate('/carte-municipalites');
+        // If we're viewing a specific division, pass it as query param to show it on the map
+        if (pageDivision?.id) {
+            navigate(`/carte?division=${pageDivision.id}`);
+        } else {
+            // Otherwise, open general exploration map
+            navigate('/carte-municipalites');
+        }
     };
 
-    const handleRubriqueClick = (rubrique) => {
-        // Si on est déjà sur une page de municipalité, utiliser le slug existant
+    const handleRubriqueClick = async (rubrique) => {
+        // Get the current slug from URL or active municipality
         const currentSlug = municipalitySlug || (activeMunicipality ? getMunicipalitySlug(activeMunicipality.nom) : null);
 
         if (currentSlug) {
-            // Navigation vers la section de la municipalité actuelle
-            navigate(`/municipality/${currentSlug}/${rubrique.path}`);
+            // Navigation vers la section de la municipalité actuelle using dynamic URL path
+            navigate(`/${urlPath}/${currentSlug}/${rubrique.path}`);
         } else {
-            // Fallback vers le dashboard général
-            navigate('/dashboard');
+            // Fallback to user's default division
+            const defaultUrl = await getDefaultDivisionUrl(user, null);
+            navigate(defaultUrl.replace('/accueil', `/${rubrique.path}`));
         }
 
         // Appeler onRubriqueChange si fourni pour la compatibilité
@@ -117,7 +139,7 @@ const Sidebar = ({ activeRubrique, onRubriqueChange, isOpen, onClose, municipali
                 <div className={styles.municipalitySection}>
                     <MunicipalitySelector currentPageDivision={pageDivision} />
 
-                    {/* Bouton Carte des divisions administratives */}
+                    {/* Bouton Carte des divisions administratives (exploration générale) */}
                     <button
                         className={`${styles.rubriqueButton} ${styles.mapButton}`}
                         onClick={handleMapClick}

@@ -21,9 +21,6 @@ class ApiService {
       withCredentials: true, // Important: send cookies with requests
     });
 
-    this.isRefreshing = false;
-    this.refreshSubscribers = [];
-
     this.setupInterceptors();
   }
 
@@ -50,11 +47,12 @@ class ApiService {
     // Response interceptor for token refresh
     this.api.interceptors.response.use(
       (response) => {
-        // Check for new tokens in response headers (from server-side renewal)
+        // Check for new tokens in response headers (from middleware auto-renewal)
         const newAccessToken = response.headers['x-new-access-token'];
         const newRefreshToken = response.headers['x-new-refresh-token'];
 
         if (newAccessToken) {
+          console.log('🔄 Middleware renewed tokens automatically');
           this.setTokens(newAccessToken, newRefreshToken);
         }
 
@@ -76,59 +74,30 @@ class ApiService {
             return Promise.reject(error);
           }
 
-          // Check if server already renewed tokens in headers
+          // Check if middleware already renewed tokens in headers
           const newAccessToken = error.response.headers?.['x-new-access-token'];
           if (newAccessToken) {
-            console.log('🔄 Server renewed token during error response');
+            console.log('🔄 Middleware renewed token during error response');
             const newRefreshToken = error.response.headers?.['x-new-refresh-token'];
             this.setTokens(newAccessToken, newRefreshToken);
 
             // Retry original request with new token
             originalRequest.headers.Authorization = `Bearer ${newAccessToken}`;
+            originalRequest._retry = true;
             return this.api(originalRequest);
           }
 
-          // Only try manual refresh if we haven't already retried
-          if (this.isRefreshing) {
-            return new Promise((resolve) => {
-              this.refreshSubscribers.push((token) => {
-                originalRequest.headers.Authorization = `Bearer ${token}`;
-                resolve(this.api(originalRequest));
-              });
-            });
-          }
-
-          originalRequest._retry = true;
-          this.isRefreshing = true;
-
-          try {
-            const newToken = await this.refreshAccessToken();
-            this.onRefreshed(newToken);
-            originalRequest.headers.Authorization = `Bearer ${newToken}`;
-            return this.api(originalRequest);
-          } catch (refreshError) {
-            // Only clear tokens and redirect if refresh actually failed due to session
-            const refreshErrorData = refreshError.response?.data || {};
-            if (refreshErrorData.code === 'SESSION_EXPIRED' || refreshErrorData.code === 'SESSION_INVALID') {
-              this.clearTokens();
-              window.dispatchEvent(new CustomEvent('sessionExpired', {
-                detail: { reason: 'session_expired_on_refresh' }
-              }));
-            }
-            return Promise.reject(refreshError);
-          } finally {
-            this.isRefreshing = false;
-          }
+          // If no renewal from middleware, session is invalid - redirect to login
+          this.clearTokens();
+          window.dispatchEvent(new CustomEvent('sessionExpired', {
+            detail: { reason: 'token_refresh_failed' }
+          }));
+          return Promise.reject(error);
         }
 
         return Promise.reject(error);
       }
     );
-  }
-
-  onRefreshed(token) {
-    this.refreshSubscribers.map(callback => callback(token));
-    this.refreshSubscribers = [];
   }
 
   // Token management
@@ -151,21 +120,6 @@ class ApiService {
     localStorage.removeItem(ACCESS_TOKEN_KEY);
     localStorage.removeItem(REFRESH_TOKEN_KEY);
     localStorage.removeItem('currentUser');
-  }
-
-  async refreshAccessToken() {
-    const refreshToken = this.getRefreshToken();
-    if (!refreshToken) {
-      throw new Error('No refresh token available');
-    }
-
-    const response = await axios.post(`${API_BASE_URL}/auth/refresh/`, {
-      refresh: refreshToken,
-    });
-
-    const { access } = response.data;
-    this.setTokens(access);
-    return access;
   }
 
   isAuthenticated() {

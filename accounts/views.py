@@ -179,23 +179,47 @@ def email_verify(request):
         # Check code and is_active (case-insensitive comparison)
         if vcode.code.upper() != code.upper() or not vcode.is_active:
             return Response({'error': 'Invalid or expired code.'}, status=400)
-        # Mark code as used and activate user
-        vcode.is_used = True
-        vcode.save()
 
-        # Update verification status with timestamp
-        from django.utils import timezone
-        user_profile.is_verified = True
-        user_profile.last_verified_at = timezone.now()
-        user_profile.save(update_fields=['is_verified', 'last_verified_at'])
+        # Use the proper use_code() method which handles:
+        # 1. Marking code as used
+        # 2. Setting is_verified = True
+        # 3. Setting last_verified_at timestamp
+        # 4. Assigning registration_index (for badges)
+        if not vcode.use_code():
+            return Response(
+                {'error': 'Code already used or expired.'},
+                status=400
+            )
 
         # Activate the user account
         user_obj.is_active = True
         user_obj.save()
 
+        # Track verification event
+        from .models import UserEvent
+        try:
+            UserEvent.objects.create(
+                user=user_profile,
+                event_type='email_verify',
+                description=f'Email verified for {user_profile.user.email}',
+                metadata={
+                    'email': user_profile.user.email,
+                    'registration_index': user_profile.registration_index,
+                    'verified_at': user_profile.last_verified_at.isoformat()
+                },
+                success=True
+            )
+        except Exception as e:
+            # Don't fail verification if event logging fails
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.error(f"Failed to log verification event: {e}")
+
         return Response({
             'success': True,
-            'message': 'Account verified successfully.'
+            'message': 'Account verified successfully.',
+            # Include registration_index for frontend
+            'registration_index': user_profile.registration_index
         })
     return Response(serializer.errors, status=400)
 

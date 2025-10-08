@@ -187,3 +187,30 @@ export const getCountryISO3ByUrlPath = (urlPath) => {
 
   return null;
 };
+
+/**
+ * Get URL path by ISO3 country code
+ * Maps ISO3 codes like 'CAN' -> 'municipality', 'BEN' -> 'commune'
+ */
+export const getUrlPathByISO3 = (iso3Code) => {
+  // Map ISO3 codes to ISO2
+  const iso3ToISO2 = {
+    'CAN': 'CA',
+    'BEN': 'BJ',
+    'USA': 'US',
+    'FRA': 'FR'
+  };
+
+  const iso2Code = iso3ToISO2[iso3Code];
+  if (!iso2Code) {
+    console.warn('Unknown ISO3 code:', iso3Code);
+    return 'municipality'; // Default fallback
+  }
+
+  const config = ADMIN_DIVISIONS[iso2Code];
+  if (config && config.hasData) {
+    return config.adminDivision.urlPath;
+  }
+
+  return 'municipality'; // Default fallback
+};

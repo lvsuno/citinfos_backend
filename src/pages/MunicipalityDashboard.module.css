@@ -67,6 +67,12 @@
     color: rgba(255, 255, 255, 0.85);
 }
 
+.sectionDescription strong {
+    color: #FFFFFF;
+    font-weight: 600;
+    text-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+}
+
 .loading {
     display: flex;
     flex-direction: column;

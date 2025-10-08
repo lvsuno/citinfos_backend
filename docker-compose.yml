@@ -122,6 +122,8 @@ services:
     volumes:
       - ./src:/app/src
       - ./public:/app/public
+      - ./tailwind.config.js:/app/tailwind.config.js
+      - ./postcss.config.js:/app/postcss.config.js
     ports:
       - "3000:3000"
     env_file:

@@ -42,10 +42,7 @@ class OptimizedAuthenticationMiddleware(MiddlewareMixin):
             '/api/auth/verification-status/',  # Check verification status
             '/api/auth/generate-passwords/',  # Password generation endpoint
             '/api/auth/validate-password/',   # Password validation endpoint
-            # '/api/auth/logout/',  # Logout endpoint
-            # '/api/auth/me/',  # Current user endpoint
-
-            '/api/auth/refresh/',
+            '/api/auth/password-reset-confirm/',  # Password reset (public)
 
             # Geolocation endpoints (for registration and anonymous browsing)
             '/api/auth/location-data/',  # IP-based location detection
@@ -53,10 +50,6 @@ class OptimizedAuthenticationMiddleware(MiddlewareMixin):
             '/api/auth/countries/',  # List available countries
             '/api/auth/divisions/',  # Browse divisions by country/level
             '/api/auth/division-neighbors/',  # Get neighboring divisions
-
-            # Alternative auth endpoints
-            '/api/auth/change-password/',
-            '/api/auth/password-reset/',
 
             # Social authentication endpoints (Django AllAuth)
             '/api/auth/social/',

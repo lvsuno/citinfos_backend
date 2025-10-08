@@ -1,11 +1,14 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { useMunicipality } from '../contexts/MunicipalityContext';
 import { getMunicipalitiesStats, searchMunicipalities } from '../data/municipalitiesUtils';
 import { getCurrentDivision } from '../utils/divisionStorage';
+import { getPreferredCountry, setPreferredCountry } from '../utils/countryPreference';
+import { getUrlPathByISO3 } from '../config/adminDivisions';
 import Layout from '../components/Layout';
 import MunicipalitiesMap from '../components/MunicipalitiesMap';
+import ShareMapCard from '../components/ShareMapCard';
 import geolocationService from '../services/geolocationService';
 import {
     LocationOn as LocationIcon,
@@ -13,15 +16,24 @@ import {
     People as PeopleIcon,
     Public as PublicIcon,
     TrendingUp as TrendingUpIcon,
-    ArrowForward as ArrowForwardIcon,
     Explore as ExploreIcon,
     ExpandMore as ExpandMoreIcon,
     ExpandMore,
-    Check
+    Check,
+    ArrowForward as ArrowForwardIcon
 } from '@mui/icons-material';
 import styles from './MapPage.module.css';
 
 const MapPage = () => {
+    const [searchParams] = useSearchParams();
+    const divisionIdFromUrl = searchParams.get('division'); // Read ?division={id} from URL
+
+    console.log('🔗 MapPage mounted - URL params:', {
+        divisionIdFromUrl,
+        fullUrl: window.location.href,
+        searchParams: searchParams.toString()
+    });
+
     const { activeMunicipality, getMunicipalitySlug, switchMunicipality, getAdminLabels } = useMunicipality();
     const [selectedMunicipality, setSelectedMunicipality] = useState(activeMunicipality);
     const [searchQuery, setSearchQuery] = useState('');
@@ -41,6 +53,7 @@ const MapPage = () => {
 
     // Store the full division hierarchy from API
     const [divisionHierarchy, setDivisionHierarchy] = useState(null);
+    const [loadingDivisionHierarchy, setLoadingDivisionHierarchy] = useState(false);
 
     // Obtenir les libellés adaptés à la division administrative
     const adminLabels = getAdminLabels();
@@ -166,7 +179,34 @@ const MapPage = () => {
         loadCountries();
     }, []); // Load countries only once on mount
 
-    // Fetch division details and auto-select country based on activeMunicipality or stored division
+    // Listen for country preference changes from other components (e.g., left menu)
+    useEffect(() => {
+        const handleCountryPreferenceChange = (event) => {
+            const newCountryISO3 = event.detail;
+            console.log('🔄 MapPage - Country preference changed from another component:', newCountryISO3);
+
+            // Find the new country in our countries list and select it
+            if (countries && countries.length > 0) {
+                const newCountry = countries.find(c => c.iso3 === newCountryISO3);
+                if (newCountry && newCountry.id !== selectedCountry?.id) {
+                    console.log('✅ MapPage - Syncing to new country:', newCountry.name);
+                    setSelectedCountry(newCountry);
+                    // Clear related state when country changes from external source
+                    setSelectedLevel1(null);
+                    setDefaultLevelDivisions([]);
+                    setSelectedDefaultDivision(null);
+                    setDivisionHierarchy(null);
+                    setMunicipalitySearchTerm('');
+                    setDropdownOpen(false);
+                }
+            }
+        };
+
+        window.addEventListener('countryPreferenceChanged', handleCountryPreferenceChange);
+        return () => window.removeEventListener('countryPreferenceChanged', handleCountryPreferenceChange);
+    }, [countries, selectedCountry]); // React to countries being loaded or selectedCountry changing
+
+    // Fetch division details and auto-select country based on URL param, activeMunicipality, or stored division
     // This calls the API to get full division hierarchy (country + level 1 parent)
     useEffect(() => {
         if (!countries || countries.length === 0) {
@@ -176,8 +216,23 @@ const MapPage = () => {
         const loadDivisionHierarchy = async () => {
             let divisionId = null;
 
+            // PRIORITY 0: Use division ID from URL query param (?division={id})
+            if (divisionIdFromUrl) {
+                // Don't reload if we already have this division loaded
+                if (divisionHierarchy?.id === divisionIdFromUrl) {
+                    console.log('⏭️ MapPage - Division already loaded from URL, skipping reload');
+                    return;
+                }
+                divisionId = divisionIdFromUrl;
+                console.log('🔗 MapPage - Using division ID from URL:', divisionId);
+            }
             // PRIORITY 1: Use activeMunicipality ID
-            if (activeMunicipality?.id) {
+            else if (activeMunicipality?.id) {
+                // Don't reload if we already have this division loaded
+                if (divisionHierarchy?.id === activeMunicipality.id) {
+                    console.log('⏭️ MapPage - Division already loaded from context, skipping reload');
+                    return;
+                }
                 divisionId = activeMunicipality.id;
                 console.log('🔍 MapPage - Using activeMunicipality ID:', divisionId);
             }
@@ -185,6 +240,11 @@ const MapPage = () => {
             else {
                 const currentDivision = getCurrentDivision();
                 if (currentDivision?.id) {
+                    // Don't reload if we already have this division loaded
+                    if (divisionHierarchy?.id === currentDivision.id) {
+                        console.log('⏭️ MapPage - Division already loaded from storage, skipping reload');
+                        return;
+                    }
                     divisionId = currentDivision.id;
                     console.log('🔍 MapPage - Using localStorage division ID:', divisionId);
                 }
@@ -192,39 +252,72 @@ const MapPage = () => {
 
             // If we have a division ID, fetch its full hierarchy via neighbors endpoint
             if (divisionId) {
-                console.log('📡 MapPage - Fetching division hierarchy from API...');
+                console.log('📡 MapPage - Fetching division hierarchy from API...', { divisionId });
+                setLoadingDivisionHierarchy(true);
                 const result = await geolocationService.getDivisionNeighbors(divisionId, 0);
+
+                console.log('📡 MapPage - API response:', result);
 
                 if (result.success && result.division) {
                     const division = result.division;
                     console.log('✅ MapPage - Division hierarchy loaded:', division);
-
-                    // Store the full hierarchy for later use
-                    setDivisionHierarchy(division);
 
                     // Extract country from division response
                     if (division.country) {
                         const countryToSelect = countries.find(c => c.iso3 === division.country.iso3);
                         if (countryToSelect) {
                             console.log('✅ MapPage - Country detected from API:', countryToSelect.name);
+
+                            // CRITICAL: Batch all state updates together using React 18 automatic batching
+                            // This prevents multiple re-renders and zoom animations
+                            console.log('📍 MapPage - Batching state updates for division:', {
+                                id: division.id,
+                                name: division.name,
+                                country: division.country?.iso3
+                            });
+
+                            // Set all states in sequence - React 18 will batch them automatically
+                            setDivisionHierarchy(division);
                             setSelectedCountry(countryToSelect);
+                            setSelectedDefaultDivision(division);
+                            setSelectedMunicipality(division);
+                            setLoadingDivisionHierarchy(false);
                             return; // Done!
+                        } else {
+                            console.error('❌ MapPage - Country not found in countries list:', division.country.iso3);
                         }
+                    } else {
+                        console.error('❌ MapPage - No country in division response');
                     }
+                } else {
+                    console.error('❌ MapPage - API call failed or no division:', result);
                 }
+                setLoadingDivisionHierarchy(false);
+            } else {
+                console.log('⚠️ MapPage - No division ID to load');
             }
 
             // FALLBACK: Try other detection methods if API call failed
             let countryToSelect = null;
 
-            // Try activeMunicipality country property
-            if (activeMunicipality?.country) {
+            // PRIORITY 1: Check country preference from localStorage (set by left menu)
+            const preferredCountryISO3 = getPreferredCountry(user);
+            if (preferredCountryISO3) {
+                console.log('🌍 MapPage - Checking country preference from localStorage:', preferredCountryISO3);
+                countryToSelect = countries.find(c => c.iso3 === preferredCountryISO3);
+                if (countryToSelect) {
+                    console.log('✅ MapPage - Using preferred country:', countryToSelect.name);
+                }
+            }
+
+            // PRIORITY 2: Try activeMunicipality country property
+            if (!countryToSelect && activeMunicipality?.country) {
                 const municipalityCountry = activeMunicipality.country?.iso3 || activeMunicipality.country;
                 console.log('🌍 MapPage - Detecting country from activeMunicipality property:', municipalityCountry);
                 countryToSelect = countries.find(c => c.iso3 === municipalityCountry);
             }
 
-            // Try localStorage division country
+            // PRIORITY 3: Try localStorage division country
             if (!countryToSelect) {
                 const currentDivision = getCurrentDivision();
                 if (currentDivision?.country) {
@@ -233,7 +326,7 @@ const MapPage = () => {
                 }
             }
 
-            // Try user location
+            // PRIORITY 4: Try user location
             if (!countryToSelect) {
                 const effectiveLocation = getEffectiveLocation();
                 if (effectiveLocation?.country) {
@@ -265,7 +358,7 @@ const MapPage = () => {
         };
 
         loadDivisionHierarchy();
-    }, [countries, activeMunicipality, user, anonymousLocation]); // React to activeMunicipality changes
+    }, [countries, activeMunicipality, user, anonymousLocation, divisionIdFromUrl]); // React to URL param, activeMunicipality changes
 
     // Load level 1 divisions when country is selected
     useEffect(() => {
@@ -277,6 +370,12 @@ const MapPage = () => {
                 setSelectedDefaultDivision(null); // Clear selected division
                 return;
             }
+
+            // CRITICAL: Clear level1 divisions immediately when country changes
+            // This prevents showing old country's data while loading
+            console.log('🔄 MapPage - Loading level 1 divisions for:', selectedCountry.name);
+            setLevel1Divisions([]); // Clear first
+            setSelectedLevel1(null); // Clear selection
 
             setLoadingLevel1(true);
             const result = await geolocationService.getDivisionsByLevel(
@@ -290,31 +389,41 @@ const MapPage = () => {
                 setLevel1Divisions(result.divisions);
 
                 // Try to auto-select level 1 division from hierarchy API or user location
+                // BUT ONLY if the hierarchy matches the current country
                 let level1ToSelect = null;
 
-                // PRIORITY 1: Use level_1_parent from division hierarchy API
-                if (divisionHierarchy?.level_1_parent) {
+                // PRIORITY 1: Use level_1_parent from division hierarchy API (only if country matches)
+                if (divisionHierarchy?.level_1_parent && divisionHierarchy?.country?.iso3 === selectedCountry.iso3) {
                     console.log('📍 MapPage - Auto-selecting level 1 from hierarchy:', divisionHierarchy.level_1_parent.name);
                     level1ToSelect = result.divisions.find(d => d.id === divisionHierarchy.level_1_parent.id);
                 }
 
-                // PRIORITY 2: Try effectiveLocation level_1_id
+                // PRIORITY 2: Try effectiveLocation level_1_id (only if country matches)
                 if (!level1ToSelect) {
                     const effectiveLocation = getEffectiveLocation();
-                    if (effectiveLocation?.level_1_id) {
+                    const userCountryMatches = effectiveLocation?.country === selectedCountry.iso3 ||
+                                              effectiveLocation?.country === selectedCountry.iso2 ||
+                                              effectiveLocation?.country === selectedCountry.name;
+
+                    if (userCountryMatches && effectiveLocation?.level_1_id) {
                         level1ToSelect = result.divisions.find(d => d.id === effectiveLocation.level_1_id);
-                    } else if (user?.profile?.administrative_division?.admin_level === 1) {
+                    } else if (userCountryMatches && user?.profile?.administrative_division?.admin_level === 1) {
                         level1ToSelect = result.divisions.find(d => d.id === effectiveLocation?.division_id);
                     }
                 }
 
-                // Fallback to first division if no match
-                if (!level1ToSelect && result.divisions.length > 0) {
+                // Don't auto-select first division when exploring
+                // Only auto-select if we have a valid reason (hierarchy or user location match)
+                // Fallback to first division ONLY if hierarchy exists and matches
+                if (!level1ToSelect && divisionHierarchy?.country?.iso3 === selectedCountry.iso3 && result.divisions.length > 0) {
+                    console.log('📍 MapPage - Auto-selecting first level 1 division from hierarchy context');
                     level1ToSelect = result.divisions[0];
                 }
 
                 if (level1ToSelect) {
                     setSelectedLevel1(level1ToSelect);
+                } else {
+                    console.log('🗺️ MapPage - No auto-selection, user should manually select level 1');
                 }
             }
             setLoadingLevel1(false);
@@ -448,7 +557,15 @@ const MapPage = () => {
         if (selectedMunicipality) {
             switchMunicipality(selectedMunicipality.name || selectedMunicipality.nom, selectedMunicipality.id);
             const slug = getMunicipalitySlug(selectedMunicipality.name || selectedMunicipality.nom);
-            navigate(`/municipality/${slug}`);
+
+            // Get URL path based on country
+            const countryISO3 = selectedMunicipality.country?.iso3 ||
+                               selectedCountry?.iso3 ||
+                               getPreferredCountry();
+            const urlPath = getUrlPathByISO3(countryISO3);
+
+            console.log('🔗 MapPage navigation:', { slug, countryISO3, urlPath });
+            navigate(`/${urlPath}/${slug}/accueil`);
         }
     };
 
@@ -459,36 +576,6 @@ const MapPage = () => {
             setSelectedMunicipality(division);
         }
     };
-
-    // Helper to get singular division type in French
-    const getDivisionTypeSingular = () => {
-        if (!selectedCountry) return 'Division';
-
-        // Map country's default_division_name to singular French form
-        const divisionName = selectedCountry.default_division_name?.toLowerCase();
-
-        const singularMap = {
-            'municipalités': 'Municipalité',
-            'municipalities': 'Municipalité',
-            'communes': 'Commune',
-            'villes': 'Ville',
-            'cities': 'Ville',
-            'arrondissements': 'Arrondissement',
-            'régions': 'Région',
-            'regions': 'Région',
-            'provinces': 'Province',
-            'départements': 'Département',
-            'departments': 'Département',
-            'préfectures': 'Préfecture',
-            'prefectures': 'Préfecture',
-        };
-
-        return singularMap[divisionName] || 'Division';
-    };
-
-
-
-
 
     const title = "Explorez le Québec";
     const subtitle = `Découvrez les ${adminLabels.plural} du Québec`;
@@ -535,6 +622,8 @@ const MapPage = () => {
                                 onChange={(e) => {
                                     const country = countries.find(c => c.id === e.target.value);
                                     setSelectedCountry(country);
+                                    // Map is for exploration - don't save preference to avoid disrupting left menu context
+                                    console.log('�️ MapPage - Exploring country:', country?.name);
                                     setSelectedLevel1(null);
                                     setDefaultLevelDivisions([]);
                                     setSelectedDefaultDivision(null); // Clear selected division when country changes
@@ -656,7 +745,14 @@ const MapPage = () => {
                                                         );
 
                                                         if (searchResult.success) {
-                                                            setDefaultLevelDivisions(searchResult.results);
+                                                            // Filter results by selectedLevel1 if available
+                                                            let filteredResults = searchResult.results;
+                                                            if (selectedLevel1) {
+                                                                filteredResults = searchResult.results.filter(
+                                                                    div => div.level_1_id === selectedLevel1.id
+                                                                );
+                                                            }
+                                                            setDefaultLevelDivisions(filteredResults);
                                                         }
                                                     } else if (searchValue.trim().length === 0) {
                                                         // Reload default 10 divisions when search is cleared
@@ -667,16 +763,19 @@ const MapPage = () => {
                                                             divisionId = divisionHierarchy.id;
                                                         }
 
-                                                        const result = await geolocationService.getDivisionsByLevel(
-                                                            selectedCountry.id,
-                                                            selectedCountry.default_admin_level,
-                                                            selectedLevel1.id,
-                                                            10,
-                                                            divisionId
-                                                        );
+                                                        // Only reload if we have a level1 selected
+                                                        if (selectedLevel1) {
+                                                            const result = await geolocationService.getDivisionsByLevel(
+                                                                selectedCountry.id,
+                                                                selectedCountry.default_admin_level,
+                                                                selectedLevel1.id,
+                                                                10,
+                                                                divisionId
+                                                            );
 
-                                                        if (result.success) {
-                                                            setDefaultLevelDivisions(result.divisions);
+                                                            if (result.success) {
+                                                                setDefaultLevelDivisions(result.divisions);
+                                                            }
                                                         }
                                                     }
                                                 }}
@@ -740,12 +839,20 @@ const MapPage = () => {
                     {/* Section principale avec carte et infos */}
                     <div className={styles.mapArea}>
                         <div className={styles.mapContainer}>
-                            <MunicipalitiesMap
-                                selectedMunicipality={selectedDefaultDivision}
-                                onMunicipalitySelect={handleMunicipalitySelect}
-                                selectedCountry={selectedCountry}
-                                height="500px"
-                            />
+                            {loadingDivisionHierarchy ? (
+                                <div className={styles.mapLoadingState}>
+                                    <div className={styles.loadingSpinner} />
+                                    <p>Chargement de la carte...</p>
+                                </div>
+                            ) : (
+                                <MunicipalitiesMap
+                                    selectedMunicipality={selectedDefaultDivision}
+                                    onMunicipalitySelect={handleMunicipalitySelect}
+                                    selectedCountry={selectedCountry}
+                                    selectedLevel1={selectedLevel1}
+                                    height="500px"
+                                />
+                            )}
 
                             {/* Overlay avec informations */}
                             {selectedMunicipality && (
@@ -803,33 +910,11 @@ const MapPage = () => {
                             </div>
                         )}
 
-                        {/* Sélection actuelle */}
-                        {selectedMunicipality && (
-                            <div className={styles.compactSelectedCard}>
-                                <div className={styles.compactCardHeader}>
-                                    <LocationIcon className={styles.compactCardIcon} />
-                                    <span className={styles.compactCardTitle}>{getDivisionTypeSingular()} sélectionnée</span>
-                                </div>
-                                <div className={styles.compactSelectedContent}>
-                                    <div className={styles.compactMunicipalityInfo}>
-                                        <h4 className={styles.compactMunicipalityName}>{selectedMunicipality.nom}</h4>
-                                        <p className={styles.compactMunicipalityRegion}>📍 {selectedMunicipality.region}</p>
-                                        {selectedMunicipality.population && (
-                                            <p className={styles.compactMunicipalityPop}>
-                                                👥 {selectedMunicipality.population.toLocaleString('fr-CA')}
-                                            </p>
-                                        )}
-                                    </div>
-                                    <button
-                                        className={styles.compactVisitButton}
-                                        onClick={handleVisitMunicipality}
-                                    >
-                                        Explorer
-                                        <ArrowForwardIcon className={styles.compactButtonIcon} />
-                                    </button>
-                                </div>
-                            </div>
-                        )}
+                        {/* Share Map Card - Always visible */}
+                        <ShareMapCard
+                            selectedDivision={selectedDefaultDivision}
+                            selectedCountry={selectedCountry}
+                        />
                     </div>
                 </div>
             </div>

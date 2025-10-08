@@ -47,7 +47,7 @@ The frontend receives the session data and decides:
 ```javascript
 if (result.session?.last_visited_url) {
     const timeSinceVisit = (Date.now() - new Date(lastVisitedTime)) / 1000 / 60;
-    
+
     if (timeSinceVisit < 30) {
         // Recent session - continue where they left off
         redirectUrl = result.session.last_visited_url;
@@ -81,7 +81,7 @@ if (result.session?.last_visited_url) {
 def update_last_visited_url(request):
     """Track page visit by creating UserEvent with URL metadata"""
     url = request.data.get('url')
-    
+
     UserEvent.objects.create(
         user=profile,
         session=session,
@@ -112,12 +112,12 @@ if recent_event:
 // hooks/usePageTracking.js
 export const usePageTracking = (divisionData = null) => {
     const location = useLocation();
-    
+
     useEffect(() => {
         // Skip login/register pages
         const skipPages = ['/login', '/register', '/'];
         if (skipPages.includes(location.pathname)) return;
-        
+
         // Track with backend
         apiService.updateLastVisitedUrl(location.pathname);
     }, [location.pathname]);

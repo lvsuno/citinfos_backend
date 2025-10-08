@@ -1,11 +1,11 @@
 /**
  * Navigation Tracker - Tracks user's page visits for smart login redirect
- * 
+ *
  * Tracks:
  * - Last visited division URL
  * - Timestamp of last visit
  * - Time since logout
- * 
+ *
  * Used to determine where to redirect user after login:
  * - Recent session (< 30 min) → Return to last visited page
  * - Old session (> 30 min) → Go to user's home division
@@ -27,17 +27,17 @@ const SESSION_TIMEOUT_MINUTES = 30;
  */
 export const trackPageVisit = (url, divisionData = null) => {
     const currentTime = Date.now();
-    
+
     localStorage.setItem(STORAGE_KEYS.LAST_VISITED_URL, url);
     localStorage.setItem(STORAGE_KEYS.LAST_VISITED_TIME, currentTime.toString());
-    
+
     if (divisionData) {
         localStorage.setItem(
             STORAGE_KEYS.LAST_VISITED_DIVISION,
             JSON.stringify(divisionData)
         );
     }
-    
+
     console.log('📍 Navigation tracked:', { url, time: new Date(currentTime).toISOString() });
 };
 
@@ -59,7 +59,7 @@ export const getSmartRedirectUrl = (userHomeDivisionUrl) => {
     const lastVisitedUrl = localStorage.getItem(STORAGE_KEYS.LAST_VISITED_URL);
     const lastVisitedTime = localStorage.getItem(STORAGE_KEYS.LAST_VISITED_TIME);
     const logoutTime = localStorage.getItem(STORAGE_KEYS.LOGOUT_TIME);
-    
+
     // If no previous visit data, go home
     if (!lastVisitedUrl || !lastVisitedTime) {
         return {
@@ -67,20 +67,20 @@ export const getSmartRedirectUrl = (userHomeDivisionUrl) => {
             reason: 'No previous visit data - going to home division'
         };
     }
-    
+
     const currentTime = Date.now();
     const lastVisitTimestamp = parseInt(lastVisitedTime);
     const logoutTimestamp = logoutTime ? parseInt(logoutTime) : lastVisitTimestamp;
-    
+
     // Calculate time since logout (or last visit if no logout tracked)
     const timeSinceLogout = (currentTime - logoutTimestamp) / 1000 / 60; // minutes
-    
+
     console.log('🧭 Smart redirect calculation:', {
         lastVisitedUrl,
         timeSinceLogout: `${timeSinceLogout.toFixed(1)} minutes`,
         threshold: `${SESSION_TIMEOUT_MINUTES} minutes`
     });
-    
+
     // Recent session (< 30 minutes) - continue where they left off
     if (timeSinceLogout < SESSION_TIMEOUT_MINUTES) {
         return {
@@ -88,7 +88,7 @@ export const getSmartRedirectUrl = (userHomeDivisionUrl) => {
             reason: `Recent session (${timeSinceLogout.toFixed(1)} min ago) - continuing`
         };
     }
-    
+
     // Old session (> 30 minutes) - go to home division
     return {
         url: userHomeDivisionUrl,

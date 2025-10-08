@@ -1,10 +1,12 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { LocationOn, ExpandMore, Check } from '@mui/icons-material';
+import { LocationOn, ExpandMore, Check, Public } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
 import { useMunicipality } from '../contexts/MunicipalityContext';
 import { useAuth } from '../contexts/AuthContext';
 import geolocationService from '../services/geolocationService';
 import { setCurrentDivision } from '../utils/divisionStorage';
+import { getPreferredCountry, setPreferredCountry, isBrowsingDifferentCountry, getCountryName } from '../utils/countryPreference';
+import { getAdminDivisionUrlPath, getUrlPathByISO3 } from '../config/adminDivisions';
 import styles from './MunicipalitySelector.module.css';
 
 const MunicipalitySelector = ({
@@ -23,8 +25,17 @@ const MunicipalitySelector = ({
   const [isLoadingNeighbors, setIsLoadingNeighbors] = useState(false);
   const [searchResults, setSearchResults] = useState([]);
   const [isSearching, setIsSearching] = useState(false);
+
+  // Country selection state
+  const [countries, setCountries] = useState([]);
+  const [selectedCountry, setSelectedCountry] = useState(null);
+  const [loadingCountries, setLoadingCountries] = useState(true);
+  const [countrySearchTerm, setCountrySearchTerm] = useState('');
+  const [isCountryDropdownOpen, setIsCountryDropdownOpen] = useState(false);
+
   const selectorRef = useRef(null);
   const searchInputRef = useRef(null);
+  const countryDropdownRef = useRef(null);
   const navigate = useNavigate();
   const { activeMunicipality, switchMunicipality, getMunicipalitySlug, getAdminLabels } = useMunicipality();
   const { user, anonymousLocation } = useAuth();
@@ -35,13 +46,8 @@ const MunicipalitySelector = ({
   // Placeholder dynamique basé sur le type d'administration
   const dynamicPlaceholder = placeholder || `Sélectionner une ${adminLabels.singular}`;
 
-  // Get country code from user profile location (default to 'CAN' for Canada)
-  // Location format is like "Sherbrooke, Canada" so we check for country name
-  const userLocation = user?.profile?.location || '';
-  const countryCode = userLocation.includes('Canada') ? 'CAN' :
-                      userLocation.includes('Benin') || userLocation.includes('Bénin') ? 'BEN' :
-                      userLocation.includes('France') ? 'FRA' :
-                      'CAN'; // Default to Canada
+  // Get active country code from selected country or user preference
+  const countryCode = selectedCountry?.iso3 || getPreferredCountry(user);
 
   // Get the division ID from user's profile (UUID string for API calls)
   // The division_id is inside the location object from the login response
@@ -73,6 +79,51 @@ const MunicipalitySelector = ({
   };
 
   const municipalities = getDisplayedMunicipalities();
+
+  // Filter countries based on search term
+  const getFilteredCountries = () => {
+    if (!countrySearchTerm.trim()) {
+      return countries;
+    }
+
+    const search = countrySearchTerm.toLowerCase();
+    return countries.filter(country =>
+      country.name.toLowerCase().includes(search) ||
+      country.iso3.toLowerCase().includes(search) ||
+      country.iso2?.toLowerCase().includes(search)
+    );
+  };
+
+  const filteredCountries = getFilteredCountries();
+  const showCountrySearch = countries.length > 20;
+
+  // Load countries on mount
+  useEffect(() => {
+    const loadCountries = async () => {
+      setLoadingCountries(true);
+      try {
+        const result = await geolocationService.getCountries();
+        if (result.success && result.countries) {
+          setCountries(result.countries);
+
+          // Set initial country from preference
+          const preferredCountryCode = getPreferredCountry(user);
+          const country = result.countries.find(c => c.iso3 === preferredCountryCode);
+
+          if (country) {
+            setSelectedCountry(country);
+            console.log('🌍 Initial country set:', country.name, country.iso3);
+          }
+        }
+      } catch (error) {
+        console.error('Error loading countries:', error);
+      } finally {
+        setLoadingCountries(false);
+      }
+    };
+
+    loadCountries();
+  }, [user]);
 
   // Fetch neighbors when user has a division ID
   useEffect(() => {
@@ -220,6 +271,12 @@ const MunicipalitySelector = ({
         setIsOpen(false);
         setSearchTerm('');
       }
+
+      // Close country dropdown if clicking outside
+      if (countryDropdownRef.current && !countryDropdownRef.current.contains(event.target)) {
+        setIsCountryDropdownOpen(false);
+        setCountrySearchTerm('');
+      }
     };
 
     document.addEventListener('mousedown', handleClickOutside);
@@ -248,13 +305,48 @@ const MunicipalitySelector = ({
     setSearchTerm(e.target.value);
   };
 
+  const handleCountryDropdownToggle = () => {
+    setIsCountryDropdownOpen(!isCountryDropdownOpen);
+    if (!isCountryDropdownOpen) {
+      setCountrySearchTerm('');
+    }
+  };
+
+  const handleCountrySearchChange = (e) => {
+    setCountrySearchTerm(e.target.value);
+  };
+
+  const handleCountryChange = (country) => {
+    setSelectedCountry(country);
+    setPreferredCountry(country.iso3);
+
+    // Clear search and selections when country changes
+    setSearchTerm('');
+    setSearchResults([]);
+    setNeighbors([]);
+    setSelectedMunicipality(null);
+    setIsCountryDropdownOpen(false);
+    setCountrySearchTerm('');
+
+    console.log('🌍 Country changed to:', country.name, country.iso3);
+  };
+
   const handleMunicipalitySelect = (municipality) => {
     setSelectedMunicipality(municipality);
     setIsOpen(false);
     setSearchTerm('');
 
-    // Mettre à jour le contexte avec le nom ET l'ID de division
-    switchMunicipality(municipality.nom || municipality.name, municipality.id);
+    // Mettre à jour le contexte avec le nom, ID ET country
+    switchMunicipality(
+      municipality.nom || municipality.name,
+      municipality.id,
+      {
+        country: countryCode,
+        boundary_type: municipality.boundary_type,
+        admin_level: municipality.admin_level,
+        region: municipality.region
+      }
+    );
 
     // Store as current active division (single source of truth)
     const municipalityName = municipality.nom || municipality.name;
@@ -279,8 +371,10 @@ const MunicipalitySelector = ({
       console.log('✅ Verified localStorage:', stored ? JSON.parse(stored) : 'NOT FOUND');
     }, 100);
 
-    // Naviguer vers la nouvelle municipalité
-    navigate(`/municipality/${slug}`);
+    // Naviguer vers la nouvelle division avec le bon URL path basé sur le pays
+    const urlPath = getUrlPathByISO3(countryCode);
+    console.log('🔗 Navigating to:', `/${urlPath}/${slug}/accueil`, 'for country:', countryCode);
+    navigate(`/${urlPath}/${slug}/accueil`);
 
     // Appeler onChange seulement si elle est définie
     if (onChange && typeof onChange === 'function') {
@@ -304,6 +398,93 @@ const MunicipalitySelector = ({
         <LocationOn className={styles.locationIcon} />
         <span className={styles.selectorTitle}>{adminLabels.singular}</span>
       </div>
+
+      {/* Country Selector */}
+      {!loadingCountries && countries.length > 0 && (
+        <div className={styles.countrySelectorWrapper} ref={countryDropdownRef}>
+          {showCountrySearch ? (
+            // Searchable dropdown for > 20 countries
+            <div className={styles.countrySelector}>
+              <Public className={styles.countryIcon} />
+              <button
+                type="button"
+                className={styles.countryButton}
+                onClick={handleCountryDropdownToggle}
+              >
+                <span className={styles.countryName}>
+                  {selectedCountry?.name || 'Select country'}
+                </span>
+                <ExpandMore className={`${styles.countryExpandIcon} ${isCountryDropdownOpen ? styles.open : ''}`} />
+              </button>
+
+              {isCountryDropdownOpen && (
+                <div className={styles.countryDropdown}>
+                  {/* Search input */}
+                  <div className={styles.countrySearchBox}>
+                    <input
+                      type="text"
+                      className={styles.countrySearchInput}
+                      placeholder="Search countries..."
+                      value={countrySearchTerm}
+                      onChange={handleCountrySearchChange}
+                      autoFocus
+                    />
+                  </div>
+
+                  {/* Countries list */}
+                  <div className={styles.countryList}>
+                    {filteredCountries.length > 0 ? (
+                      filteredCountries.map(country => (
+                        <button
+                          key={country.id}
+                          type="button"
+                          className={`${styles.countryOption} ${selectedCountry?.id === country.id ? styles.selected : ''}`}
+                          onClick={() => handleCountryChange(country)}
+                        >
+                          <span className={styles.countryOptionName}>{country.name}</span>
+                          {selectedCountry?.id === country.id && (
+                            <Check className={styles.checkIcon} />
+                          )}
+                        </button>
+                      ))
+                    ) : (
+                      <div className={styles.noResults}>
+                        No countries found
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+          ) : (
+            // Simple select for ≤ 20 countries
+            <div className={styles.countrySelector}>
+              <Public className={styles.countryIcon} />
+              <select
+                className={styles.countryDropdownSelect}
+                value={selectedCountry?.id || ''}
+                onChange={(e) => {
+                  const country = countries.find(c => c.id === e.target.value);
+                  if (country) handleCountryChange(country);
+                }}
+              >
+                {countries.map(country => (
+                  <option key={country.id} value={country.id}>
+                    {country.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Visual indicator if browsing different country */}
+      {isBrowsingDifferentCountry(user) && selectedCountry && (
+        <div className={styles.countryIndicator}>
+          🌍 Browsing: {selectedCountry.name}
+        </div>
+      )}
 
       {/* Bouton principal du sélecteur */}
       <button
