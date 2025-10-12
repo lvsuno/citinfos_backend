@@ -1,0 +1,34 @@
+-- Add descriptive comments to Django-allauth email tables
+-- This helps developers understand what these tables are for
+
+-- Comment on account_emailaddress table
+COMMENT ON TABLE account_emailaddress IS 
+'Django-allauth: Stores email addresses from social authentication providers (Google, Facebook, GitHub, Twitter). NOT for traditional email verification. Used to prevent duplicate accounts and track verified emails from OAuth providers.';
+
+COMMENT ON COLUMN account_emailaddress.user_id IS 
+'Foreign key to auth_user. Links social provider email to Django user account.';
+
+COMMENT ON COLUMN account_emailaddress.email IS 
+'Email address obtained from social authentication provider (e.g., Google, Facebook).';
+
+COMMENT ON COLUMN account_emailaddress.verified IS 
+'True if email is verified. Social providers (Google, Facebook) pre-verify emails, so this is usually true.';
+
+COMMENT ON COLUMN account_emailaddress.primary IS 
+'True if this is the user''s primary email address. Used when users have multiple social accounts.';
+
+-- Comment on account_emailconfirmation table
+COMMENT ON TABLE account_emailconfirmation IS 
+'Django-allauth: Stores email verification tokens. Rarely used in this project because social providers (Google, Facebook) already verify emails. This table typically stays empty.';
+
+COMMENT ON COLUMN account_emailconfirmation.email_address_id IS 
+'Foreign key to account_emailaddress. Links verification token to an email address.';
+
+COMMENT ON COLUMN account_emailconfirmation.key IS 
+'Unique verification token sent in confirmation emails. Only used if email verification is enabled.';
+
+COMMENT ON COLUMN account_emailconfirmation.created IS 
+'Timestamp when the verification token was created.';
+
+COMMENT ON COLUMN account_emailconfirmation.sent IS 
+'Timestamp when the verification email was sent to the user.';
