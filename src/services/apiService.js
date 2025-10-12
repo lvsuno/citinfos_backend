@@ -1,9 +1,11 @@
 /**
  * API Service for React Frontend
  * Handles API requests with JWT token management and authentication
+ * Supports client-side fingerprint for anonymous user tracking
  */
 
 import axios from 'axios';
+import fingerprintService from './fingerprintService';
 
 // API Configuration
 const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:8000/api';
@@ -25,13 +27,27 @@ class ApiService {
   }
 
   setupInterceptors() {
-    // Request interceptor to add JWT token
+    // Request interceptor to add JWT token OR cached fingerprint
     this.api.interceptors.request.use(
       (config) => {
         const token = this.getAccessToken();
 
         if (token) {
+          // Case 2: Authenticated user → Send JWT
           config.headers.Authorization = `Bearer ${token}`;
+        } else {
+          // Case 1: Anonymous user → Send cached fingerprint (if exists)
+          const fingerprint = fingerprintService.getFingerprint();
+          if (fingerprint) {
+            config.headers['X-Device-Fingerprint'] = fingerprint;
+          }
+          // If no fingerprint yet, server will generate and send in response
+
+          // Also send session ID if available
+          const sessionId = fingerprintService.getSessionId();
+          if (sessionId) {
+            config.headers['X-Session-ID'] = sessionId;
+          }
         }
 
         // Handle FormData properly
@@ -44,9 +60,16 @@ class ApiService {
       (error) => Promise.reject(error)
     );
 
-    // Response interceptor for token refresh
+    // Response interceptor for token refresh and fingerprint extraction
     this.api.interceptors.response.use(
       (response) => {
+        // Extract fingerprint from server response (first request)
+        try {
+          fingerprintService.extractFromResponse(response);
+        } catch (error) {
+          // Ignore errors
+        }
+
         // Check for new tokens in response headers (from middleware auto-renewal)
         const newAccessToken = response.headers['x-new-access-token'];
         const newRefreshToken = response.headers['x-new-refresh-token'];
@@ -54,6 +77,12 @@ class ApiService {
         if (newAccessToken) {
           console.log('🔄 Middleware renewed tokens automatically');
           this.setTokens(newAccessToken, newRefreshToken);
+        }
+
+        // Extract session ID if provided (for session recovery)
+        const sessionId = response.headers['x-session-id'];
+        if (sessionId) {
+          fingerprintService.saveSessionId(sessionId);
         }
 
         return response;
