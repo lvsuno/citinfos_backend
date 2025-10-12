@@ -23,7 +23,6 @@ from allauth.socialaccount.providers.oauth.client import OAuthClient
 from allauth.socialaccount import app_settings
 from allauth.socialaccount.helpers import complete_social_login
 from allauth.socialaccount.models import SocialLogin
-from allauth.account.utils import complete_signup
 import json
 
 

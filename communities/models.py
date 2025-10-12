@@ -104,6 +104,19 @@ class Community(models.Model):
         default='image'
     )
 
+    # Geographic Association - Optional (divisions can change over time)
+    division = models.ForeignKey(
+        'core.AdministrativeDivision',
+        on_delete=models.SET_NULL,
+        related_name='communities',
+        null=True,
+        blank=True,
+        help_text=(
+            "The geographic division this community belongs to "
+            "(e.g., municipality, commune). Optional as divisions may change."
+        )
+    )
+
     # Management
     creator = models.ForeignKey(
         UserProfile,
@@ -143,10 +156,10 @@ class Community(models.Model):
     #     help_text="Custom message shown to users from restricted regions"
     # )
 
-    # Analytics
-    members_count = models.PositiveIntegerField(default=0)
+    # Analytics (no members_count - communities are public)
     posts_count = models.PositiveIntegerField(default=0)
     threads_count = models.PositiveIntegerField(default=0)
+
     # Status
     is_active = models.BooleanField(default=True)
     is_featured = models.BooleanField(default=False)
@@ -162,8 +175,9 @@ class Community(models.Model):
 
     class Meta:
         indexes = [
+            models.Index(fields=['division', '-created_at']),
             models.Index(fields=['community_type', '-created_at']),
-            models.Index(fields=['is_active', '-members_count']),
+            models.Index(fields=['is_active', '-posts_count']),
             models.Index(fields=['is_featured', '-created_at']),
         ]
 
@@ -1102,7 +1116,7 @@ class CommunityMembership(models.Model):
     STATUS_CHOICES = [
         ('active', 'Active'),
         ('banned', 'Banned'),
-        ('left', 'Left'),
+       # ('left', 'Left'),
     ]
 
     community = models.ForeignKey(
@@ -1296,6 +1310,28 @@ class CommunityMembership(models.Model):
             models.Index(fields=['user', 'status']),
         ]
 
+    def save(self, *args, **kwargs):
+        """
+        Validate that only users with admin/moderator UserProfile.role
+        can be assigned Admin/Moderator roles in communities.
+        """
+        from django.core.exceptions import ValidationError
+
+        # If a role is assigned, validate user's global role
+        if self.role and self.role.name in ['Admin', 'Moderator']:
+            user_role = self.user.role if self.user else None
+
+            # Only users with 'admin' or 'moderator' UserProfile.role
+            # can be assigned Admin/Moderator roles in communities
+            if user_role not in ['admin', 'moderator']:
+                raise ValidationError(
+                    f"Only users with 'admin' or 'moderator' role can be "
+                    f"assigned as community {self.role.name}. "
+                    f"User {self.user.user.username} has role '{user_role}'."
+                )
+
+        super().save(*args, **kwargs)
+
     def is_active_member(self):
         """Return True if this membership is active and not soft-deleted."""
         return self.status == 'active' and not self.is_deleted
@@ -1340,357 +1376,357 @@ class CommunityMembership(models.Model):
                 f"({self.role.name if self.role else 'No Role'})")
 
 
-class CommunityInvitation(models.Model):
-    """Invitations to join communities."""
-    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    STATUS_CHOICES = [
-        ('pending', 'Pending'),
-        ('accepted', 'Accepted'),
-        ('declined', 'Declined'),
-        ('expired', 'Expired'),
-    ]
+# class CommunityInvitation(models.Model):
+#     """Invitations to join communities."""
+#     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+#     STATUS_CHOICES = [
+#         ('pending', 'Pending'),
+#         ('accepted', 'Accepted'),
+#         ('declined', 'Declined'),
+#         ('expired', 'Expired'),
+#     ]
 
-    community = models.ForeignKey(
-        Community,
-        on_delete=models.CASCADE,
-        related_name='invitations'
-    )
-    inviter = models.ForeignKey(
-        UserProfile,
-        on_delete=models.CASCADE,
-        related_name='community_invitations_sent'
-    )
-    invitee = models.ForeignKey(
-        UserProfile,
-        on_delete=models.CASCADE,
-        related_name='community_invitations_received'
-    )
-    message = models.TextField(max_length=500, blank=True)
-    status = models.CharField(
-        max_length=10,
-        choices=STATUS_CHOICES,
-        default='pending'
-    )
-    invite_code = models.CharField(max_length=50, unique=True, blank=True, null=True)
-    created_at = models.DateTimeField(auto_now_add=True)
-    expires_at = models.DateTimeField()
-    responded_at = models.DateTimeField(null=True, blank=True)
-    is_deleted = models.BooleanField(default=False)
-    deleted_at = models.DateTimeField(null=True, blank=True)
-    # Restoration tracking fields
-    is_restored = models.BooleanField(default=False)
-    restored_at = models.DateTimeField(null=True, blank=True)
-    last_deletion_at = models.DateTimeField(null=True, blank=True)
+#     community = models.ForeignKey(
+#         Community,
+#         on_delete=models.CASCADE,
+#         related_name='invitations'
+#     )
+#     inviter = models.ForeignKey(
+#         UserProfile,
+#         on_delete=models.CASCADE,
+#         related_name='community_invitations_sent'
+#     )
+#     invitee = models.ForeignKey(
+#         UserProfile,
+#         on_delete=models.CASCADE,
+#         related_name='community_invitations_received'
+#     )
+#     message = models.TextField(max_length=500, blank=True)
+#     status = models.CharField(
+#         max_length=10,
+#         choices=STATUS_CHOICES,
+#         default='pending'
+#     )
+#     invite_code = models.CharField(max_length=50, unique=True, blank=True, null=True)
+#     created_at = models.DateTimeField(auto_now_add=True)
+#     expires_at = models.DateTimeField()
+#     responded_at = models.DateTimeField(null=True, blank=True)
+#     is_deleted = models.BooleanField(default=False)
+#     deleted_at = models.DateTimeField(null=True, blank=True)
+#     # Restoration tracking fields
+#     is_restored = models.BooleanField(default=False)
+#     restored_at = models.DateTimeField(null=True, blank=True)
+#     last_deletion_at = models.DateTimeField(null=True, blank=True)
 
-    class Meta:
-        unique_together = ('community', 'invitee')
-        ordering = ['-created_at']
-        indexes = [
-            models.Index(fields=['invitee', 'status']),
-            models.Index(fields=['expires_at']),
-        ]
+#     class Meta:
+#         unique_together = ('community', 'invitee')
+#         ordering = ['-created_at']
+#         indexes = [
+#             models.Index(fields=['invitee', 'status']),
+#             models.Index(fields=['expires_at']),
+#         ]
 
-    def __str__(self):
-        return (f"{self.inviter.user.username} invited "
-                f"{self.invitee.user.username} to {self.community.name}")
-    def restore_instance(self, cascade=True):
-        """Restore this soft-deleted instance and optionally cascade to related objects."""
-        from django.utils import timezone
+#     def __str__(self):
+#         return (f"{self.inviter.user.username} invited "
+#                 f"{self.invitee.user.username} to {self.community.name}")
+#     def restore_instance(self, cascade=True):
+#         """Restore this soft-deleted instance and optionally cascade to related objects."""
+#         from django.utils import timezone
 
-        if not self.is_deleted:
-            return False, f"{self.__class__.__name__} is not deleted"
+#         if not self.is_deleted:
+#             return False, f"{self.__class__.__name__} is not deleted"
 
-        # Store the deletion timestamp before restoring
-        self.last_deletion_at = self.deleted_at
+#         # Store the deletion timestamp before restoring
+#         self.last_deletion_at = self.deleted_at
 
-        # Restore the instance
-        self.is_deleted = False
-        self.deleted_at = None
-        self.is_restored = True
-        self.restored_at = timezone.now()
+#         # Restore the instance
+#         self.is_deleted = False
+#         self.deleted_at = None
+#         self.is_restored = True
+#         self.restored_at = timezone.now()
 
-        self.save(update_fields=[
-            'is_deleted', 'deleted_at', 'is_restored',
-            'restored_at', 'last_deletion_at'
-        ])
+#         self.save(update_fields=[
+#             'is_deleted', 'deleted_at', 'is_restored',
+#             'restored_at', 'last_deletion_at'
+#         ])
 
-        restored_count = 1
+#         restored_count = 1
 
-        if cascade:
-            # Cascade restore to related objects
-            related_count = self._cascade_restore_related()
-            restored_count += related_count
+#         if cascade:
+#             # Cascade restore to related objects
+#             related_count = self._cascade_restore_related()
+#             restored_count += related_count
 
-        return True, f"{self.__class__.__name__} and {restored_count} related objects restored successfully"
+#         return True, f"{self.__class__.__name__} and {restored_count} related objects restored successfully"
 
-    def _cascade_restore_related(self):
-        """Cascade restore to related objects."""
-        restored_count = 0
+#     def _cascade_restore_related(self):
+#         """Cascade restore to related objects."""
+#         restored_count = 0
 
-        # Get all reverse foreign key relationships
-        for rel in self._meta.get_fields():
-            if hasattr(rel, 'related_model') and hasattr(rel, 'remote_field'):
-                if rel.remote_field and hasattr(rel.remote_field, 'name'):
-                    try:
-                        related_manager = getattr(self, rel.get_accessor_name())
+#         # Get all reverse foreign key relationships
+#         for rel in self._meta.get_fields():
+#             if hasattr(rel, 'related_model') and hasattr(rel, 'remote_field'):
+#                 if rel.remote_field and hasattr(rel.remote_field, 'name'):
+#                     try:
+#                         related_manager = getattr(self, rel.get_accessor_name())
 
-                        # Find soft-deleted related objects
-                        if hasattr(related_manager, 'filter'):
-                            deleted_related = related_manager.filter(is_deleted=True)
+#                         # Find soft-deleted related objects
+#                         if hasattr(related_manager, 'filter'):
+#                             deleted_related = related_manager.filter(is_deleted=True)
 
-                            for related_obj in deleted_related:
-                                if hasattr(related_obj, 'restore_instance'):
-                                    success, message = related_obj.restore_instance(cascade=False)
-                                    if success:
-                                        restored_count += 1
+#                             for related_obj in deleted_related:
+#                                 if hasattr(related_obj, 'restore_instance'):
+#                                     success, message = related_obj.restore_instance(cascade=False)
+#                                     if success:
+#                                         restored_count += 1
 
-                    except (AttributeError, Exception):
-                        # Skip relationships that can't be processed
-                        continue
+#                     except (AttributeError, Exception):
+#                         # Skip relationships that can't be processed
+#                         continue
 
-        # Handle ManyToMany relationships
-        for field in self._meta.many_to_many:
-            try:
-                related_manager = getattr(self, field.name)
-                if hasattr(related_manager, 'filter'):
-                    deleted_related = related_manager.filter(is_deleted=True)
+#         # Handle ManyToMany relationships
+#         for field in self._meta.many_to_many:
+#             try:
+#                 related_manager = getattr(self, field.name)
+#                 if hasattr(related_manager, 'filter'):
+#                     deleted_related = related_manager.filter(is_deleted=True)
 
-                    for related_obj in deleted_related:
-                        if hasattr(related_obj, 'restore_instance'):
-                            success, message = related_obj.restore_instance(cascade=False)
-                            if success:
-                                restored_count += 1
+#                     for related_obj in deleted_related:
+#                         if hasattr(related_obj, 'restore_instance'):
+#                             success, message = related_obj.restore_instance(cascade=False)
+#                             if success:
+#                                 restored_count += 1
 
-            except (AttributeError, Exception):
-                continue
+#             except (AttributeError, Exception):
+#                 continue
 
-        return restored_count
+#         return restored_count
 
-    @classmethod
-    def bulk_restore(cls, queryset=None, cascade=True):
-        """Bulk restore multiple instances."""
-        from django.utils import timezone
+#     @classmethod
+#     def bulk_restore(cls, queryset=None, cascade=True):
+#         """Bulk restore multiple instances."""
+#         from django.utils import timezone
 
-        if queryset is None:
-            queryset = cls.objects.filter(is_deleted=True)
-        else:
-            queryset = queryset.filter(is_deleted=True)
+#         if queryset is None:
+#             queryset = cls.objects.filter(is_deleted=True)
+#         else:
+#             queryset = queryset.filter(is_deleted=True)
 
-        if not queryset.exists():
-            return 0, "No deleted objects found to restore"
+#         if not queryset.exists():
+#             return 0, "No deleted objects found to restore"
 
-        restored_objects = []
-        total_restored = 0
+#         restored_objects = []
+#         total_restored = 0
 
-        for obj in queryset:
-            try:
-                success, message = obj.restore_instance(cascade=cascade)
-                if success:
-                    restored_objects.append(obj)
-                    total_restored += 1
-            except Exception as e:
-                print(f"Error restoring {obj}: {e}")
-                continue
+#         for obj in queryset:
+#             try:
+#                 success, message = obj.restore_instance(cascade=cascade)
+#                 if success:
+#                     restored_objects.append(obj)
+#                     total_restored += 1
+#             except Exception as e:
+#                 print(f"Error restoring {obj}: {e}")
+#                 continue
 
-        return total_restored, f"Successfully restored {total_restored} {cls.__name__} objects"
+#         return total_restored, f"Successfully restored {total_restored} {cls.__name__} objects"
 
-    def get_restoration_history(self):
-        """Get the restoration history of this object."""
-        history = {
-            'is_currently_deleted': self.is_deleted,
-            'is_restored': self.is_restored,
-            'last_restoration': self.restored_at,
-            'last_deletion': self.last_deletion_at,
-            'deletion_restoration_cycle': None
-        }
+#     def get_restoration_history(self):
+#         """Get the restoration history of this object."""
+#         history = {
+#             'is_currently_deleted': self.is_deleted,
+#             'is_restored': self.is_restored,
+#             'last_restoration': self.restored_at,
+#             'last_deletion': self.last_deletion_at,
+#             'deletion_restoration_cycle': None
+#         }
 
-        if self.last_deletion_at and self.restored_at:
-            if self.restored_at > self.last_deletion_at:
-                history['deletion_restoration_cycle'] = {
-                    'deleted_at': self.last_deletion_at,
-                    'restored_at': self.restored_at,
-                    'cycle_duration': self.restored_at - self.last_deletion_at
-                }
+#         if self.last_deletion_at and self.restored_at:
+#             if self.restored_at > self.last_deletion_at:
+#                 history['deletion_restoration_cycle'] = {
+#                     'deleted_at': self.last_deletion_at,
+#                     'restored_at': self.restored_at,
+#                     'cycle_duration': self.restored_at - self.last_deletion_at
+#                 }
 
-        return history
+#         return history
 
 
-class CommunityJoinRequest(models.Model):
-    """Requests to join restricted communities."""
-    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    STATUS_CHOICES = [
-        ('pending', 'Pending'),
-        ('approved', 'Approved'),
-        ('rejected', 'Rejected'),
-    ]
+# class CommunityJoinRequest(models.Model):
+#     """Requests to join restricted communities."""
+#     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+#     STATUS_CHOICES = [
+#         ('pending', 'Pending'),
+#         ('approved', 'Approved'),
+#         ('rejected', 'Rejected'),
+#     ]
 
-    community = models.ForeignKey(
-        Community,
-        on_delete=models.CASCADE,
-        related_name='join_requests'
-    )
-    user = models.ForeignKey(
-        UserProfile,
-        on_delete=models.CASCADE,
-        related_name='community_join_requests'
-    )
-    message = models.TextField(max_length=500, blank=True)
-    status = models.CharField(
-        max_length=10,
-        choices=STATUS_CHOICES,
-        default='pending'
-    )
+#     community = models.ForeignKey(
+#         Community,
+#         on_delete=models.CASCADE,
+#         related_name='join_requests'
+#     )
+#     user = models.ForeignKey(
+#         UserProfile,
+#         on_delete=models.CASCADE,
+#         related_name='community_join_requests'
+#     )
+#     message = models.TextField(max_length=500, blank=True)
+#     status = models.CharField(
+#         max_length=10,
+#         choices=STATUS_CHOICES,
+#         default='pending'
+#     )
 
-    reviewed_by = models.ForeignKey(
-        UserProfile,
-        on_delete=models.SET_NULL,
-        null=True,
-        blank=True,
-        related_name='community_requests_reviewed'
-    )
-    review_message = models.TextField(max_length=500, blank=True)
+#     reviewed_by = models.ForeignKey(
+#         UserProfile,
+#         on_delete=models.SET_NULL,
+#         null=True,
+#         blank=True,
+#         related_name='community_requests_reviewed'
+#     )
+#     review_message = models.TextField(max_length=500, blank=True)
 
-    created_at = models.DateTimeField(auto_now_add=True)
-    reviewed_at = models.DateTimeField(null=True, blank=True)
-    is_deleted = models.BooleanField(default=False)
-    deleted_at = models.DateTimeField(null=True, blank=True)
-    # Restoration tracking fields
-    is_restored = models.BooleanField(default=False)
-    restored_at = models.DateTimeField(null=True, blank=True)
-    last_deletion_at = models.DateTimeField(null=True, blank=True)
-    # Restoration tracking fields
+#     created_at = models.DateTimeField(auto_now_add=True)
+#     reviewed_at = models.DateTimeField(null=True, blank=True)
+#     is_deleted = models.BooleanField(default=False)
+#     deleted_at = models.DateTimeField(null=True, blank=True)
+#     # Restoration tracking fields
+#     is_restored = models.BooleanField(default=False)
+#     restored_at = models.DateTimeField(null=True, blank=True)
+#     last_deletion_at = models.DateTimeField(null=True, blank=True)
+#     # Restoration tracking fields
 
-    class Meta:
-        """Ensure a user can only have one active join request per community."""
-        unique_together = ('community', 'user')
-        indexes = [
-            models.Index(fields=['community', 'status']),
-            models.Index(fields=['user', 'status']),
-        ]
+#     class Meta:
+#         """Ensure a user can only have one active join request per community."""
+#         unique_together = ('community', 'user')
+#         indexes = [
+#             models.Index(fields=['community', 'status']),
+#             models.Index(fields=['user', 'status']),
+#         ]
 
-    def __str__(self):
-        return (f"{self.user.user.username} requested to join "
-                f"{self.community.name}")
-    def restore_instance(self, cascade=True):
-        """Restore this soft-deleted instance and optionally cascade to related objects."""
-        from django.utils import timezone
+#     def __str__(self):
+#         return (f"{self.user.user.username} requested to join "
+#                 f"{self.community.name}")
+#     def restore_instance(self, cascade=True):
+#         """Restore this soft-deleted instance and optionally cascade to related objects."""
+#         from django.utils import timezone
 
-        if not self.is_deleted:
-            return False, f"{self.__class__.__name__} is not deleted"
+#         if not self.is_deleted:
+#             return False, f"{self.__class__.__name__} is not deleted"
 
-        # Store the deletion timestamp before restoring
-        self.last_deletion_at = self.deleted_at
+#         # Store the deletion timestamp before restoring
+#         self.last_deletion_at = self.deleted_at
 
-        # Restore the instance
-        self.is_deleted = False
-        self.deleted_at = None
-        self.is_restored = True
-        self.restored_at = timezone.now()
+#         # Restore the instance
+#         self.is_deleted = False
+#         self.deleted_at = None
+#         self.is_restored = True
+#         self.restored_at = timezone.now()
 
-        self.save(update_fields=[
-            'is_deleted', 'deleted_at', 'is_restored',
-            'restored_at', 'last_deletion_at'
-        ])
+#         self.save(update_fields=[
+#             'is_deleted', 'deleted_at', 'is_restored',
+#             'restored_at', 'last_deletion_at'
+#         ])
 
-        restored_count = 1
+#         restored_count = 1
 
-        if cascade:
-            # Cascade restore to related objects
-            related_count = self._cascade_restore_related()
-            restored_count += related_count
+#         if cascade:
+#             # Cascade restore to related objects
+#             related_count = self._cascade_restore_related()
+#             restored_count += related_count
 
-        return True, f"{self.__class__.__name__} and {restored_count} related objects restored successfully"
+#         return True, f"{self.__class__.__name__} and {restored_count} related objects restored successfully"
 
-    def _cascade_restore_related(self):
-        """Cascade restore to related objects."""
-        restored_count = 0
+#     def _cascade_restore_related(self):
+#         """Cascade restore to related objects."""
+#         restored_count = 0
 
-        # Get all reverse foreign key relationships
-        for rel in self._meta.get_fields():
-            if hasattr(rel, 'related_model') and hasattr(rel, 'remote_field'):
-                if rel.remote_field and hasattr(rel.remote_field, 'name'):
-                    try:
-                        related_manager = getattr(self, rel.get_accessor_name())
+#         # Get all reverse foreign key relationships
+#         for rel in self._meta.get_fields():
+#             if hasattr(rel, 'related_model') and hasattr(rel, 'remote_field'):
+#                 if rel.remote_field and hasattr(rel.remote_field, 'name'):
+#                     try:
+#                         related_manager = getattr(self, rel.get_accessor_name())
 
-                        # Find soft-deleted related objects
-                        if hasattr(related_manager, 'filter'):
-                            deleted_related = related_manager.filter(is_deleted=True)
+#                         # Find soft-deleted related objects
+#                         if hasattr(related_manager, 'filter'):
+#                             deleted_related = related_manager.filter(is_deleted=True)
 
-                            for related_obj in deleted_related:
-                                if hasattr(related_obj, 'restore_instance'):
-                                    success, message = related_obj.restore_instance(cascade=False)
-                                    if success:
-                                        restored_count += 1
+#                             for related_obj in deleted_related:
+#                                 if hasattr(related_obj, 'restore_instance'):
+#                                     success, message = related_obj.restore_instance(cascade=False)
+#                                     if success:
+#                                         restored_count += 1
 
-                    except (AttributeError, Exception):
-                        # Skip relationships that can't be processed
-                        continue
+#                     except (AttributeError, Exception):
+#                         # Skip relationships that can't be processed
+#                         continue
 
-        # Handle ManyToMany relationships
-        for field in self._meta.many_to_many:
-            try:
-                related_manager = getattr(self, field.name)
-                if hasattr(related_manager, 'filter'):
-                    deleted_related = related_manager.filter(is_deleted=True)
+#         # Handle ManyToMany relationships
+#         for field in self._meta.many_to_many:
+#             try:
+#                 related_manager = getattr(self, field.name)
+#                 if hasattr(related_manager, 'filter'):
+#                     deleted_related = related_manager.filter(is_deleted=True)
 
-                    for related_obj in deleted_related:
-                        if hasattr(related_obj, 'restore_instance'):
-                            success, message = related_obj.restore_instance(cascade=False)
-                            if success:
-                                restored_count += 1
+#                     for related_obj in deleted_related:
+#                         if hasattr(related_obj, 'restore_instance'):
+#                             success, message = related_obj.restore_instance(cascade=False)
+#                             if success:
+#                                 restored_count += 1
 
-            except (AttributeError, Exception):
-                continue
+#             except (AttributeError, Exception):
+#                 continue
 
-        return restored_count
+#         return restored_count
 
-    @classmethod
-    def bulk_restore(cls, queryset=None, cascade=True):
-        """Bulk restore multiple instances."""
-        from django.utils import timezone
+#     @classmethod
+#     def bulk_restore(cls, queryset=None, cascade=True):
+#         """Bulk restore multiple instances."""
+#         from django.utils import timezone
 
-        if queryset is None:
-            queryset = cls.objects.filter(is_deleted=True)
-        else:
-            queryset = queryset.filter(is_deleted=True)
+#         if queryset is None:
+#             queryset = cls.objects.filter(is_deleted=True)
+#         else:
+#             queryset = queryset.filter(is_deleted=True)
 
-        if not queryset.exists():
-            return 0, "No deleted objects found to restore"
+#         if not queryset.exists():
+#             return 0, "No deleted objects found to restore"
 
-        restored_objects = []
-        total_restored = 0
+#         restored_objects = []
+#         total_restored = 0
 
-        for obj in queryset:
-            try:
-                success, message = obj.restore_instance(cascade=cascade)
-                if success:
-                    restored_objects.append(obj)
-                    total_restored += 1
-            except Exception as e:
-                print(f"Error restoring {obj}: {e}")
-                continue
+#         for obj in queryset:
+#             try:
+#                 success, message = obj.restore_instance(cascade=cascade)
+#                 if success:
+#                     restored_objects.append(obj)
+#                     total_restored += 1
+#             except Exception as e:
+#                 print(f"Error restoring {obj}: {e}")
+#                 continue
 
-        return total_restored, f"Successfully restored {total_restored} {cls.__name__} objects"
+#         return total_restored, f"Successfully restored {total_restored} {cls.__name__} objects"
 
-    def get_restoration_history(self):
-        """Get the restoration history of this object."""
-        history = {
-            'is_currently_deleted': self.is_deleted,
-            'is_restored': self.is_restored,
-            'last_restoration': self.restored_at,
-            'last_deletion': self.last_deletion_at,
-            'deletion_restoration_cycle': None
-        }
+#     def get_restoration_history(self):
+#         """Get the restoration history of this object."""
+#         history = {
+#             'is_currently_deleted': self.is_deleted,
+#             'is_restored': self.is_restored,
+#             'last_restoration': self.restored_at,
+#             'last_deletion': self.last_deletion_at,
+#             'deletion_restoration_cycle': None
+#         }
 
-        if self.last_deletion_at and self.restored_at:
-            if self.restored_at > self.last_deletion_at:
-                history['deletion_restoration_cycle'] = {
-                    'deleted_at': self.last_deletion_at,
-                    'restored_at': self.restored_at,
-                    'cycle_duration': self.restored_at - self.last_deletion_at
-                }
+#         if self.last_deletion_at and self.restored_at:
+#             if self.restored_at > self.last_deletion_at:
+#                 history['deletion_restoration_cycle'] = {
+#                     'deleted_at': self.last_deletion_at,
+#                     'restored_at': self.restored_at,
+#                     'cycle_duration': self.restored_at - self.last_deletion_at
+#                 }
 
-        return history
+#         return history
 
 
 class CommunityRole(models.Model):

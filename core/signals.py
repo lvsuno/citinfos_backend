@@ -5,9 +5,12 @@ This module provides Django signal handlers that automatically set deleted_at
 timestamps whenever is_deleted is changed to True on any model.
 """
 
-from django.db.models.signals import pre_save
+from django.db.models.signals import pre_save, post_save
 from django.dispatch import receiver
 from django.utils import timezone
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 @receiver(pre_save)
@@ -87,3 +90,26 @@ def restore_instance(instance):
     """
     instance.is_deleted = False
     instance.save()  # deleted_at will be cleared automatically by the signal
+
+
+@receiver(post_save, sender='core.AdministrativeDivision')
+def create_default_community_for_division(sender, instance, created, **kwargs):
+    """
+    Automatically create a default community when a new division is created.
+
+    This ensures every division has at least one community for posts.
+    """
+    # pylint: disable=unused-argument
+    if created:
+        try:
+            from communities.utils import get_or_create_default_community
+            community = get_or_create_default_community(instance)
+            logger.info(
+                f"Auto-created community '{community.slug}' "
+                f"for new division '{instance.name}'"
+            )
+        except Exception as e:
+            logger.error(
+                f"Failed to create default community for division "
+                f"'{instance.name}': {str(e)}"
+            )

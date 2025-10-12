@@ -1356,7 +1356,22 @@ class SessionAnalytic(models.Model):
 
 
 class CommunityAnalytics(models.Model):
-    """Real-time and historical analytics for communities."""
+    """
+    Real-time and historical analytics for communities.
+
+    Tracks visitor metrics (not member-based):
+    - Real-time visitor counts (authenticated + anonymous) from Redis
+    - Visitor division breakdown and cross-division analytics
+    - Engagement metrics (threads, posts, comments, likes)
+
+    Architecture:
+    - Visitor tracking: Synced from Redis via visitor_tracker
+    - Page views: Use PageAnalytics model (query by community URL)
+    - Conversions: Use AnonymousSession model (query by content_id)
+
+    This model focuses on visitor and engagement metrics only.
+    No redundant page view or conversion fields.
+    """
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
 
     # Community reference
@@ -1366,24 +1381,60 @@ class CommunityAnalytics(models.Model):
         related_name='analytics'
     )
 
-    # Real-time metrics (updated frequently)
-    current_online_members = models.PositiveIntegerField(default=0)
-    peak_online_today = models.PositiveIntegerField(default=0)
-    peak_online_this_week = models.PositiveIntegerField(default=0)
-    peak_online_this_month = models.PositiveIntegerField(default=0)
+    # Real-time visitor metrics (from Redis visitor tracker)
+    current_visitors = models.PositiveIntegerField(
+        default=0,
+        help_text="Total current visitors (auth + anonymous)"
+    )
+    current_authenticated_visitors = models.PositiveIntegerField(
+        default=0,
+        help_text="Current authenticated visitors"
+    )
+    current_anonymous_visitors = models.PositiveIntegerField(
+        default=0,
+        help_text="Current anonymous visitors"
+    )
 
-    # Activity metrics (updated daily)
-    daily_active_members = models.PositiveIntegerField(default=0)
-    weekly_active_members = models.PositiveIntegerField(default=0)
-    monthly_active_members = models.PositiveIntegerField(default=0)
+    # Peak visitor metrics
+    peak_visitors_today = models.PositiveIntegerField(default=0)
+    peak_visitors_this_week = models.PositiveIntegerField(default=0)
+    peak_visitors_this_month = models.PositiveIntegerField(default=0)
 
-    # Engagement metrics
+    # Daily visitor activity (unique visitors)
+    daily_unique_visitors = models.PositiveIntegerField(
+        default=0,
+        help_text="Unique visitors today (by fingerprint/user_id)"
+    )
+    daily_authenticated_visitors = models.PositiveIntegerField(default=0)
+    daily_anonymous_visitors = models.PositiveIntegerField(default=0)
+
+    # Weekly/Monthly visitor activity
+    weekly_unique_visitors = models.PositiveIntegerField(default=0)
+    monthly_unique_visitors = models.PositiveIntegerField(default=0)
+
+    # Division visitor tracking
+    visitor_divisions = models.JSONField(
+        default=dict,
+        blank=True,
+        help_text="Dict of division_id: visitor_count"
+    )
+    cross_division_visits = models.PositiveIntegerField(
+        default=0,
+        help_text="Count of visitors from different divisions"
+    )
+    cross_division_percentage = models.FloatField(
+        default=0.0,
+        help_text="Percentage of cross-division visits"
+    )
+
+    # Engagement metrics (content creation)
     total_threads_today = models.PositiveIntegerField(default=0)
     total_posts_today = models.PositiveIntegerField(default=0)
     total_comments_today = models.PositiveIntegerField(default=0)
     total_likes_today = models.PositiveIntegerField(default=0)
 
-    # Growth metrics
+    # Legacy member metrics (kept for backward compatibility)
+    # TODO: Remove after migration to visitor-only tracking
     new_members_today = models.PositiveIntegerField(default=0)
     new_members_this_week = models.PositiveIntegerField(default=0)
     new_members_this_month = models.PositiveIntegerField(default=0)
@@ -1521,13 +1572,433 @@ class CommunityAnalytics(models.Model):
         return history
 
     class Meta:
-        """Indexes for performance and unique constraint on community and date."""
+        """Indexes for performance and unique constraint."""
         unique_together = ('community', 'date')
         indexes = [
             models.Index(fields=['community', '-date']),
-            models.Index(fields=['community', 'current_online_members']),
+            models.Index(fields=['community', 'current_visitors']),
+            models.Index(fields=['community', '-daily_unique_visitors']),
             models.Index(fields=['-last_updated']),
+            models.Index(fields=['-cross_division_visits']),
         ]
 
     def __str__(self):
         return f"Analytics for {self.community.name} on {self.date}"
+
+    def update_from_redis(self, visitor_data):
+        """
+        Update analytics from Redis visitor tracker data.
+
+        Args:
+            visitor_data: Dict from visitor_tracker.get_visitor_stats()
+                {
+                    'total_visitors': int,
+                    'authenticated_visitors': int,
+                    'anonymous_visitors': int,
+                    'visitor_divisions': dict,
+                    'cross_division_count': int,
+                    ...
+                }
+        """
+        self.current_visitors = visitor_data.get('total_visitors', 0)
+        self.current_authenticated_visitors = visitor_data.get(
+            'authenticated_visitors', 0
+        )
+        self.current_anonymous_visitors = visitor_data.get(
+            'anonymous_visitors', 0
+        )
+
+        # Update peak visitors
+        if self.current_visitors > self.peak_visitors_today:
+            self.peak_visitors_today = self.current_visitors
+
+        # Update division tracking
+        self.visitor_divisions = visitor_data.get('visitor_divisions', {})
+        self.cross_division_visits = visitor_data.get(
+            'cross_division_count', 0
+        )
+
+        # Calculate cross-division percentage
+        if self.current_visitors > 0:
+            self.cross_division_percentage = (
+                self.cross_division_visits / self.current_visitors
+            ) * 100
+        else:
+            self.cross_division_percentage = 0.0
+
+        self.save(update_fields=[
+            'current_visitors',
+            'current_authenticated_visitors',
+            'current_anonymous_visitors',
+            'peak_visitors_today',
+            'visitor_divisions',
+            'cross_division_visits',
+            'cross_division_percentage',
+            'last_updated'
+        ])
+
+
+class AnonymousSession(models.Model):
+    """
+    Track anonymous browsing sessions for analytics.
+
+    Stores temporary session data for users who are not logged in.
+    Used for conversion tracking, content analytics, and behavior analysis.
+
+    Privacy-friendly:
+    - No personal identification
+    - 90-day retention policy
+    - Auto-cleanup via Celery tasks
+    - Device fingerprint is non-personal hash
+    """
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+
+    # Identification (no user link until conversion)
+    device_fingerprint = models.CharField(
+        max_length=128,
+        db_index=True,
+        help_text="Device fingerprint hash for anonymous identification"
+    )
+
+    # Session lifecycle
+    session_start = models.DateTimeField(auto_now_add=True, db_index=True)
+    session_end = models.DateTimeField(null=True, blank=True)
+    last_activity = models.DateTimeField(auto_now=True)
+
+    # Network/Device metadata
+    ip_address = models.GenericIPAddressField()
+    user_agent = models.TextField()
+    device_type = models.CharField(
+        max_length=20,
+        choices=[
+            ('mobile', 'Mobile'),
+            ('desktop', 'Desktop'),
+            ('tablet', 'Tablet'),
+            ('unknown', 'Unknown'),
+        ],
+        default='unknown'
+    )
+    browser = models.CharField(max_length=50, blank=True)
+    os = models.CharField(max_length=50, blank=True)
+
+    # Location (optional, from IP geolocation)
+    country = models.CharField(max_length=2, blank=True, db_index=True)
+    city = models.CharField(max_length=100, blank=True)
+    region = models.CharField(max_length=100, blank=True)
+
+    # Behavioral metrics
+    pages_visited = models.PositiveIntegerField(default=0)
+    duration_seconds = models.PositiveIntegerField(
+        default=0,
+        help_text="Total session duration in seconds"
+    )
+
+    # Page tracking
+    landing_page = models.URLField(max_length=500)
+    exit_page = models.URLField(max_length=500, blank=True)
+    referrer = models.URLField(max_length=500, blank=True)
+
+    # UTM tracking for marketing attribution
+    utm_source = models.CharField(max_length=100, blank=True, db_index=True)
+    utm_medium = models.CharField(max_length=100, blank=True)
+    utm_campaign = models.CharField(max_length=100, blank=True)
+    utm_term = models.CharField(max_length=100, blank=True)
+    utm_content = models.CharField(max_length=100, blank=True)
+
+    # Conversion tracking
+    converted_to_user = models.ForeignKey(
+        UserProfile,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name='converted_from_anonymous',
+        help_text="Links to user account if anonymous visitor signed up"
+    )
+    converted_at = models.DateTimeField(null=True, blank=True, db_index=True)
+
+    # Status flags
+    is_active = models.BooleanField(default=True, db_index=True)
+    is_bot = models.BooleanField(
+        default=False,
+        help_text="Flagged as bot based on behavior patterns"
+    )
+    bot_score = models.FloatField(
+        default=0.0,
+        help_text="Bot likelihood score 0-1 (1 = definitely bot)"
+    )
+
+    # Timestamps
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        indexes = [
+            models.Index(fields=['device_fingerprint', '-session_start']),
+            models.Index(fields=['is_active', '-session_start']),
+            models.Index(fields=['converted_to_user', '-converted_at']),
+            models.Index(fields=['-session_start']),
+            models.Index(fields=['utm_source', '-session_start']),
+            models.Index(fields=['country', '-session_start']),
+        ]
+        ordering = ['-session_start']
+
+    def __str__(self):
+        status = "Active" if self.is_active else "Ended"
+        converted = ""
+        if self.converted_to_user:
+            username = self.converted_to_user.user.username
+            converted = f" → {username}"
+        fp_short = self.device_fingerprint[:8]
+        return f"Anonymous {fp_short}... ({status}){converted}"
+
+    def finalize_session(self):
+        """Mark session as ended and calculate final metrics."""
+        if not self.is_active:
+            return
+
+        self.is_active = False
+        self.session_end = timezone.now()
+
+        if self.session_start:
+            self.duration_seconds = int(
+                (self.session_end - self.session_start).total_seconds()
+            )
+
+        self.save(update_fields=[
+            'is_active', 'session_end',
+            'duration_seconds', 'updated_at'
+        ])
+
+    def mark_conversion(self, user_profile):
+        """Mark this anonymous session as converted to a user account."""
+        self.converted_to_user = user_profile
+        self.converted_at = timezone.now()
+        self.is_active = False
+
+        if not self.session_end:
+            self.session_end = self.converted_at
+            if self.session_start:
+                self.duration_seconds = int(
+                    (self.session_end - self.session_start).total_seconds()
+                )
+
+        self.save(update_fields=[
+            'converted_to_user', 'converted_at', 'is_active',
+            'session_end', 'duration_seconds', 'updated_at'
+        ])
+
+    @property
+    def conversion_rate(self):
+        """Calculate if this session converted (for aggregation queries)."""
+        return 1.0 if self.converted_to_user else 0.0
+
+    @property
+    def engagement_score(self):
+        """Calculate engagement score based on pages and duration."""
+        if self.pages_visited == 0:
+            return 0.0
+
+        # Score based on pages (max 50 points) + duration (max 50 points)
+        page_score = min(self.pages_visited * 5, 50)
+        # 1 point per minute of engagement
+        duration_score = min(self.duration_seconds / 60, 50)
+
+        return page_score + duration_score
+
+
+class AnonymousPageView(models.Model):
+    """
+    Track individual page views for anonymous sessions.
+
+    Provides detailed analytics on anonymous user journey and behavior.
+    Links to AnonymousSession for session-level aggregation.
+    """
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+
+    # Link to session
+    session = models.ForeignKey(
+        AnonymousSession,
+        on_delete=models.CASCADE,
+        related_name='page_views'
+    )
+
+    # Page identification
+    url = models.URLField(max_length=500)
+    url_name = models.CharField(
+        max_length=100,
+        blank=True,
+        help_text="Django URL name if available"
+    )
+    page_type = models.CharField(
+        max_length=50,
+        choices=[
+            ('home', 'Homepage'),
+            ('community', 'Community Page'),
+            ('post', 'Post Detail'),
+            ('profile', 'User Profile'),
+            ('search', 'Search Results'),
+            ('about', 'About/Info Page'),
+            ('auth', 'Login/Signup Page'),
+            ('other', 'Other'),
+        ],
+        db_index=True
+    )
+    page_title = models.CharField(max_length=200, blank=True)
+
+    # Timing
+    viewed_at = models.DateTimeField(auto_now_add=True, db_index=True)
+    time_on_page_seconds = models.PositiveIntegerField(
+        default=0,
+        help_text="Time spent on this page in seconds"
+    )
+
+    # Navigation
+    referrer = models.URLField(max_length=500, blank=True)
+    is_entry_page = models.BooleanField(
+        default=False,
+        help_text="First page in the session"
+    )
+    is_exit_page = models.BooleanField(
+        default=False,
+        help_text="Last page in the session"
+    )
+
+    # Engagement metrics (optional - from frontend tracking)
+    scroll_depth = models.PositiveSmallIntegerField(
+        default=0,
+        help_text="Percentage of page scrolled (0-100)"
+    )
+    interactions = models.PositiveIntegerField(
+        default=0,
+        help_text="Number of clicks, hovers, etc."
+    )
+
+    # Content-specific tracking
+    content_id = models.UUIDField(
+        null=True,
+        blank=True,
+        help_text="ID of viewed content (post, community, etc.)"
+    )
+    content_type = models.CharField(max_length=50, blank=True)
+
+    class Meta:
+        indexes = [
+            models.Index(fields=['session', '-viewed_at']),
+            models.Index(fields=['page_type', '-viewed_at']),
+            models.Index(fields=['-viewed_at']),
+            models.Index(fields=['content_id', 'content_type']),
+        ]
+        ordering = ['-viewed_at']
+
+    def __str__(self):
+        return f"{self.page_type}: {self.url[:50]} at {self.viewed_at}"
+
+
+class PageAnalytics(models.Model):
+    """
+    Aggregate page analytics by day.
+
+    Privacy-friendly daily aggregates without individual tracking.
+    One record per page per day with summarized metrics.
+    """
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+
+    # Page identification
+    url_path = models.CharField(max_length=500, db_index=True)
+    page_type = models.CharField(
+        max_length=50,
+        choices=[
+            ('home', 'Homepage'),
+            ('community', 'Community Page'),
+            ('post', 'Post Detail'),
+            ('profile', 'User Profile'),
+            ('search', 'Search Results'),
+            ('about', 'About/Info Page'),
+            ('auth', 'Login/Signup Page'),
+            ('other', 'Other'),
+        ],
+        db_index=True
+    )
+
+    # Date aggregation
+    date = models.DateField(db_index=True)
+
+    # View counts (aggregated)
+    total_views = models.PositiveIntegerField(default=0)
+    authenticated_views = models.PositiveIntegerField(default=0)
+    anonymous_views = models.PositiveIntegerField(default=0)
+    unique_visitors = models.PositiveIntegerField(
+        default=0,
+        help_text="Unique device fingerprints"
+    )
+
+    # Engagement metrics (averages)
+    avg_time_on_page = models.FloatField(
+        default=0.0,
+        help_text="Average time in seconds"
+    )
+    avg_scroll_depth = models.FloatField(
+        default=0.0,
+        help_text="Average scroll percentage"
+    )
+    avg_interactions = models.FloatField(default=0.0)
+
+    # Device breakdown
+    mobile_views = models.PositiveIntegerField(default=0)
+    desktop_views = models.PositiveIntegerField(default=0)
+    tablet_views = models.PositiveIntegerField(default=0)
+
+    # Geographic breakdown (top 5 countries)
+    top_countries = models.JSONField(
+        default=list,
+        blank=True,
+        help_text="List of dicts: [{'country': 'US', 'count': 100}, ...]"
+    )
+
+    # Traffic sources (top 5)
+    top_referrers = models.JSONField(
+        default=list,
+        blank=True,
+        help_text="Top referring URLs"
+    )
+
+    # Bounce/Exit metrics
+    bounce_count = models.PositiveIntegerField(
+        default=0,
+        help_text="Views where user left immediately"
+    )
+    exit_count = models.PositiveIntegerField(
+        default=0,
+        help_text="Views where user ended session on this page"
+    )
+
+    # Calculated rates
+    bounce_rate = models.FloatField(default=0.0)
+    exit_rate = models.FloatField(default=0.0)
+
+    # Timestamps
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        unique_together = [['url_path', 'date']]
+        indexes = [
+            models.Index(fields=['-date', 'page_type']),
+            models.Index(fields=['url_path', '-date']),
+            models.Index(fields=['-total_views']),
+        ]
+        ordering = ['-date', '-total_views']
+
+    def __str__(self):
+        return f"{self.url_path} on {self.date} ({self.total_views} views)"
+
+    def update_metrics(self):
+        """Recalculate derived metrics."""
+        if self.total_views > 0:
+            self.bounce_rate = (self.bounce_count / self.total_views) * 100
+            self.exit_rate = (self.exit_count / self.total_views) * 100
+        else:
+            self.bounce_rate = 0.0
+            self.exit_rate = 0.0
+
+        self.save(update_fields=['bounce_rate', 'exit_rate', 'updated_at'])

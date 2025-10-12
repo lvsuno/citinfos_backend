@@ -2102,16 +2102,21 @@ class UserEvent(models.Model):
         ('community_create', 'Community Created'),
         ('community_update', 'Community Updated'),
         ('community_delete', 'Community Deleted'),
-        ('community_join', 'Community Joined'),
-        ('community_leave', 'Community Left'),
+        # Disabled: No longer using member join/leave system
+        # ('community_join', 'Community Joined'),
+        # ('community_leave', 'Community Left'),
+        # Track visitors instead of members
+        ('community_visit', 'Community Visited'),
         ('community_post', 'Community Post'),
+        # Only for admins/moderators
         ('community_membership_create', 'Community Membership Created'),
         ('community_role_create', 'Community Role Created'),
         ('community_role_update', 'Community Role Updated'),
         ('community_moderation', 'Community Moderation Action'),
-        ('community_invitation_create', 'Community Invitation Created'),
-        ('community_invitation_accept', 'Community Invitation Accepted'),
-        ('community_invitation_decline', 'Community Invitation Declined'),
+        # Disabled: No longer using invitation system
+        # ('community_invitation_create', 'Community Invitation Created'),
+        # ('community_invitation_accept', 'Community Invitation Accepted'),
+        # ('community_invitation_decline', 'Community Invitation Declined'),
 
         # AI Conversation events
         ('ai_conversation_create', 'AI Conversation Started'),

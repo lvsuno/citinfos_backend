@@ -112,9 +112,10 @@ THIRD_PARTY_APPS = [
     'django_celery_beat',  # Django Celery Beat for dynamic scheduling
     'channels',            # WebSocket support for real-time notifications
     # Django AllAuth for social authentication
+    # (Google, Facebook, GitHub, Twitter OAuth)
     'django.contrib.sites',
     'allauth',
-    'allauth.account',
+    'allauth.account',  # Required for social auth email management
     'allauth.socialaccount',
     'allauth.socialaccount.providers.google',
     'allauth.socialaccount.providers.facebook',
@@ -150,7 +151,9 @@ MIDDLEWARE = [
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
-    # Django AllAuth middleware
+    # Auto session recovery via fingerprint (must be after authentication)
+    'accounts.auto_session_recovery_middleware.AutoSessionRecoveryMiddleware',
+    # Django AllAuth middleware (required for social auth)
     'allauth.account.middleware.AccountMiddleware',
     # Update user activity tracking (must be after authentication)
     'accounts.middleware.UpdateLastActiveMiddleware',
@@ -204,9 +207,24 @@ CHANNEL_LAYERS = {
             "hosts": [(env('REDIS_HOST'), env('REDIS_PORT'))],
             "capacity": 1500,  # Maximum number of messages to store
             "expiry": 60,      # Message expiry time in seconds
+            # Connection pool settings for better performance
+            "symmetric_encryption_keys": [SECRET_KEY],
+            # Timeout settings to prevent hanging connections
+            "channel_capacity": {
+                "http.request": 100,
+                "http.response": 100,
+                "websocket.send": 100,
+                "websocket.receive": 100,
+            },
         },
     },
 }
+
+# WebSocket Apps - Apps that provide websocket_urlpatterns in routing.py
+WEBSOCKET_APPS = [
+    'communities',
+    'analytics',
+]
 
 # PostGIS Database Configuration - Single database for all data
 # Database Configuration - Using PostGIS for all data including spatial
@@ -218,6 +236,13 @@ DATABASES = {
         'PASSWORD': env('POSTGRES_PASSWORD', default='loc_password'),
         'HOST': env('POSTGRES_HOST', default='postgis'),
         'PORT': env('POSTGRES_PORT', default='5432'),
+        # Connection pooling for ASGI/Channels
+        'CONN_MAX_AGE': 0,  # Close connections immediately after request
+        'ATOMIC_REQUESTS': False,  # Disable for better async performance
+        'OPTIONS': {
+            'connect_timeout': 10,  # Connection timeout in seconds
+            'options': '-c statement_timeout=30000'  # 30 second query timeout
+        },
     }
 }
 
@@ -442,14 +467,17 @@ SITE_ID = 1
 
 AUTHENTICATION_BACKENDS = [
     'django.contrib.auth.backends.ModelBackend',
+    # AllAuth backend for social authentication (Google, Facebook, etc.)
     'allauth.account.auth_backends.AuthenticationBackend',
 ]
 
-# AllAuth Settings (Updated for latest version)
+# AllAuth Settings for Social Authentication
+# These manage email addresses from social providers (Google, Facebook, etc.)
 ACCOUNT_LOGIN_METHODS = {'email'}
 ACCOUNT_SIGNUP_FIELDS = ['email*', 'password1*']
 ACCOUNT_SESSION_REMEMBER = True
 ACCOUNT_UNIQUE_EMAIL = True
+# Email verification 'optional' - social providers already verify emails
 ACCOUNT_EMAIL_VERIFICATION = 'optional'
 ACCOUNT_CONFIRM_EMAIL_ON_GET = True
 ACCOUNT_LOGIN_ON_EMAIL_CONFIRMATION = True
@@ -711,6 +739,15 @@ CELERY_BEAT_SCHEDULE = {
     'generate-weekly-analytics-report': {
         'task': 'analytics.tasks.generate_weekly_analytics_report',
         'schedule': crontab(hour=5, minute=0, day_of_week=0),
+    },
+    # Anonymous session tracking tasks
+    'sync-community-analytics-from-redis': {
+        'task': 'analytics.tasks.sync_community_analytics_from_redis',
+        'schedule': 30.0,  # Every 30 seconds
+    },
+    'cleanup-old-anonymous-data': {
+        'task': 'analytics.tasks.cleanup_old_anonymous_data',
+        'schedule': crontab(hour=4, minute=15),  # Daily at 4:15 AM
     },
 
     # --- Notification Tasks ---

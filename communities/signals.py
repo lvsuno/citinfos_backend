@@ -87,21 +87,22 @@ def handle_community_membership_created(sender, instance, created, **kwargs):
             logger.error("Unexpected error in membership notification: %s", str(e))
 
 
-@receiver(post_save, sender='communities.CommunityInvitation')
-def handle_community_invitation_created(sender, instance, created, **kwargs):
-    """Handle community invitation creation."""
-    # pylint: disable=unused-argument
-    if created and instance.status == 'pending':
-        try:
-            CommunityNotifications.community_invitation_notification(
-                recipient=instance.invitee,
-                inviter=instance.inviter,
-                community=instance.community
-            )
-        except ObjectDoesNotExist as e:
-            logger.error("Failed to create invitation notification: %s", str(e))
-        except Exception as e:
-            logger.error("Unexpected error in invitation notification: %s", str(e))
+# # Commented out - Public communities don't use invitations
+# @receiver(post_save, sender='communities.CommunityInvitation')
+# def handle_community_invitation_created(sender, instance, created, **kwargs):
+#     """Handle community invitation creation."""
+#     # pylint: disable=unused-argument
+#     if created and instance.status == 'pending':
+#         try:
+#             CommunityNotifications.community_invitation_notification(
+#                 recipient=instance.invitee,
+#                 inviter=instance.inviter,
+#                 community=instance.community
+#             )
+#         except ObjectDoesNotExist as e:
+#             logger.error("Failed to create invitation notification: %s", str(e))
+#         except Exception as e:
+#             logger.error("Unexpected error in invitation notification: %s", str(e))
 
 
 @receiver(post_save, sender='communities.CommunityMembership')

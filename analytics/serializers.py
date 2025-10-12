@@ -7,6 +7,95 @@ from .models import (
 )
 
 
+# ============================================================================
+# VISITOR ANALYTICS SERIALIZERS
+# ============================================================================
+
+class VisitorStatsSerializer(serializers.Serializer):
+    """Serializer for unique visitor statistics."""
+    authenticated_visitors = serializers.IntegerField()
+    anonymous_visitors = serializers.IntegerField()
+    total_unique_visitors = serializers.IntegerField()
+    date_range = serializers.DictField(child=serializers.CharField())
+
+
+class DivisionBreakdownSerializer(serializers.Serializer):
+    """Serializer for division breakdown statistics."""
+    same_division_visitors = serializers.IntegerField()
+    cross_division_visitors = serializers.IntegerField()
+    no_division_visitors = serializers.IntegerField()
+    total_authenticated_visitors = serializers.IntegerField()
+    breakdown_percentage = serializers.DictField(
+        child=serializers.FloatField()
+    )
+
+
+class VisitorTrendSerializer(serializers.Serializer):
+    """Serializer for visitor trend data points."""
+    period = serializers.CharField()
+    authenticated_count = serializers.IntegerField()
+    anonymous_count = serializers.IntegerField()
+    total_count = serializers.IntegerField()
+
+
+class ConversionPageSerializer(serializers.Serializer):
+    """Serializer for conversion page data."""
+    page_url = serializers.CharField()
+    conversions = serializers.IntegerField()
+    views = serializers.IntegerField()
+    conversion_rate = serializers.FloatField()
+
+
+class ConversionMetricsSerializer(serializers.Serializer):
+    """Serializer for conversion metrics."""
+    total_conversions = serializers.IntegerField()
+    total_anonymous_sessions = serializers.IntegerField()
+    overall_conversion_rate = serializers.FloatField()
+    top_conversion_pages = ConversionPageSerializer(many=True)
+    avg_time_to_conversion = serializers.FloatField()
+
+
+class DeviceBreakdownSerializer(serializers.Serializer):
+    """Serializer for device breakdown."""
+    device_type = serializers.CharField()
+    count = serializers.IntegerField()
+    percentage = serializers.FloatField()
+
+
+class BrowserBreakdownSerializer(serializers.Serializer):
+    """Serializer for browser breakdown."""
+    browser = serializers.CharField()
+    count = serializers.IntegerField()
+    percentage = serializers.FloatField()
+
+
+class OSBreakdownSerializer(serializers.Serializer):
+    """Serializer for OS breakdown."""
+    operating_system = serializers.CharField()
+    count = serializers.IntegerField()
+    percentage = serializers.FloatField()
+
+
+class VisitorDemographicsSerializer(serializers.Serializer):
+    """Serializer for visitor demographics."""
+    total_sessions = serializers.IntegerField()
+    device_types = DeviceBreakdownSerializer(many=True)
+    browsers = BrowserBreakdownSerializer(many=True)
+    operating_systems = OSBreakdownSerializer(many=True)
+
+
+class RealtimeVisitorsSerializer(serializers.Serializer):
+    """Serializer for real-time visitor data."""
+    community_id = serializers.CharField()
+    current_online = serializers.IntegerField()
+    timestamp = serializers.DateTimeField()
+
+
+# ============================================================================
+# EXISTING SERIALIZERS
+# ============================================================================
+
+
 
 
 class DailyAnalyticsSerializer(serializers.ModelSerializer):

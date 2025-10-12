@@ -14,8 +14,8 @@ from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
 from accounts.models import UserProfile
 from accounts.permissions import NotDeletedUserPermission
 from .models import (
-    Community, CommunityMembership,
-    CommunityInvitation, CommunityJoinRequest,
+    Community, CommunityMembership, Thread,
+    # CommunityInvitation, CommunityJoinRequest,  # Commented out - not needed for public communities
     CommunityRole, CommunityModeration, CommunityAnnouncement
 )
 
@@ -23,8 +23,11 @@ logger = logging.getLogger(__name__)
 from .serializers import (
     CommunitySerializer, CommunityCreateUpdateSerializer,
     CommunityMembershipSerializer, CommunityModerationSerializer,
-    CommunityInvitationSerializer, CommunityRoleSerializer,
-    CommunityJoinRequestSerializer, CommunityAnnouncementSerializer
+    # CommunityInvitationSerializer,  # Commented - public communities
+    CommunityRoleSerializer,
+    # CommunityJoinRequestSerializer,  # Commented - public communities
+    CommunityAnnouncementSerializer,
+    ThreadSerializer
 )
 
 
@@ -33,38 +36,39 @@ from django.contrib.auth.decorators import login_required
 
 
 # CRUD ViewSet for CommunityJoinRequest
-class CommunityJoinRequestViewSet(viewsets.ModelViewSet):
-    """ViewSet for managing community join requests."""
-    serializer_class = CommunityJoinRequestSerializer
-    permission_classes = [IsAuthenticated, NotDeletedUserPermission]
+# # Commented out - Public communities don't use join requests
+# class CommunityJoinRequestViewSet(viewsets.ModelViewSet):
+#     """ViewSet for managing community join requests."""
+#     serializer_class = CommunityJoinRequestSerializer
+#     permission_classes = [IsAuthenticated, NotDeletedUserPermission]
 
-    def get_queryset(self):
-        """Return join requests for the authenticated user or all if admin."""
-        user = self.request.user
-        profile = get_object_or_404(UserProfile, user=user)
-        # Admins see all, others see their own
-        if user.is_superuser:
-            return CommunityJoinRequest.objects.filter(is_deleted=False)
-        return CommunityJoinRequest.objects.filter(user=profile, is_deleted=False)
+#     def get_queryset(self):
+#         """Return join requests for the authenticated user or all if admin."""
+#         user = self.request.user
+#         profile = get_object_or_404(UserProfile, user=user)
+#         # Admins see all, others see their own
+#         if user.is_superuser:
+#             return CommunityJoinRequest.objects.filter(is_deleted=False)
+#         return CommunityJoinRequest.objects.filter(user=profile, is_deleted=False)
 
-    def perform_create(self, serializer):
-        profile = get_object_or_404(UserProfile, user=self.request.user)
-        serializer.save(user=profile)
+#     def perform_create(self, serializer):
+#         profile = get_object_or_404(UserProfile, user=self.request.user)
+#         serializer.save(user=profile)
 
-    def perform_destroy(self, instance):
-        from django.utils import timezone
-        instance.is_deleted = True
-        instance.deleted_at = timezone.now()
-        instance.save()
+#     def perform_destroy(self, instance):
+#         from django.utils import timezone
+#         instance.is_deleted = True
+#         instance.deleted_at = timezone.now()
+#         instance.save()
 
-    def perform_update(self, serializer):
-        # If status is changed to approved/rejected, set reviewed_by and reviewed_at
-        instance = serializer.save()
-        if 'status' in serializer.validated_data and serializer.validated_data['status'] in ['approved', 'rejected']:
-            instance.reviewed_by = get_object_or_404(UserProfile, user=self.request.user)
-            from django.utils import timezone
-            instance.reviewed_at = timezone.now()
-            instance.save()
+#     def perform_update(self, serializer):
+#         # If status is changed to approved/rejected, set reviewed_by and reviewed_at
+#         instance = serializer.save()
+#         if 'status' in serializer.validated_data and serializer.validated_data['status'] in ['approved', 'rejected']:
+#             instance.reviewed_by = get_object_or_404(UserProfile, user=self.request.user)
+#             from django.utils import timezone
+#             instance.reviewed_at = timezone.now()
+#             instance.save()
 
 
 class CommunityViewSet(viewsets.ModelViewSet):
@@ -75,10 +79,32 @@ class CommunityViewSet(viewsets.ModelViewSet):
     lookup_field = 'slug'
 
     def get_queryset(self):
-        """Get queryset with optimized data loading, excluding soft-deleted."""
-        return Community.objects.filter(is_deleted=False).select_related('creator__user').annotate(
-            membership_count=Count('memberships', filter=Q(memberships__status='active', memberships__is_deleted=False))
-        ).order_by('-created_at')
+        """Get queryset with optimized data loading, excluding soft-deleted.
+
+        Query params:
+        - division_id: Filter communities by division UUID (optional)
+        """
+        queryset = Community.objects.filter(
+            is_deleted=False
+        ).select_related(
+            'creator__user', 'division'
+        ).annotate(
+            membership_count=Count(
+                'memberships',
+                filter=Q(
+                    memberships__status='active',
+                    memberships__is_deleted=False
+                )
+            )
+        )
+
+        # Filter by division if provided
+        division_id = self.request.query_params.get('division_id')
+        if division_id:
+            queryset = queryset.filter(division_id=division_id)
+
+        return queryset.order_by('-created_at')
+
     def perform_destroy(self, instance):
         """Soft delete a community."""
         from django.utils import timezone
@@ -803,6 +829,50 @@ class CommunityViewSet(viewsets.ModelViewSet):
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
+class ThreadViewSet(viewsets.ModelViewSet):
+    """ViewSet for managing discussion threads within communities."""
+    serializer_class = ThreadSerializer
+    permission_classes = [IsAuthenticatedOrReadOnly]
+    lookup_field = 'slug'
+
+    def get_queryset(self):
+        """Get queryset filtered by community if specified.
+
+        Query params:
+        - community_id: Filter threads by community UUID (optional)
+        - community_slug: Filter threads by community slug (optional)
+        """
+        from .models import Thread
+
+        queryset = Thread.objects.filter(
+            is_deleted=False
+        ).select_related(
+            'creator__user', 'community'
+        ).order_by('-is_pinned', '-created_at')
+
+        # Filter by community if provided
+        community_id = self.request.query_params.get('community_id')
+        community_slug = self.request.query_params.get('community_slug')
+
+        if community_id:
+            queryset = queryset.filter(community_id=community_id)
+        elif community_slug:
+            queryset = queryset.filter(community__slug=community_slug)
+
+        return queryset
+
+    def perform_create(self, serializer):
+        """Create thread with current user as creator."""
+        profile = get_object_or_404(UserProfile, user=self.request.user)
+        serializer.save(creator=profile)
+
+    def perform_destroy(self, instance):
+        """Soft delete a thread."""
+        instance.is_deleted = True
+        instance.deleted_at = timezone.now()
+        instance.save()
+
+
 class CommunityMembershipViewSet(viewsets.ModelViewSet):
     """ViewSet for managing community memberships."""
     serializer_class = CommunityMembershipSerializer
@@ -997,85 +1067,86 @@ class CommunityModerationViewSet(viewsets.ModelViewSet):
         serializer.save(moderator=profile)
 
 
-class CommunityInvitationViewSet(viewsets.ModelViewSet):
-    """ViewSet for managing community invitations."""
-    serializer_class = CommunityInvitationSerializer
-    permission_classes = [IsAuthenticated, NotDeletedUserPermission]
+# # Commented out - Public communities don't use invitations
+# class CommunityInvitationViewSet(viewsets.ModelViewSet):
+#     """ViewSet for managing community invitations."""
+#     serializer_class = CommunityInvitationSerializer
+#     permission_classes = [IsAuthenticated, NotDeletedUserPermission]
 
-    def get_queryset(self):
-        """Get user's invitations, excluding soft-deleted."""
-        profile = get_object_or_404(UserProfile, user=self.request.user)
-        return CommunityInvitation.objects.filter(
-            (models.Q(inviter=profile) | models.Q(invitee=profile)),
-            is_deleted=False
-        ).select_related('community', 'inviter', 'invitee')
+#     def get_queryset(self):
+#         """Get user's invitations, excluding soft-deleted."""
+#         profile = get_object_or_404(UserProfile, user=self.request.user)
+#         return CommunityInvitation.objects.filter(
+#             (models.Q(inviter=profile) | models.Q(invitee=profile)),
+#             is_deleted=False
+#         ).select_related('community', 'inviter', 'invitee')
 
-    def perform_destroy(self, instance):
-        """Soft delete an invitation."""
-        from django.utils import timezone
-        instance.is_deleted = True
-        instance.deleted_at = timezone.now()
-        instance.save()
+#     def perform_destroy(self, instance):
+#         """Soft delete an invitation."""
+#         from django.utils import timezone
+#         instance.is_deleted = True
+#         instance.deleted_at = timezone.now()
+#         instance.save()
 
-    def perform_create(self, serializer):
-        """Create invitation with current user as inviter."""
-        profile = get_object_or_404(UserProfile, user=self.request.user)
-        serializer.save(inviter=profile)
+#     def perform_create(self, serializer):
+#         """Create invitation with current user as inviter."""
+#         profile = get_object_or_404(UserProfile, user=self.request.user)
+#         serializer.save(inviter=profile)
 
-    @action(detail=True, methods=['post'])
-    def accept(self, request, pk=None):
-        """Accept a community invitation."""
-        invitation = self.get_object()
-        profile = get_object_or_404(UserProfile, user=request.user)
+#     @action(detail=True, methods=['post'])
+#     def accept(self, request, pk=None):
+#         """Accept a community invitation."""
+#         invitation = self.get_object()
+#         profile = get_object_or_404(UserProfile, user=request.user)
 
-        if invitation.invitee != profile:
-            return Response(
-                {'detail': 'You cannot accept this invitation.'},
-                status=status.HTTP_403_FORBIDDEN
-            )
+#         if invitation.invitee != profile:
+#             return Response(
+#                 {'detail': 'You cannot accept this invitation.'},
+#                 status=status.HTTP_403_FORBIDDEN
+#             )
 
-        if invitation.status != 'pending':
-            return Response(
-                {'detail': 'Invitation is no longer pending.'},
-                status=status.HTTP_400_BAD_REQUEST
-            )
+#         if invitation.status != 'pending':
+#             return Response(
+#                 {'detail': 'Invitation is no longer pending.'},
+#                 status=status.HTTP_400_BAD_REQUEST
+#             )
 
-        # Create membership
-        default_role = invitation.community.roles.filter(is_default=True).first()
-        CommunityMembership.objects.get_or_create(
-            community=invitation.community,
-            user=profile,
-            defaults={'role': default_role}
-        )
+#         # Create membership
+#         default_role = invitation.community.roles.filter(is_default=True).first()
+#         CommunityMembership.objects.get_or_create(
+#             community=invitation.community,
+#             user=profile,
+#             defaults={'role': default_role}
+#         )
 
-        # Update invitation status
-        invitation.status = 'accepted'
-        invitation.save()
+#         # Update invitation status
+#         invitation.status = 'accepted'
+#         invitation.save()
 
-        return Response({'detail': 'Invitation accepted successfully.'})
+#         return Response({'detail': 'Invitation accepted successfully.'})
 
-    @action(detail=True, methods=['post'])
-    def decline(self, request, pk=None):
-        """Decline a community invitation."""
-        invitation = self.get_object()
-        profile = get_object_or_404(UserProfile, user=request.user)
+#     @action(detail=True, methods=['post'])
+#     def decline(self, request, pk=None):
+#         """Decline a community invitation."""
+#         invitation = self.get_object()
+#         profile = get_object_or_404(UserProfile, user=request.user)
 
-        if invitation.invitee != profile:
-            return Response(
-                {'detail': 'You cannot decline this invitation.'},
-                status=status.HTTP_403_FORBIDDEN
-            )
+#         if invitation.invitee != profile:
+#             return Response(
+#                 {'detail': 'You cannot decline this invitation.'},
+#                 status=status.HTTP_403_FORBIDDEN
+#             )
 
-        if invitation.status != 'pending':
-            return Response(
-                {'detail': 'Invitation is no longer pending.'},
-                status=status.HTTP_400_BAD_REQUEST
-            )
+#         if invitation.status != 'pending':
+#             return Response(
+#                 {'detail': 'Invitation is no longer pending.'},
+#                 status=status.HTTP_400_BAD_REQUEST
+#             )
 
-        invitation.status = 'declined'
-        invitation.save()
+#         invitation.status = 'declined'
+#         invitation.save()
 
-        return Response({'detail': 'Invitation declined successfully.'})
+#         return Response({'detail': 'Invitation declined successfully.'})
 
 
 class CommunityAnnouncementViewSet(viewsets.ModelViewSet):

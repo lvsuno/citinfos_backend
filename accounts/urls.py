@@ -54,6 +54,8 @@ urlpatterns = [
          name='jwt_password_reset_confirm'),
     path('api/auth/update-last-visited/', jwt_views.update_last_visited_url,
          name='update_last_visited_url'),
+    path('api/auth/recover-session/', jwt_views.recover_session_by_fingerprint,
+         name='recover_session_by_fingerprint'),
 
     # =========================================================================
     # UTILITY ENDPOINTS (ACTIVE - Commonly needed)

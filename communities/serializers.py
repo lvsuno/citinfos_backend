@@ -5,26 +5,25 @@ from accounts.models import UserProfile
 from core.timezone_utils import validate_timezone_restrictions
 
 from .models import (
-    Community, CommunityMembership,
-    CommunityInvitation, CommunityJoinRequest,
-    CommunityRole, CommunityModeration,
-    CommunityAnnouncement
+    Community, CommunityMembership, Thread,
+    # CommunityInvitation, CommunityJoinRequest,  # Public communities only
+    CommunityRole, CommunityModeration, CommunityAnnouncement
 )
 
-# Serializer for CommunityJoinRequest
-class CommunityJoinRequestSerializer(serializers.ModelSerializer):
-    """Serializer for community join requests."""
-    user_username = serializers.CharField(source='user.user.username', read_only=True)
-    reviewed_by_username = serializers.CharField(source='reviewed_by.user.username', read_only=True)
+# # Serializer for CommunityJoinRequest - COMMENTED OUT (public communities only)
+# class CommunityJoinRequestSerializer(serializers.ModelSerializer):
+#     """Serializer for community join requests."""
+#     user_username = serializers.CharField(source='user.user.username', read_only=True)
+#     reviewed_by_username = serializers.CharField(source='reviewed_by.user.username', read_only=True)
 
-    class Meta:
-        model = CommunityJoinRequest
-        fields = [
-            'id', 'community', 'user', 'user_username', 'message', 'status',
-            'reviewed_by', 'reviewed_by_username', 'review_message',
-            'created_at', 'reviewed_at', 'is_deleted', 'deleted_at'
-        ]
-        read_only_fields = ['id', 'created_at', 'reviewed_at', 'reviewed_by', 'reviewed_by_username']
+#     class Meta:
+#         model = CommunityJoinRequest
+#         fields = [
+#             'id', 'community', 'user', 'user_username', 'message', 'status',
+#             'reviewed_by', 'reviewed_by_username', 'review_message',
+#             'created_at', 'reviewed_at', 'is_deleted', 'deleted_at'
+#         ]
+#         read_only_fields = ['id', 'created_at', 'reviewed_at', 'reviewed_by', 'reviewed_by_username']
 
 
 class CommunityMembershipSerializer(serializers.ModelSerializer):
@@ -49,15 +48,91 @@ class CommunityRoleSerializer(serializers.ModelSerializer):
         read_only_fields = ['id', 'created_at']
 
 
+class ThreadSerializer(serializers.ModelSerializer):
+    """Serializer for Thread (discussion topics) within communities."""
+    creator_username = serializers.CharField(
+        source='creator.user.username',
+        read_only=True
+    )
+    community_name = serializers.CharField(
+        source='community.name',
+        read_only=True
+    )
+    community_slug = serializers.CharField(
+        source='community.slug',
+        read_only=True
+    )
+
+    # Optional: Include first post when creating thread
+    first_post_content = serializers.CharField(
+        write_only=True,
+        required=False,
+        allow_blank=True,
+        max_length=2000,
+        help_text="Optional first post content when creating thread"
+    )
+    first_post_type = serializers.ChoiceField(
+        write_only=True,
+        required=False,
+        choices=['text', 'image', 'video', 'audio', 'file', 'poll'],
+        default='text',
+        help_text="Type of the first post"
+    )
+
+    class Meta:
+        model = Thread
+        fields = [
+            'id', 'community', 'community_name', 'community_slug',
+            'title', 'slug', 'creator', 'creator_username', 'body',
+            'is_closed', 'is_pinned', 'allow_comments', 'posts_count',
+            'created_at', 'updated_at',
+            # Write-only fields for first post
+            'first_post_content', 'first_post_type'
+        ]
+        read_only_fields = [
+            'id', 'slug', 'creator', 'posts_count',
+            'created_at', 'updated_at'
+        ]
+
+    def create(self, validated_data):
+        """Create thread and optionally create first post."""
+        from content.models import Post
+        from django.db import transaction
+
+        # Extract first post data
+        first_post_content = validated_data.pop('first_post_content', None)
+        first_post_type = validated_data.pop('first_post_type', 'text')
+
+        # Create thread
+        with transaction.atomic():
+            thread = super().create(validated_data)
+
+            # Create first post if content provided
+            if first_post_content and first_post_content.strip():
+                Post.objects.create(
+                    author=thread.creator,
+                    community=thread.community,
+                    thread=thread,
+                    content=first_post_content,
+                    post_type=first_post_type,
+                    visibility='community'
+                )
+
+        return thread
+
+
 class CommunitySerializer(serializers.ModelSerializer):
     """Serializer for Community model."""
     creator_username = serializers.CharField(source='creator.user.username', read_only=True)
-    membership_count = serializers.IntegerField(read_only=True)
+    # membership_count removed - communities are public, no membership tracking
     posts_count = serializers.IntegerField(read_only=True)
     threads_count = serializers.IntegerField(read_only=True)
     user_is_member = serializers.SerializerMethodField()
     user_can_post = serializers.SerializerMethodField()
     user_role = serializers.SerializerMethodField()
+
+    # Division info (optional - can be null)
+    division_info = serializers.SerializerMethodField()
 
     class Meta:
         model = Community
@@ -65,11 +140,22 @@ class CommunitySerializer(serializers.ModelSerializer):
             'id', 'name', 'slug', 'description', 'community_type',
             'cover_media', 'cover_media_type', 'avatar', 'creator', 'creator_username',
             'rules', 'tags', 'allow_posts', 'require_post_approval',
-            'allow_external_links', 'membership_count', 'posts_count', 'threads_count',
+            'allow_external_links', 'division', 'division_info', 'posts_count', 'threads_count',
             'user_is_member', 'user_can_post', 'user_role',
             'is_active', 'is_featured', 'created_at', 'updated_at'
         ]
         read_only_fields = ['id', 'creator', 'created_at', 'updated_at']
+
+    def get_division_info(self, obj):
+        """Get division details if division is set."""
+        if obj.division:
+            return {
+                'id': str(obj.division.id),
+                'name': obj.division.name,
+                'boundary_type': obj.division.boundary_type,
+                'admin_level': obj.division.admin_level,
+            }
+        return None
 
     def get_user_is_member(self, obj):
         """Check if the current user is a member of the community."""
@@ -200,6 +286,7 @@ class CommunityCreateUpdateSerializer(serializers.ModelSerializer):
             'id', 'name', 'slug', 'description', 'community_type',
             'cover_media', 'cover_media_type', 'avatar', 'rules', 'tags',
             'allow_posts', 'require_post_approval', 'allow_external_links',
+            'division',  # Optional division FK
             # 'is_geo_restricted', 'geo_restriction_type',
             # 'geo_restriction_message',
             'creator', 'creator_username', 'created_at', 'updated_at',
@@ -615,19 +702,20 @@ class CommunityModerationSerializer(serializers.ModelSerializer):
         read_only_fields = ['id', 'moderator', 'created_at']
 
 
-class CommunityInvitationSerializer(serializers.ModelSerializer):
-    """Serializer for community invitations."""
-    inviter_username = serializers.CharField(source='inviter.user.username', read_only=True)
-    invitee_username = serializers.CharField(source='invitee.user.username', read_only=True)
+# # Commented out - Public communities don't use invitations
+# class CommunityInvitationSerializer(serializers.ModelSerializer):
+#     """Serializer for community invitations."""
+#     inviter_username = serializers.CharField(source='inviter.user.username', read_only=True)
+#     invitee_username = serializers.CharField(source='invitee.user.username', read_only=True)
 
-    class Meta:
-        model = CommunityInvitation
-        fields = [
-            'id', 'community', 'inviter', 'inviter_username',
-            'invitee', 'invitee_username', 'message', 'status',
-            'created_at', 'expires_at', 'responded_at'
-        ]
-        read_only_fields = ['id', 'inviter', 'created_at', 'responded_at']
+#     class Meta:
+#         model = CommunityInvitation
+#         fields = [
+#             'id', 'community', 'inviter', 'inviter_username',
+#             'invitee', 'invitee_username', 'message', 'status',
+#             'created_at', 'expires_at', 'responded_at'
+#         ]
+#         read_only_fields = ['id', 'inviter', 'created_at', 'responded_at']
 
 
 class CommunityAnnouncementSerializer(serializers.ModelSerializer):

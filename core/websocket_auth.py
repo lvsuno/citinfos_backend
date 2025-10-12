@@ -51,9 +51,13 @@ class UniversalWebSocketAuthMiddleware(BaseMiddleware):
         # Close old database connections to prevent usage of timed out connections
         close_old_connections()
 
-        # Only authenticate WebSocket connections
+        # Only authenticate WebSocket connections, pass HTTP through immediately
         if scope['type'] != 'websocket':
-            return await super().__call__(scope, receive, send)
+            # For HTTP requests, don't add any async overhead
+            result = await super().__call__(scope, receive, send)
+            # Ensure connections are closed after HTTP request
+            close_old_connections()
+            return result
 
         # Extract authentication parameters from query string
         query_string = scope.get('query_string', b'').decode('utf-8')

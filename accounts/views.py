@@ -195,6 +195,29 @@ def email_verify(request):
         user_obj.is_active = True
         user_obj.save()
 
+        # Track anonymous-to-authenticated conversion
+        from analytics.tasks import track_anonymous_conversion
+        try:
+            # Get device fingerprint from request
+            from core.utils import OptimizedDeviceFingerprint
+            device_fingerprint = (
+                OptimizedDeviceFingerprint.get_fast_fingerprint(request)
+            )
+
+            # Trigger conversion tracking asynchronously
+            track_anonymous_conversion.delay(
+                device_fingerprint=device_fingerprint,
+                user_id=str(user_profile.id),
+                conversion_page=request.build_absolute_uri(),
+            )
+        except Exception as e:
+            # Don't fail verification if conversion tracking fails
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.error(
+                f"Failed to track conversion for {user_profile.id}: {e}"
+            )
+
         # Track verification event
         from .models import UserEvent
         try:

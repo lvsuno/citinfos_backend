@@ -646,21 +646,55 @@ class Post(models.Model):
             self.has_attachments
         )
 
+    @property
+    def get_division(self):
+        """Get the geographic division for this post through its community.
+
+        Returns:
+            AdministrativeDivision instance or None if community has no division
+        """
+        if self.community and self.community.division:
+            return self.community.division
+        return None
+
     def clean(self):
         """Validate that only verified, non-suspended users can post."""
         super().clean()
+        from django.core.exceptions import ValidationError
         from accounts.permissions import validate_user_for_interaction
+
         validate_user_for_interaction(self.author, "create posts")
+
         # If thread is provided, ensure it's consistent with community
         if self.thread:
             # Auto-assign community from thread when not explicitly set
             if not self.community:
                 self.community = self.thread.community
             elif self.community.id != self.thread.community.id:
-                from django.core.exceptions import ValidationError
                 raise ValidationError({
                     'thread': 'Thread community does not match post.community'
                 })
+
+        # Check if user is banned from the community
+        if self.community:
+            from communities.models import CommunityMembership
+            banned_membership = CommunityMembership.objects.filter(
+                community=self.community,
+                user=self.author,
+                status='banned',
+                is_deleted=False
+            ).first()
+
+            if banned_membership:
+                ban_message = "You are banned from posting in this community."
+                if banned_membership.ban_reason:
+                    ban_message += f" Reason: {banned_membership.ban_reason}"
+                if banned_membership.ban_expires_at:
+                    ban_message += (
+                        f" Ban expires: "
+                        f"{banned_membership.ban_expires_at.strftime('%Y-%m-%d')}"
+                    )
+                raise ValidationError({'community': ban_message})
 
     def save(self, *args, **kwargs):
         """Override save to call full_clean for validation.
@@ -907,6 +941,11 @@ class PostMedia(models.Model):
         upload_to=postmedia_thumbnail_upload_to,
         blank=True,
         null=True
+    )
+    description = models.CharField(
+        max_length=200,
+        blank=True,
+        help_text="Optional description/caption for this media attachment"
     )
     order = models.PositiveIntegerField(default=0)
 

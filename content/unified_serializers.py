@@ -27,7 +27,8 @@ class EnhancedPostMediaSerializer(serializers.ModelSerializer):
         model = PostMedia
         fields = [
             'id', 'media_type', 'type', 'file', 'file_url', 'thumbnail',
-            'thumbnail_url', 'order', 'file_size', 'preview', 'name'
+            'thumbnail_url', 'description', 'order', 'file_size',
+            'preview', 'name'
         ]
         read_only_fields = [
             'id', 'file_url', 'thumbnail_url', 'file_size',

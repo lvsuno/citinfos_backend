@@ -12,6 +12,7 @@ from rest_framework_simplejwt.exceptions import  TokenError
 from django.conf import settings
 from django.contrib.auth import logout
 from django.contrib.auth.models import User
+from django.utils import timezone
 from core.session_manager import session_manager
 from .models import UserProfile
 
@@ -306,13 +307,24 @@ def jwt_user_info(request):
 
         # Enrich with location data for municipality routing (matching login response)
         try:
-            profile = UserProfile.objects.get(user=request.user, is_deleted=False)
+            # Use select_related to avoid N+1 queries
+            profile = UserProfile.objects.select_related(
+                'administrative_division',
+                'administrative_division__parent',
+                'administrative_division__country'
+            ).get(user=request.user, is_deleted=False)
+
             if profile.administrative_division:
                 # Build complete administrative division data
                 admin_div = profile.administrative_division
 
                 # Find Level 1 ancestor (province/department) by traversing up
-                level_1_ancestor = admin_div.get_ancestor_at_level(1)
+                # Cache this in the request to avoid repeated queries
+                cache_key = f'level_1_ancestor_{admin_div.id}'
+                level_1_ancestor = getattr(request, cache_key, None)
+                if not level_1_ancestor:
+                    level_1_ancestor = admin_div.get_ancestor_at_level(1)
+                    setattr(request, cache_key, level_1_ancestor)
 
                 location_data = {
                     'city': admin_div.name,
@@ -818,6 +830,150 @@ def update_last_visited_url(request):
         logger.error(f"Error tracking page visit: {e}")
         return Response({
             'error': f'Failed to track page visit: {str(e)}'
+        }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+@api_view(['POST'])
+@permission_classes([AllowAny])
+def recover_session_by_fingerprint(request):
+    """
+    Recover user session using device fingerprint + session ID.
+
+    Case 3: User lost token but has active session in Redis.
+    Server validates fingerprint + session_id and returns new JWT.
+
+    Request body:
+        {
+            "fingerprint": "client-generated-fingerprint",
+            "session_id": "optional-session-id"
+        }
+
+    Returns:
+        {
+            "success": true,
+            "token": "new-jwt-token",
+            "refresh": "new-refresh-token",
+            "user": {...}
+        }
+    """
+    fingerprint = request.data.get('fingerprint')
+    session_id = request.data.get('session_id')
+
+    if not fingerprint:
+        return Response({
+            'error': 'Fingerprint is required'
+        }, status=status.HTTP_400_BAD_REQUEST)
+
+    try:
+        import redis
+        from django.conf import settings
+
+        # Connect to Redis
+        redis_client = redis.Redis(
+            host=settings.REDIS_HOST,
+            port=settings.REDIS_PORT,
+            db=0,
+            decode_responses=True,
+            socket_timeout=2
+        )
+
+        # Try to find session by fingerprint
+        session_key = None
+
+        if session_id:
+            # Check if session exists with this ID
+            session_key = f"session:{session_id}"
+            session_data = redis_client.hgetall(session_key)
+
+            # Validate fingerprint matches
+            if not session_data or session_data.get('device_fingerprint') != fingerprint:
+                session_key = None
+
+        if not session_key:
+            # Try to find session by fingerprint alone
+            anon_session_key = f"anon_session:{fingerprint}"
+            anon_session_data = redis_client.hgetall(anon_session_key)
+
+            # Check if this anonymous session was converted to authenticated
+            if anon_session_data and anon_session_data.get('converted_to_user_id'):
+                user_id = anon_session_data.get('converted_to_user_id')
+
+                # Find authenticated session for this user with matching fingerprint
+                user_sessions = redis_client.keys(f"session:*")
+                for key in user_sessions:
+                    sess_data = redis_client.hgetall(key)
+                    if (sess_data.get('user_id') == user_id and
+                        sess_data.get('device_fingerprint') == fingerprint):
+                        session_key = key
+                        session_data = sess_data
+                        break
+
+        if not session_key:
+            return Response({
+                'error': 'No active session found for this fingerprint'
+            }, status=status.HTTP_404_NOT_FOUND)
+
+        # Get user from session
+        user_id = session_data.get('user_id')
+        if not user_id:
+            return Response({
+                'error': 'Session is not authenticated'
+            }, status=status.HTTP_401_UNAUTHORIZED)
+
+        try:
+            user = User.objects.get(id=user_id)
+        except User.DoesNotExist:
+            return Response({
+                'error': 'User not found'
+            }, status=status.HTTP_404_NOT_FOUND)
+
+        # Generate new JWT tokens
+        refresh = RefreshToken.for_user(user)
+        access_token = str(refresh.access_token)
+        refresh_token = str(refresh)
+
+        # Update session in Redis
+        session_data['last_activity'] = str(timezone.now().timestamp())
+        redis_client.hset(session_key, mapping=session_data)
+        redis_client.expire(session_key, 1800)  # 30 minutes
+
+        # Get user profile data
+        try:
+            profile = UserProfile.objects.select_related(
+                'administrative_division',
+                'administrative_division__parent',
+                'administrative_division__country'
+            ).get(user=user, is_deleted=False)
+
+            user_data = UserDetailSerializer(profile).data
+        except UserProfile.DoesNotExist:
+            user_data = {
+                'id': user.id,
+                'username': user.username,
+                'email': user.email
+            }
+
+        logger.info(f"✅ Session recovered for user {user.username} via fingerprint")
+
+        return Response({
+            'success': True,
+            'access': access_token,
+            'refresh': refresh_token,
+            'token': access_token,  # Backward compatibility
+            'user': user_data,
+            'session_id': session_key.replace('session:', ''),
+            'message': 'Session recovered successfully'
+        }, status=status.HTTP_200_OK)
+
+    except redis.exceptions.RedisError as e:
+        logger.error(f"Redis error during session recovery: {e}")
+        return Response({
+            'error': 'Session storage unavailable'
+        }, status=status.HTTP_503_SERVICE_UNAVAILABLE)
+    except Exception as e:
+        logger.error(f"Error during session recovery: {e}")
+        return Response({
+            'error': f'Session recovery failed: {str(e)}'
         }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 

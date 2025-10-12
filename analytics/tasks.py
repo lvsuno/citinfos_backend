@@ -6,7 +6,8 @@ from datetime import timedelta
 from analytics.models import (
     DailyAnalytics, UserAnalytics, SystemMetric, ErrorLog, CommunityAnalytics,
     AuthenticationMetric, AuthenticationReport, SessionAnalytic,
-    ContentAnalytics,  SearchAnalytics
+    ContentAnalytics, SearchAnalytics, AnonymousSession, AnonymousPageView,
+    PageAnalytics
 )
 from analytics.utils import (
     update_user_analytics, generate_daily_analytics,
@@ -1799,7 +1800,9 @@ def track_page_view(user_id, page_url=None, referrer=None, session_id=None):
         user_profile = UserProfile.objects.get(id=user_id)
 
         # Increment page views
-        analytics = UserAnalytics.increment_user_page_views(user_profile, count=1)
+        analytics = UserAnalytics.increment_user_page_views(
+            user_profile, count=1
+        )
 
         # Optional: Log page view details for more detailed tracking
         logger.info(
@@ -1815,8 +1818,635 @@ def track_page_view(user_id, page_url=None, referrer=None, session_id=None):
         }
 
     except UserProfile.DoesNotExist:
-        logger.warning(f"User profile not found for page view tracking: {user_id}")
+        logger.warning(
+            f"User profile not found for page view tracking: {user_id}"
+        )
         return {'success': False, 'error': 'User not found'}
     except Exception as e:
         logger.error(f"Error tracking page view for user {user_id}: {e}")
         return {'success': False, 'error': str(e)}
+
+
+@shared_task
+def persist_anonymous_session(device_fingerprint, session_data):
+    """
+    Persist anonymous session data from Redis to database.
+
+    This task is triggered every 5th page view to save anonymous
+    session tracking data to the database, reducing DB writes while
+    maintaining data integrity.
+
+    Args:
+        device_fingerprint: Unique device identifier
+        session_data: Dictionary containing session information from Redis
+    """
+    try:
+        from datetime import datetime
+        import json
+
+        # Parse dates from ISO format
+        session_start = datetime.fromisoformat(
+            session_data.get('session_start')
+        )
+        last_activity = datetime.fromisoformat(
+            session_data.get('last_activity')
+        )
+
+        # Get or create AnonymousSession
+        session, created = AnonymousSession.objects.get_or_create(
+            device_fingerprint=device_fingerprint,
+            session_start=session_start,
+            defaults={
+                'last_activity': last_activity,
+                'pages_visited': int(session_data.get('pages_visited', 0)),
+                'landing_page': session_data.get('landing_page', ''),
+                'exit_page': session_data.get('exit_page', ''),
+                'referrer': session_data.get('referrer', ''),
+                'utm_source': session_data.get('utm_source', ''),
+                'utm_medium': session_data.get('utm_medium', ''),
+                'utm_campaign': session_data.get('utm_campaign', ''),
+                'utm_term': session_data.get('utm_term', ''),
+                'utm_content': session_data.get('utm_content', ''),
+                'ip_address': session_data.get('ip_address', ''),
+                'user_agent': session_data.get('user_agent', ''),
+                'device_type': session_data.get('device_type', 'unknown'),
+                'browser': session_data.get('browser', 'Unknown'),
+                'os': session_data.get('os', 'Unknown'),
+                'session_ended': False,
+            }
+        )
+
+        # Update existing session
+        if not created:
+            session.last_activity = last_activity
+            session.pages_visited = int(session_data.get('pages_visited', 0))
+            session.exit_page = session_data.get('exit_page', '')
+            session.save(update_fields=[
+                'last_activity', 'pages_visited', 'exit_page'
+            ])
+
+        # Parse and save page views
+        page_views_json = session_data.get('page_views', '[]')
+        page_views = json.loads(page_views_json)
+
+        # Track which page views we've already persisted
+        existing_urls = set(
+            AnonymousPageView.objects.filter(
+                session=session
+            ).values_list('page_url', flat=True)
+        )
+
+        # Create new page view records (avoid duplicates)
+        new_page_views = []
+        for page_view in page_views:
+            page_url = page_view.get('page_url', '')
+
+            # Skip if already persisted
+            if page_url in existing_urls:
+                continue
+
+            # Parse timestamp
+            viewed_at = datetime.fromisoformat(
+                page_view.get('viewed_at')
+            )
+
+            new_page_views.append(
+                AnonymousPageView(
+                    session=session,
+                    page_url=page_url,
+                    page_type=page_view.get('page_type', 'other'),
+                    viewed_at=viewed_at,
+                    time_spent_seconds=page_view.get(
+                        'time_spent_seconds', 0
+                    ),
+                    referrer_url=page_view.get('referrer_url', '')
+                )
+            )
+
+        # Bulk create new page views
+        if new_page_views:
+            AnonymousPageView.objects.bulk_create(
+                new_page_views,
+                ignore_conflicts=True
+            )
+
+        # Update PageAnalytics for each unique page
+        unique_pages = set(pv.get('page_url') for pv in page_views)
+        for page_url in unique_pages:
+            analytics, _ = PageAnalytics.objects.get_or_create(
+                page_url=page_url,
+                date=last_activity.date()
+            )
+            analytics.anonymous_views += 1
+            analytics.save(update_fields=['anonymous_views'])
+
+        logger.info(
+            f"Persisted anonymous session {device_fingerprint}: "
+            f"{len(new_page_views)} new page views, "
+            f"{session.pages_visited} total pages"
+        )
+
+
+        return {
+            'success': True,
+            'session_id': str(session.id),
+            'device_fingerprint': device_fingerprint,
+            'new_page_views': len(new_page_views),
+            'total_pages': session.pages_visited,
+        }
+
+    except Exception as e:
+        logger.error(
+            f"Error persisting anonymous session "
+            f"{device_fingerprint}: {e}",
+            exc_info=True
+        )
+        return {
+            'success': False,
+            'error': str(e),
+            'device_fingerprint': device_fingerprint
+        }
+
+
+@shared_task
+def track_anonymous_page_view_async(page_view_data):
+    """
+    Async task to track anonymous page views in Redis (NON-BLOCKING).
+
+    This task is called from middleware to avoid blocking HTTP responses
+    with Redis operations. All Redis I/O happens here in the background.
+
+    Args:
+        page_view_data: Dictionary containing:
+            - device_fingerprint
+            - current_url
+            - page_type
+            - ip_address
+            - user_agent
+            - device_type
+            - referrer
+            - utm_params (dict)
+    """
+    try:
+        import redis
+        import json
+        from datetime import datetime
+        from django.conf import settings
+
+        device_fingerprint = page_view_data['device_fingerprint']
+
+        # Connect to Redis with connection pooling
+        redis_client = redis.Redis(
+            host=settings.REDIS_HOST,
+            port=settings.REDIS_PORT,
+            db=settings.REDIS_DB,
+            decode_responses=True,
+            socket_connect_timeout=2,  # 2 second timeout
+            socket_timeout=2,
+        )
+
+        # Redis key for anonymous session
+        session_key = f"anon_session:{device_fingerprint}"
+
+        # Get current session data or create new
+        session_data = redis_client.hgetall(session_key)
+
+        if not session_data:
+            # New anonymous session
+            session_data = {
+                'device_fingerprint': device_fingerprint,
+                'session_start': datetime.now().isoformat(),
+                'last_activity': datetime.now().isoformat(),
+                'pages_visited': '0',
+                'landing_page': page_view_data['current_url'],
+                'referrer': page_view_data['referrer'],
+                'ip_address': page_view_data['ip_address'],
+                'user_agent': page_view_data['user_agent'],
+                'device_type': page_view_data['device_type'],
+                'browser': _extract_browser(page_view_data['user_agent']),
+                'os': _extract_os(page_view_data['user_agent']),
+                'page_views': json.dumps([]),
+            }
+
+            # Add UTM parameters if present
+            utm_params = page_view_data.get('utm_params')
+            if utm_params:
+                session_data.update(utm_params)
+
+            logger.info(
+                f"Created new anonymous session for "
+                f"fingerprint {device_fingerprint[:16]}..."
+            )
+        else:
+            # Update existing session
+            session_data['last_activity'] = datetime.now().isoformat()
+
+        # Increment pages visited
+        pages_visited = int(session_data.get('pages_visited', 0))
+        pages_visited += 1
+        session_data['pages_visited'] = str(pages_visited)
+
+        # Update exit page
+        session_data['exit_page'] = page_view_data['current_url']
+
+        # Add page view to list
+        page_views = json.loads(session_data.get('page_views', '[]'))
+        page_view_entry = {
+            'url': page_view_data['current_url'],
+            'page_type': page_view_data['page_type'],
+            'viewed_at': datetime.now().isoformat(),
+            'referrer': page_view_data['referrer']
+        }
+        page_views.append(page_view_entry)
+        session_data['page_views'] = json.dumps(page_views)
+
+        # Save to Redis with 30-minute TTL
+        redis_client.hset(session_key, mapping=session_data)
+        redis_client.expire(session_key, 1800)  # 30 minutes
+
+        logger.debug(
+            f"Updated anonymous session "
+            f"{device_fingerprint[:16]}...: "
+            f"{pages_visited} pages visited"
+        )
+
+        # Persist to database every 5th page view
+        if pages_visited % 5 == 0:
+            logger.info(
+                f"Triggering DB persistence for anonymous session "
+                f"{device_fingerprint[:16]}... "
+                f"(page {pages_visited})"
+            )
+            persist_anonymous_session.delay(
+                device_fingerprint,
+                session_data
+            )
+
+    except redis.ConnectionError as e:
+        logger.error(
+            f"Redis connection error tracking anonymous page view: {e}"
+        )
+    except Exception as e:
+        logger.error(f"Error tracking anonymous page view async: {e}")
+
+
+def _extract_browser(user_agent):
+    """Extract browser name from user agent string."""
+    ua_lower = user_agent.lower()
+    if 'chrome' in ua_lower:
+        return 'Chrome'
+    elif 'firefox' in ua_lower:
+        return 'Firefox'
+    elif 'safari' in ua_lower:
+        return 'Safari'
+    elif 'edge' in ua_lower:
+        return 'Edge'
+    elif 'opera' in ua_lower:
+        return 'Opera'
+    else:
+        return 'Unknown'
+
+
+def _extract_os(user_agent):
+    """Extract operating system from user agent string."""
+    ua_lower = user_agent.lower()
+    if 'windows' in ua_lower:
+        return 'Windows'
+    elif 'mac' in ua_lower:
+        return 'macOS'
+    elif 'linux' in ua_lower:
+        return 'Linux'
+    elif 'android' in ua_lower:
+        return 'Android'
+    elif 'iphone' in ua_lower or 'ipad' in ua_lower:
+        return 'iOS'
+    else:
+        return 'Unknown'
+
+
+@shared_task
+def finalize_anonymous_session(device_fingerprint):
+    """
+    Mark an anonymous session as ended when Redis session expires.
+
+    This task is triggered when a Redis session reaches its TTL (30 min
+    of inactivity) to properly close the session in the database.
+
+    Args:
+        device_fingerprint: Unique device identifier
+    """
+    try:
+        from django.utils import timezone
+
+        # Find the most recent active session for this fingerprint
+        session = AnonymousSession.objects.filter(
+            device_fingerprint=device_fingerprint,
+            session_ended=False
+        ).order_by('-last_activity').first()
+
+        if not session:
+            logger.warning(
+                f"No active session found to finalize for "
+                f"fingerprint: {device_fingerprint}"
+            )
+            return {'success': False, 'error': 'Session not found'}
+
+        # Mark session as ended
+        session.session_ended = True
+        session.ended_at = timezone.now()
+        session.save(update_fields=['session_ended', 'ended_at'])
+
+        # Calculate session duration
+        duration = (session.ended_at - session.session_start).total_seconds()
+
+        logger.info(
+            f"Finalized anonymous session {session.id}: "
+            f"{session.pages_visited} pages, {duration:.1f}s duration"
+        )
+
+        return {
+            'success': True,
+            'session_id': str(session.id),
+            'device_fingerprint': device_fingerprint,
+            'pages_visited': session.pages_visited,
+            'duration_seconds': duration,
+        }
+
+    except Exception as e:
+        logger.error(
+            f"Error finalizing anonymous session "
+            f"{device_fingerprint}: {e}",
+            exc_info=True
+        )
+        return {
+            'success': False,
+            'error': str(e),
+            'device_fingerprint': device_fingerprint
+        }
+
+
+@shared_task
+def cleanup_old_anonymous_data():
+    """
+    Delete old anonymous session data based on retention policy.
+
+    Removes:
+    - AnonymousSessions older than 90 days
+    - AnonymousPageViews associated with deleted sessions
+
+    This task should run daily via Celery Beat.
+    """
+    try:
+        from django.utils import timezone
+
+        # Calculate cutoff date (90 days ago)
+        cutoff_date = timezone.now() - timedelta(days=90)
+
+        # Delete old sessions (CASCADE will delete related page views)
+        old_sessions = AnonymousSession.objects.filter(
+            session_start__lt=cutoff_date
+        )
+
+        session_count = old_sessions.count()
+
+        # Get page view count before deletion
+        page_view_count = AnonymousPageView.objects.filter(
+            session__in=old_sessions
+        ).count()
+
+        # Delete sessions (cascades to page views)
+        old_sessions.delete()
+
+        logger.info(
+            f"Cleaned up {session_count} anonymous sessions "
+            f"and {page_view_count} page views older than 90 days"
+        )
+
+        return {
+            'success': True,
+            'deleted_sessions': session_count,
+            'deleted_page_views': page_view_count,
+            'cutoff_date': cutoff_date.isoformat(),
+        }
+
+    except Exception as e:
+        logger.error(
+            f"Error cleaning up anonymous data: {e}",
+            exc_info=True
+        )
+        return {
+            'success': False,
+            'error': str(e)
+        }
+
+
+@shared_task
+def sync_community_analytics_from_redis():
+    """
+    Sync CommunityAnalytics from Redis anonymous visitor data.
+
+    Reads current anonymous visitor counts from Redis and updates
+    CommunityAnalytics to reflect real-time visitor statistics.
+
+    This task should run every 30 seconds via Celery Beat.
+    """
+    try:
+        from django.core.cache import cache
+        from django.utils import timezone
+        import re
+
+        # Get all Redis keys for anonymous community visitors
+        # Pattern: anon_visitor:{community_id}:{device_fingerprint}
+        visitor_pattern = 'anon_visitor:*'
+
+        # Group visitor fingerprints by community
+        community_visitors = {}
+
+        # Scan Redis keys
+        redis_client = cache.client.get_client()
+        cursor = 0
+        while True:
+            cursor, keys = redis_client.scan(
+                cursor=cursor,
+                match=visitor_pattern,
+                count=100
+            )
+
+            for key in keys:
+                # Extract community_id from key
+                # Format: anon_visitor:{community_id}:{fingerprint}
+                match = re.match(
+                    r'anon_visitor:([^:]+):([^:]+)',
+                    key.decode('utf-8')
+                )
+                if match:
+                    community_id = match.group(1)
+                    fingerprint = match.group(2)
+
+                    if community_id not in community_visitors:
+                        community_visitors[community_id] = set()
+
+                    community_visitors[community_id].add(fingerprint)
+
+            if cursor == 0:
+                break
+
+        # Update CommunityAnalytics for each community
+        updated_count = 0
+        today = timezone.now().date()
+
+        for community_id, fingerprints in community_visitors.items():
+            try:
+                from communities.models import Community
+
+                # Verify community exists
+                community = Community.objects.get(
+                    id=community_id,
+                    is_deleted=False
+                )
+
+                # Get or create analytics for today
+                analytics, _ = CommunityAnalytics.objects.get_or_create(
+                    community=community,
+                    date=today
+                )
+
+                # Update anonymous visitor count
+                analytics.anonymous_visitors_today = len(fingerprints)
+                analytics.save(update_fields=['anonymous_visitors_today'])
+
+                updated_count += 1
+
+            except Community.DoesNotExist:
+                logger.warning(
+                    f"Community {community_id} not found, "
+                    "skipping analytics update"
+                )
+                continue
+            except Exception as e:
+                logger.error(
+                    f"Error updating analytics for community "
+                    f"{community_id}: {e}"
+                )
+                continue
+
+        logger.info(
+            f"Synced anonymous visitor data for {updated_count} "
+            "communities from Redis"
+        )
+
+        return {
+            'success': True,
+            'communities_updated': updated_count,
+            'total_communities_tracked': len(community_visitors),
+        }
+
+    except Exception as e:
+        logger.error(
+            f"Error syncing community analytics from Redis: {e}",
+            exc_info=True
+        )
+        return {
+            'success': False,
+            'error': str(e)
+        }
+
+
+@shared_task
+def track_anonymous_conversion(device_fingerprint, user_id, conversion_page):
+    """
+    Track anonymous-to-authenticated user conversion.
+
+    Links an anonymous session to a registered user and updates
+    conversion metrics in PageAnalytics.
+
+    Args:
+        device_fingerprint: Device fingerprint of the anonymous user
+        user_id: UUID of the newly registered/verified user
+        conversion_page: URL where conversion happened (usually /verify)
+    """
+    try:
+        from django.utils import timezone
+        from accounts.models import UserProfile
+
+        # Find the most recent active anonymous session
+        session = AnonymousSession.objects.filter(
+            device_fingerprint=device_fingerprint,
+            session_ended=False
+        ).order_by('-last_activity').first()
+
+        if not session:
+            logger.warning(
+                f"No active anonymous session found for conversion "
+                f"tracking: {device_fingerprint}"
+            )
+            return {'success': False, 'error': 'No session found'}
+
+        # Get user profile
+        try:
+            user_profile = UserProfile.objects.get(id=user_id)
+        except UserProfile.DoesNotExist:
+            logger.error(f"User profile not found: {user_id}")
+            return {'success': False, 'error': 'User not found'}
+
+        # Link session to user (if not already linked)
+        if not session.converted_user:
+            session.converted_user = user_profile
+            session.converted_at = timezone.now()
+            session.save(update_fields=['converted_user', 'converted_at'])
+
+        # Update PageAnalytics for all pages visited in this session
+        page_views = AnonymousPageView.objects.filter(session=session)
+
+        conversion_date = timezone.now().date()
+        pages_updated = 0
+
+        for page_view in page_views:
+            analytics, _ = PageAnalytics.objects.get_or_create(
+                page_url=page_view.page_url,
+                date=conversion_date
+            )
+
+            # Increment conversion count
+            analytics.anonymous_to_auth_conversions += 1
+            analytics.save(update_fields=['anonymous_to_auth_conversions'])
+            pages_updated += 1
+
+        # Update conversion page specifically
+        conversion_analytics, _ = PageAnalytics.objects.get_or_create(
+            page_url=conversion_page,
+            date=conversion_date
+        )
+        conversion_analytics.anonymous_to_auth_conversions += 1
+        conversion_analytics.save(
+            update_fields=['anonymous_to_auth_conversions']
+        )
+
+        logger.info(
+            f"Tracked conversion for session {session.id}: "
+            f"user={user_id}, pages_updated={pages_updated}"
+        )
+
+        return {
+            'success': True,
+            'session_id': str(session.id),
+            'user_id': user_id,
+            'device_fingerprint': device_fingerprint,
+            'pages_updated': pages_updated,
+            'session_duration': (
+                session.last_activity - session.session_start
+            ).total_seconds(),
+        }
+
+    except Exception as e:
+        logger.error(
+            f"Error tracking conversion for {device_fingerprint}: {e}",
+            exc_info=True
+        )
+        return {
+            'success': False,
+            'error': str(e),
+            'device_fingerprint': device_fingerprint
+        }
+
+

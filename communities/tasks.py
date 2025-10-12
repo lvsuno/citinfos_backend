@@ -4,10 +4,13 @@ from celery import shared_task
 from django.utils import timezone
 from datetime import timedelta
 from .models import (
-    Community, CommunityMembership, CommunityInvitation, CommunityJoinRequest,
+    Community, CommunityMembership,
     CommunityModeration, CommunityRole
 )
 from analytics.models import SystemMetric, ErrorLog
+
+# NOTE: CommunityInvitation and CommunityJoinRequest models are currently disabled
+# Tasks using these models have been commented out
 
 
 @shared_task
@@ -30,29 +33,13 @@ def reactivate_expired_bans():
         membership.ban_expires_at = None
         membership.save(update_fields=['status', 'banned_by', 'ban_reason', 'banned_at', 'ban_expires_at'])
 
-@shared_task
-def cleanup_expired_community_join_requests():
-    """Mark pending community join requests as expired if not reviewed after 14 days."""
-    try:
-        cutoff_date = timezone.now() - timedelta(days=14)
-        expired_requests = CommunityJoinRequest.objects.filter(
-            status='pending',
-            created_at__lt=cutoff_date
-        )
-        expired_count = expired_requests.count()
-        expired_requests.update(
-            status='expired',
-            reviewed_at=timezone.now(),
-            review_message='Request expired (not reviewed in time)'
-        )
-        return f"Marked {expired_count} community join requests as expired"
-    except Exception as e:
-        ErrorLog.objects.create(
-            level='error',
-            message=f'Error cleaning up community join requests: {str(e)}',
-            extra_data={'task': 'cleanup_expired_community_join_requests'}
-        )
-        return f"Error cleaning up community join requests: {str(e)}"
+
+# @shared_task
+# def cleanup_expired_community_join_requests():
+#     """Mark pending community join requests as expired if not reviewed after 14 days."""
+#     # NOTE: CommunityJoinRequest model is currently disabled
+#     pass
+
 
 @shared_task
 def update_community_basic_metrics():
@@ -119,27 +106,30 @@ def update_community_basic_metrics():
         return f"Error updating community basic metrics: {str(e)}"
 
 
-@shared_task
-def cleanup_expired_community_invitations():
-    """Clean up expired community invitations"""
-    try:
-        expired_invitations = CommunityInvitation.objects.filter(
-            expires_at__lt=timezone.now(),
-            status='pending'
-        )
-
-        expired_count = expired_invitations.count()
-        expired_invitations.update(status='expired')
-
-        return f"Marked {expired_count} community invitations as expired"
-
-    except Exception as e:
-        ErrorLog.objects.create(
-            level='error',
-            message=f'Error cleaning up community invitations: {str(e)}',
-            extra_data={'task': 'cleanup_expired_community_invitations'}
-        )
-        return f"Error cleaning up community invitations: {str(e)}"
+# @shared_task
+# def cleanup_expired_community_invitations():
+#     """Clean up expired community invitations"""
+#     # NOTE: CommunityInvitation model is currently disabled
+#     # Uncomment this task when the model is re-enabled
+#     pass
+#     # try:
+#     #     expired_invitations = CommunityInvitation.objects.filter(
+#     #         expires_at__lt=timezone.now(),
+#     #         status='pending'
+#     #     )
+#     #
+#     #     expired_count = expired_invitations.count()
+#     #     expired_invitations.update(status='expired')
+#     #
+#     #     return f"Marked {expired_count} community invitations as expired"
+#     #
+#     # except Exception as e:
+#     #     ErrorLog.objects.create(
+#     #         level='error',
+#     #         message=f'Error cleaning up community invitations: {str(e)}',
+#     #         extra_data={'task': 'cleanup_expired_community_invitations'}
+#     #     )
+#     #     return f"Error cleaning up community invitations: {str(e)}"
 
 
 @shared_task
@@ -215,107 +205,58 @@ def cleanup_inactive_communities():
         return f"Error cleaning up inactive communities: {str(e)}"
 
 
-@shared_task
-def process_community_join_requests():
-    """Process pending join requests for restricted communities only"""
-    try:
-        # Only process join requests for restricted communities
-        # Public communities allow direct joining, private require invitations
-
-        # Auto-reject invalid join requests (for public/private communities)
-        invalid_requests = CommunityJoinRequest.objects.filter(
-            status='pending',
-            community__community_type__in=['public', 'private']
-        )
-
-        rejected_count = invalid_requests.count()
-        invalid_requests.update(
-            status='rejected',
-            reviewed_at=timezone.now(),
-            review_message='Join requests not allowed for this community type'
-        )
-
-        # Auto-approve old join requests for restricted communities (optional)
-        # This could be used for communities with automatic approval after time
-        cutoff_date = timezone.now() - timedelta(days=7)  # 7 days old
-
-        auto_approve_requests = CommunityJoinRequest.objects.filter(
-            status='pending',
-            created_at__lt=cutoff_date,
-            community__community_type='restricted'
-        )
-
-        approved_count = 0
-        for request in auto_approve_requests:
-            # Get default member role
-            default_role = request.community.roles.filter(
-                is_default=True
-            ).first()
-
-            if default_role:
-                CommunityMembership.objects.create(
-                    community=request.community,
-                    user=request.user,
-                    role=default_role,
-                    status='active'
-                )
-
-                request.status = 'approved'
-                request.reviewed_at = timezone.now()
-                request.review_message = 'Auto-approved after waiting period'
-                request.save()
-                approved_count += 1
-
-        return (f"Rejected {rejected_count} invalid requests, "
-                f"auto-approved {approved_count} old restricted requests")
-
-    except Exception as e:
-        ErrorLog.objects.create(
-            level='error',
-            message=f'Error processing join requests: {str(e)}',
-            extra_data={'task': 'process_community_join_requests'}
-        )
-        return f"Error processing join requests: {str(e)}"
+# @shared_task
+# def process_community_join_requests():
+#     """Process pending join requests for restricted communities only"""
+#     # NOTE: CommunityJoinRequest model is currently disabled
+#     pass
 
 
 @shared_task
 def validate_community_access_rules():
     """Validate and enforce community access rules"""
     try:
-        # Clean up invalid join requests for public/private communities
-        invalid_requests = CommunityJoinRequest.objects.filter(
-            status='pending',
-            community__community_type__in=['public', 'private']
-        )
+        # NOTE: CommunityJoinRequest model is currently disabled
+        # # Clean up invalid join requests for public/private communities
+        # invalid_requests = CommunityJoinRequest.objects.filter(
+        #     status='pending',
+        #     community__community_type__in=['public', 'private']
+        # )
+        #
+        # invalid_count = invalid_requests.count()
+        # invalid_requests.update(
+        #     status='rejected',
+        #     reviewed_at=timezone.now(),
+        #     review_message='Join requests not allowed for this community type'
+        # )
 
-        invalid_count = invalid_requests.count()
-        invalid_requests.update(
-            status='rejected',
-            reviewed_at=timezone.now(),
-            review_message='Join requests not allowed for this community type'
-        )
+        invalid_count = 0
 
-        # Find expired invitations and mark them as expired
-        expired_invitations = CommunityInvitation.objects.filter(
-            status='pending',
-            expires_at__lt=timezone.now()
-        )
+        # NOTE: CommunityInvitation model is currently disabled
+        # # Find expired invitations and mark them as expired
+        # expired_invitations = CommunityInvitation.objects.filter(
+        #     status='pending',
+        #     expires_at__lt=timezone.now()
+        # )
+        #
+        # expired_count = expired_invitations.count()
+        # expired_invitations.update(
+        #     status='expired',
+        #     responded_at=timezone.now()
+        # )
+        #
+        # # Find invitations that are about to expire (within 24 hours)
+        # # This could be used to send reminder notifications
+        # expiring_soon = CommunityInvitation.objects.filter(
+        #     status='pending',
+        #     expires_at__lt=timezone.now() + timedelta(hours=24),
+        #     expires_at__gt=timezone.now()
+        # )
+        #
+        # expiring_count = expiring_soon.count()
 
-        expired_count = expired_invitations.count()
-        expired_invitations.update(
-            status='expired',
-            responded_at=timezone.now()
-        )
-
-        # Find invitations that are about to expire (within 24 hours)
-        # This could be used to send reminder notifications
-        expiring_soon = CommunityInvitation.objects.filter(
-            status='pending',
-            expires_at__lt=timezone.now() + timedelta(hours=24),
-            expires_at__gt=timezone.now()
-        )
-
-        expiring_count = expiring_soon.count()
+        expired_count = 0
+        expiring_count = 0
 
         return (f"Rejected {invalid_count} invalid join requests, "
                 f"expired {expired_count} invitations, "
@@ -443,49 +384,8 @@ def sync_community_with_analytics():
         return f"Error syncing community with analytics: {str(e)}"
 
 
-@shared_task
-def cleanup_expired_community_join_requests_extended():
-    """Enhanced cleanup of expired join requests with analytics tracking."""
-    try:
-        cutoff_date = timezone.now() - timedelta(days=14)
-        expired_requests = CommunityJoinRequest.objects.filter(
-            status='pending',
-            created_at__lt=cutoff_date
-        )
-        expired_count = expired_requests.count()
-
-        # Track which communities had expired requests for analytics
-        communities_with_expired = expired_requests.values_list(
-            'community_id', flat=True
-        ).distinct()
-
-        expired_requests.update(
-            status='expired',
-            reviewed_at=timezone.now(),
-            review_message='Request expired (not reviewed in time)'
-        )
-
-        # Store metrics about expired requests
-        for community_id in communities_with_expired:
-            community_expired_count = expired_requests.filter(
-                community_id=community_id
-            ).count()
-
-            SystemMetric.objects.create(
-                metric_type='community_expired_join_requests',
-                value=community_expired_count,
-                additional_data={
-                    'community_id': str(community_id),
-                    'cleanup_date': timezone.now().isoformat()
-                }
-            )
-
-        return f"Marked {expired_count} community join requests as expired"
-
-    except Exception as e:
-        ErrorLog.objects.create(
-            level='error',
-            message=f'Error cleaning up community join requests: {str(e)}',
-            extra_data={'task': 'cleanup_expired_community_join_requests_extended'}
-        )
-        return f"Error cleaning up community join requests: {str(e)}"
+# @shared_task
+# def cleanup_expired_community_join_requests_extended():
+#     """Enhanced cleanup of expired join requests with analytics tracking."""
+#     # NOTE: CommunityJoinRequest model is currently disabled
+#     pass

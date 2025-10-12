@@ -35,6 +35,21 @@ class AnalyticsTrackingMiddleware(MiddlewareMixin):
     def process_request(self, request):
         """Mark request start time for performance tracking."""
         request._analytics_start_time = time.time()
+
+        # Skip fingerprint generation for static assets and health checks
+        SKIP_PATHS = [
+            '/static/', '/media/', '/health/',
+            '/favicon.ico', '/robots.txt'
+        ]
+        if any(request.path.startswith(p) for p in SKIP_PATHS):
+            return None
+
+        # Cache device fingerprint early for anonymous users
+        # This avoids regenerating it multiple times per request
+        user = getattr(request, 'user', None)
+        if not user or isinstance(user, AnonymousUser):
+            self._get_or_cache_fingerprint(request)
+
         return None
 
     def process_response(self, request, response):
@@ -79,6 +94,16 @@ class AnalyticsTrackingMiddleware(MiddlewareMixin):
 
             # Track page views for authenticated users
             self._track_page_view(request, response, user_profile)
+
+            # Send fingerprint to client in response header
+            # This allows client to cache and reuse fingerprint for subsequent requests
+            if not user_profile:  # Only for anonymous users
+                try:
+                    fingerprint = self._get_or_cache_fingerprint(request, response)
+                    if fingerprint:
+                        response['X-Device-Fingerprint'] = fingerprint
+                except Exception as fp_error:
+                    logger.error(f"Error adding fingerprint to response: {fp_error}")
 
         except Exception as e:
             logger.error("Error in analytics tracking middleware: %s", e)
@@ -209,17 +234,440 @@ class AnalyticsTrackingMiddleware(MiddlewareMixin):
             logger.error(f"Error tracking PostSee view: {e}")
 
     def _track_page_view(self, request, response, user_profile):
-        """Track page view for authenticated users"""
+        """Track page view for authenticated and anonymous users"""
         try:
             from analytics.tasks import track_page_view
 
+            # Track authenticated user page views
             if user_profile and request.method == 'GET':
                 # Only track GET requests for actual page views
                 if response.status_code == 200:
                     # Pass UserProfile.id (UUID) not User.id (integer)
                     track_page_view.delay(str(user_profile.id))
+
+                    # Check if this is a community page visit
+                    community_data = self._extract_community_context(
+                        request
+                    )
+
+                    if community_data:
+                        # Track community visit event
+                        self._track_community_visit(
+                            request,
+                            user_profile,
+                            community_data,
+                            is_authenticated=True
+                        )
+
+            # Track anonymous user page views and community visits
+            elif not user_profile and request.method == 'GET':
+                if response.status_code == 200:
+                    # OPTIMIZATION: Only track anonymous page views for actual page loads
+                    # Skip API endpoints to avoid performance overhead
+                    if not request.path.startswith('/api/'):
+                        # Track anonymous page view (all pages)
+                        self._track_anonymous_page_view(request, response)
+
+                    # Check for community page visit
+                    community_data = self._extract_community_context(
+                        request
+                    )
+
+                    if community_data:
+                        # Track anonymous community visit
+                        self._track_community_visit(
+                            request,
+                            None,
+                            community_data,
+                            is_authenticated=False
+                        )
         except Exception as e:
             logger.error(f"Error tracking page view: {e}")
+
+    def _track_anonymous_page_view(self, request, response):
+        """
+        Track anonymous user page views in Redis (OPTIMIZED).
+
+        Creates/updates anonymous session with:
+        - Device fingerprint identification (cached)
+        - Page visit tracking
+        - Session duration
+        - Persist to DB every 5th page view
+
+        OPTIMIZATION: Offload Redis operations to async task to avoid blocking
+        """
+        try:
+            from analytics.tasks import track_anonymous_page_view_async
+
+            # Get device fingerprint (cached or from cookie)
+            device_fingerprint = self._get_or_cache_fingerprint(
+                request,
+                response
+            )
+
+            if not device_fingerprint:
+                logger.warning("Could not generate device fingerprint")
+                return
+
+            # Collect minimal data and offload to async task
+            # This avoids blocking the response with Redis operations
+            page_view_data = {
+                'device_fingerprint': device_fingerprint,
+                'current_url': request.build_absolute_uri(),
+                'page_type': self._determine_page_type(request.path),
+                'ip_address': self._get_client_ip(request),
+                'user_agent': request.META.get('HTTP_USER_AGENT', ''),
+                'device_type': self._get_device_type(request),
+                'referrer': request.META.get('HTTP_REFERER', ''),
+                'utm_params': self._extract_utm_params(request),
+            }
+
+            # Offload to Celery task (non-blocking)
+            track_anonymous_page_view_async.delay(page_view_data)
+
+        except Exception as e:
+            logger.error(f"Error tracking anonymous page view: {e}")
+
+    def _determine_page_type(self, path):
+        """Determine page type from URL path."""
+        if path == '/' or path == '/home':
+            return 'home'
+        elif '/communities/' in path or '/community/' in path:
+            return 'community'
+        elif '/posts/' in path or '/post/' in path:
+            return 'post'
+        elif '/profiles/' in path or '/profile/' in path:
+            return 'profile'
+        elif '/search' in path:
+            return 'search'
+        elif '/login' in path or '/register' in path or '/signup' in path:
+            return 'auth'
+        elif '/about' in path or '/contact' in path or '/help' in path:
+            return 'about'
+        else:
+            return 'other'
+
+    def _extract_utm_params(self, request):
+        """Extract UTM tracking parameters from request."""
+        utm_params = {}
+
+        utm_fields = [
+            'utm_source', 'utm_medium', 'utm_campaign',
+            'utm_term', 'utm_content'
+        ]
+
+        for field in utm_fields:
+            value = request.GET.get(field, '')
+            if value:
+                utm_params[field] = value
+
+        return utm_params
+
+    def _extract_browser(self, user_agent):
+        """Extract browser name from user agent."""
+        user_agent_lower = user_agent.lower()
+
+        if 'edg' in user_agent_lower:
+            return 'Edge'
+        elif 'chrome' in user_agent_lower:
+            return 'Chrome'
+        elif 'safari' in user_agent_lower:
+            return 'Safari'
+        elif 'firefox' in user_agent_lower:
+            return 'Firefox'
+        elif 'opera' in user_agent_lower or 'opr' in user_agent_lower:
+            return 'Opera'
+        else:
+            return 'Unknown'
+
+    def _extract_os(self, user_agent):
+        """Extract operating system from user agent."""
+        user_agent_lower = user_agent.lower()
+
+        if 'windows' in user_agent_lower:
+            return 'Windows'
+        elif 'mac os' in user_agent_lower or 'macos' in user_agent_lower:
+            return 'macOS'
+        elif 'linux' in user_agent_lower:
+            return 'Linux'
+        elif 'android' in user_agent_lower:
+            return 'Android'
+        elif (
+            'ios' in user_agent_lower or
+            'iphone' in user_agent_lower or
+            'ipad' in user_agent_lower
+        ):
+            return 'iOS'
+        else:
+            return 'Unknown'
+
+    def _extract_community_context(self, request):
+        """Extract community ID and division from URL."""
+        try:
+            from communities.models import Community
+            from django.db.models import Q
+
+            # Check if URL contains community patterns
+            path = request.path
+
+            # Match patterns: /communities/{slug}/ or /api/communities/{slug}/
+            if '/communities/' in path or '/community/' in path:
+                # Try to get slug from URL
+                parts = path.strip('/').split('/')
+
+                if 'communities' in parts or 'community' in parts:
+                    idx = (
+                        parts.index('communities')
+                        if 'communities' in parts
+                        else parts.index('community')
+                    )
+
+                    if idx + 1 < len(parts):
+                        slug_or_id = parts[idx + 1]
+
+                        # Try to fetch community
+                        try:
+                            community = Community.objects.select_related(
+                                'division'
+                            ).get(
+                                Q(slug=slug_or_id) | Q(id=slug_or_id)
+                            )
+
+                            return {
+                                'community_id': str(community.id),
+                                'community_slug': community.slug,
+                                'community_division_id': (
+                                    str(community.division.id)
+                                    if community.division
+                                    else None
+                                )
+                            }
+                        except Community.DoesNotExist:
+                            pass
+                        except Community.MultipleObjectsReturned:
+                            # Use first match if multiple found
+                            community = Community.objects.select_related(
+                                'division'
+                            ).filter(
+                                Q(slug=slug_or_id) | Q(id=slug_or_id)
+                            ).first()
+
+                            if community:
+                                return {
+                                    'community_id': str(community.id),
+                                    'community_slug': community.slug,
+                                    'community_division_id': (
+                                        str(community.division.id)
+                                        if community.division
+                                        else None
+                                    )
+                                }
+
+            return None
+
+        except Exception as e:
+            logger.error(f"Error extracting community context: {e}")
+            return None
+
+    def _track_community_visit(
+        self,
+        request,
+        user_profile,
+        community_data,
+        is_authenticated=True
+    ):
+        """
+        Track community visit with division analytics for authenticated
+        and anonymous visitors.
+        """
+        try:
+            from communities.visitor_tracker import visitor_tracker
+            from accounts.models import UserEvent
+
+            # Get device fingerprint (cached to avoid regeneration)
+            device_fingerprint = self._get_or_cache_fingerprint(request)
+
+            # Get IP and user agent
+            ip_address = self._get_client_ip(request)
+            user_agent = request.META.get('HTTP_USER_AGENT', '')
+
+            community_id = community_data['community_id']
+            community_division_id = community_data.get('community_division_id')
+
+            if is_authenticated and user_profile:
+                # Authenticated user tracking
+                has_division = (
+                    hasattr(user_profile, 'division') and
+                    user_profile.division
+                )
+                visitor_division_id = (
+                    str(user_profile.division.id)
+                    if has_division
+                    else None
+                )
+
+                user_id = str(user_profile.id)
+
+                # Add visitor to Redis tracker
+                visitor_result = visitor_tracker.add_visitor(
+                    user_id=user_id,
+                    community_id=community_id,
+                    visitor_division_id=visitor_division_id,
+                    community_division_id=community_division_id,
+                    is_authenticated=True,
+                    device_fingerprint=device_fingerprint,
+                    ip_address=ip_address,
+                    user_agent=user_agent
+                )
+
+                # Create UserEvent for authenticated community_visit
+                UserEvent.objects.create(
+                    user=user_profile,
+                    event_type='community_visit',
+                    description=(
+                        f"Visited community {community_data['community_slug']}"
+                    ),
+                    metadata={
+                        'community_id': community_id,
+                        'community_slug': community_data['community_slug'],
+                        'visitor_division_id': visitor_division_id,
+                        'community_division_id': community_division_id,
+                        'is_cross_division': visitor_result.get(
+                            'is_cross_division',
+                            False
+                        ),
+                        'is_authenticated': True,
+                        'device_fingerprint': device_fingerprint,
+                        'url': request.path,
+                        'referrer': request.META.get('HTTP_REFERER', '')
+                    },
+                    ip_address=ip_address,
+                    user_agent=user_agent
+                )
+
+                logger.info(
+                    f"Tracked authenticated community visit: "
+                    f"user {user_profile.id} "
+                    f"(division {visitor_division_id}) visiting "
+                    f"community {community_id} "
+                    f"(division {community_division_id})"
+                )
+            else:
+                # Anonymous user tracking - use device fingerprint
+                # No division tracking for anonymous (unless IP geolocation)
+                visitor_division_id = None
+
+                # Check if we have active session with fingerprint
+                # (to detect if this device was previously authenticated)
+                from accounts.models import UserSession
+
+                recent_session = UserSession.objects.filter(
+                    device_fingerprint=device_fingerprint,
+                    is_active=True
+                ).first()
+
+                if recent_session and recent_session.user:
+                    # This device has an active authenticated session
+                    # Don't track as anonymous - will be tracked when auth
+                    logger.debug(
+                        f"Device {device_fingerprint[:8]}... has active "
+                        f"session, skipping anonymous tracking"
+                    )
+                    return
+
+                # Add anonymous visitor to Redis tracker
+                visitor_result = visitor_tracker.add_visitor(
+                    user_id=f"anonymous_{device_fingerprint[:16]}",
+                    community_id=community_id,
+                    visitor_division_id=visitor_division_id,
+                    community_division_id=community_division_id,
+                    is_authenticated=False,
+                    device_fingerprint=device_fingerprint,
+                    ip_address=ip_address,
+                    user_agent=user_agent
+                )
+
+                # Log anonymous visit (no UserEvent for privacy)
+                logger.info(
+                    f"Tracked anonymous community visit: "
+                    f"fingerprint {device_fingerprint[:16]}... visiting "
+                    f"community {community_id} "
+                    f"(division {community_division_id})"
+                )
+
+        except Exception as e:
+            logger.error(f"Error tracking community visit: {e}")
+
+    def _get_or_cache_fingerprint(self, request, response=None):
+        """
+        Get device fingerprint with intelligent caching.
+
+        Priority order:
+        1. Request-level cache (_cached_device_fingerprint)
+        2. Client-provided header (X-Device-Fingerprint) ← OPTIMIZED!
+        3. Cookie (device_fp)
+        4. Server-side generation (fallback)
+
+        Args:
+            request: Django request object
+            response: Django response object (optional, for setting cookie)
+
+        Returns:
+            Device fingerprint string
+        """
+        # Tier 1: Check request-level cache first (fastest)
+        if hasattr(request, '_cached_device_fingerprint'):
+            return request._cached_device_fingerprint
+
+        # Tier 2: Check client-provided header (NEW - optimal for modern clients)
+        client_fingerprint = request.META.get('HTTP_X_DEVICE_FINGERPRINT')
+        if client_fingerprint:
+            request._cached_device_fingerprint = client_fingerprint
+            request._fingerprint_source = 'client_header'
+
+            # Set cookie as backup for future requests
+            if response:
+                response.set_cookie(
+                    'device_fp',
+                    client_fingerprint,
+                    max_age=30*24*60*60,  # 30 days
+                    httponly=True,
+                    samesite='Lax'
+                )
+
+            return client_fingerprint
+
+        # Tier 3: Check cookie (existing users)
+        cookie_fingerprint = request.COOKIES.get('device_fp')
+        if cookie_fingerprint:
+            request._cached_device_fingerprint = cookie_fingerprint
+            request._fingerprint_source = 'cookie'
+            return cookie_fingerprint
+
+        # Tier 4: Server-side generation (fallback for old browsers)
+        from core.device_fingerprint import OptimizedDeviceFingerprint
+        server_fingerprint = (
+            OptimizedDeviceFingerprint.get_fast_fingerprint(request)
+        )
+
+        request._cached_device_fingerprint = server_fingerprint
+        request._fingerprint_source = 'server_generated'
+
+        # Set cookie if response provided
+        if server_fingerprint and response:
+            response.set_cookie(
+                'device_fp',
+                server_fingerprint,
+                max_age=30*24*60*60,  # 30 days
+                httponly=True,
+                samesite='Lax'
+            )
+
+        # Cache in request
+        if server_fingerprint:
+            request._cached_device_fingerprint = server_fingerprint
+
+        return server_fingerprint
 
     def _determine_source(self, request):
         """Determine the source of the post view."""

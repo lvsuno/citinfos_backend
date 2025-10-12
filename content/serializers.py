@@ -21,7 +21,8 @@ class PostMediaSerializer(serializers.ModelSerializer):
     class Meta:
         model = PostMedia
         fields = [
-            'id', 'post', 'media_type', 'file', 'thumbnail', 'order'
+            'id', 'post', 'media_type', 'file', 'thumbnail',
+            'description', 'order'
         ]
         read_only_fields = ['id']
 
