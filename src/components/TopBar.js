@@ -11,17 +11,17 @@ import {
     ArrowDropDown as ArrowDropDownIcon
 } from '@mui/icons-material';
 import { useAuth } from '../contexts/AuthContext';
+import { useNotifications } from '../contexts/NotificationContext';
 import NotificationPanel from './NotificationPanel';
-import { demoNotifications, markNotificationAsRead, markAllNotificationsAsRead } from '../data/notifications';
 import styles from './TopBar.module.css';
 
 const TopBar = ({ onToggleSidebar, onChatToggle }) => {
     const { user, logout } = useAuth();
+    const { notifications, unreadCount, isConnected, actions } = useNotifications();
     const navigate = useNavigate();
     const [searchQuery, setSearchQuery] = useState('');
     const [showProfileMenu, setShowProfileMenu] = useState(false);
     const [showNotifications, setShowNotifications] = useState(false);
-    const [notifications, setNotifications] = useState(demoNotifications);
 
     // Obtenir les initiales du nom d'utilisateur
     const getUserInitials = () => {
@@ -48,11 +48,11 @@ const TopBar = ({ onToggleSidebar, onChatToggle }) => {
     };
 
     const handleMarkAsRead = (notificationId) => {
-        setNotifications(prev => markNotificationAsRead(prev, notificationId));
+        actions.markAsRead(notificationId);
     };
 
     const handleMarkAllAsRead = () => {
-        setNotifications(prev => markAllNotificationsAsRead(prev));
+        actions.markAllAsRead();
     };
 
     const handleMessagesClick = () => {
@@ -110,9 +110,6 @@ const TopBar = ({ onToggleSidebar, onChatToggle }) => {
         };
     }, [showProfileMenu, showNotifications]);
 
-    // Calculer le nombre de notifications non lues
-    const unreadCount = notifications.filter(n => !n.isRead).length;
-
     return (
         <div className={styles.topBar}>
             {/* Bouton menu pour mobile */}
@@ -147,7 +144,8 @@ const TopBar = ({ onToggleSidebar, onChatToggle }) => {
                             <button
                                 className={`${styles.iconButton} ${unreadCount > 0 ? styles.hasNotification : ''}`}
                                 onClick={handleNotificationClick}
-                                title="Notifications"
+                                title={`Notifications ${isConnected ? '(Connected)' : '(Offline)'}`}
+                                style={{ position: 'relative' }}
                             >
                                 <NotificationsIcon />
                                 {unreadCount > 0 && (
@@ -155,6 +153,20 @@ const TopBar = ({ onToggleSidebar, onChatToggle }) => {
                                         {unreadCount > 99 ? '99+' : unreadCount}
                                     </span>
                                 )}
+                                {/* Connection status indicator */}
+                                <span
+                                    style={{
+                                        position: 'absolute',
+                                        bottom: '2px',
+                                        right: '2px',
+                                        width: '8px',
+                                        height: '8px',
+                                        borderRadius: '50%',
+                                        backgroundColor: isConnected ? '#10b981' : '#6b7280',
+                                        border: '2px solid white',
+                                    }}
+                                    title={isConnected ? 'WebSocket connected' : 'WebSocket disconnected'}
+                                />
                             </button>
                         </div>
 

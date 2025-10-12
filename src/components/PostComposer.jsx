@@ -220,7 +220,8 @@ const PostComposer = ({ onSubmit, community = null, placeholder = "Quoi de neuf 
         id: crypto.randomUUID(),
         file: f,
         type: kind,
-        preview: (ACCEPT_IMAGE.includes(f.type) || ACCEPT_VIDEO.includes(f.type) || ACCEPT_AUDIO.includes(f.type) || ACCEPT_PDF.includes(f.type)) ? URL.createObjectURL(f) : null
+        preview: (ACCEPT_IMAGE.includes(f.type) || ACCEPT_VIDEO.includes(f.type) || ACCEPT_AUDIO.includes(f.type) || ACCEPT_PDF.includes(f.type)) ? URL.createObjectURL(f) : null,
+        description: '' // Add description field for media attachments
       });
     }
 
@@ -282,6 +283,7 @@ const PostComposer = ({ onSubmit, community = null, placeholder = "Quoi de neuf 
         postData.attachments = attachments.map((attachment, index) => ({
           file: attachment.file,
           type: attachment.type,
+          description: attachment.description || '', // Include description
           order: index + 1
         }));
       }
@@ -384,6 +386,12 @@ const PostComposer = ({ onSubmit, community = null, placeholder = "Quoi de neuf 
       if (a.id === id && a.preview) URL.revokeObjectURL(a.preview);
       return a.id !== id;
     }));
+  };
+
+  const updateAttachmentDescription = (id, description) => {
+    setAttachments(prev => prev.map(a =>
+      a.id === id ? { ...a, description } : a
+    ));
   };
 
   const updatePollOption = (idx, value) => {
@@ -553,33 +561,58 @@ const PostComposer = ({ onSubmit, community = null, placeholder = "Quoi de neuf 
 
         {/* Attachments preview */}
         {attachments.length > 0 && (
-          <div className="mt-3 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
+          <div className="mt-3 space-y-3">
             {attachments.map(a => (
               <div key={a.id} className="group relative rounded-md border border-gray-200 overflow-hidden bg-gray-50">
-                {a.type === 'image' && a.preview && (
-                  <img src={a.preview} alt={a.file.name} className="h-28 w-full object-cover" />
-                )}
-                {a.type === 'video' && a.preview && (
-                  <video src={a.preview} className="h-28 w-full object-cover" muted playsInline />
-                )}
-                {a.type === 'audio' && (
-                  <div className="h-28 flex items-center justify-center bg-gradient-to-br from-indigo-100 to-blue-50 text-indigo-600 text-xs font-medium px-2 text-center">
-                    {a.file.name}
+                <div className="flex gap-3 p-3">
+                  {/* Preview Thumbnail */}
+                  <div className="flex-shrink-0 w-24 h-24 rounded-md overflow-hidden bg-gray-100">
+                    {a.type === 'image' && a.preview && (
+                      <img src={a.preview} alt={a.file.name} className="w-full h-full object-cover" />
+                    )}
+                    {a.type === 'video' && a.preview && (
+                      <video src={a.preview} className="w-full h-full object-cover" muted playsInline />
+                    )}
+                    {a.type === 'audio' && (
+                      <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-indigo-100 to-blue-50">
+                        <MusicalNoteIcon className="h-8 w-8 text-indigo-600" />
+                      </div>
+                    )}
+                    {a.type === 'file' && (
+                      <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-gray-100 to-gray-50">
+                        <PaperClipIcon className="h-8 w-8 text-gray-700" />
+                      </div>
+                    )}
                   </div>
-                )}
-                {a.type === 'file' && (
-                  <div className="h-28 flex items-center justify-center bg-gradient-to-br from-gray-100 to-gray-50 text-gray-700 text-xs font-medium px-2 text-center">
-                    {a.file.name}
+
+                  {/* Description Input */}
+                  <div className="flex-1 min-w-0">
+                    <div className="text-xs font-medium text-gray-700 mb-1 truncate" title={a.file.name}>
+                      {a.file.name}
+                    </div>
+                    <input
+                      type="text"
+                      value={a.description || ''}
+                      onChange={(e) => updateAttachmentDescription(a.id, e.target.value)}
+                      placeholder="Ajouter une description (optionnel)..."
+                      className="w-full text-xs border-gray-300 rounded-md focus:ring-indigo-500 focus:border-indigo-500 placeholder-gray-400"
+                      maxLength={200}
+                    />
+                    <div className="text-[10px] text-gray-400 mt-1">
+                      {a.description?.length || 0}/200 caractères
+                    </div>
                   </div>
-                )}
-                <button
-                  type="button"
-                  onClick={()=>removeAttachment(a.id)}
-                  className="absolute top-1 right-1 bg-white/80 hover:bg-white text-gray-600 hover:text-red-500 rounded-full p-0.5 shadow-sm transition-colors"
-                  aria-label="Remove attachment"
-                >
-                  <XMarkIcon className="h-4 w-4" />
-                </button>
+
+                  {/* Remove Button */}
+                  <button
+                    type="button"
+                    onClick={()=>removeAttachment(a.id)}
+                    className="flex-shrink-0 self-start bg-white/80 hover:bg-white text-gray-600 hover:text-red-500 rounded-full p-1.5 shadow-sm transition-colors"
+                    aria-label="Supprimer la pièce jointe"
+                  >
+                    <XMarkIcon className="h-4 w-4" />
+                  </button>
+                </div>
               </div>
             ))}
           </div>

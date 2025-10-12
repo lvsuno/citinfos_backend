@@ -1,6 +1,6 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
-import { useJWTAuth } from '../../hooks/useJWTAuth';
+import { useAuth } from '../../contexts/AuthContext';
 
 /**
  * ClickableAuthorName - Renders clickable author names in posts
@@ -17,7 +17,7 @@ const ClickableAuthorName = ({
   authorUsername,
   className = "text-sm font-semibold text-gray-900 hover:text-blue-600 transition-colors"
 }) => {
-  const { user: currentUser } = useJWTAuth();
+  const { user: currentUser } = useAuth();
 
   // Helper function to get display name
   const getDisplayName = () => {

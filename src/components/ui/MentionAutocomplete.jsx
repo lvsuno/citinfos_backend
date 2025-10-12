@@ -19,7 +19,14 @@ const MentionAutocomplete = ({
   // Check if cursor is after an @ symbol and extract mention query
   useEffect(() => {
     const checkForMention = () => {
+      console.log('🔍 MentionAutocomplete: Check for mention', {
+        cursorPosition,
+        textLength: text.length,
+        text: text.substring(0, 50) // First 50 chars
+      });
+
       if (cursorPosition === null || cursorPosition === undefined) {
+        console.log('❌ No cursor position');
         setIsVisible(false);
         return;
       }
@@ -28,13 +35,17 @@ const MentionAutocomplete = ({
       const lastAtIndex = textBeforeCursor.lastIndexOf('@');
 
       if (lastAtIndex === -1) {
+        console.log('❌ No @ symbol found');
         setIsVisible(false);
         return;
       }
 
       // Check if there's a space between @ and cursor (invalid mention)
       const textAfterAt = textBeforeCursor.slice(lastAtIndex + 1);
+      console.log('📝 Text after @:', `"${textAfterAt}"`);
+
       if (textAfterAt.includes(' ') || textAfterAt.includes('\n')) {
+        console.log('❌ Space/newline in mention');
         setIsVisible(false);
         return;
       }
@@ -42,11 +53,13 @@ const MentionAutocomplete = ({
       // Check if @ is at start or preceded by whitespace
       const charBeforeAt = lastAtIndex > 0 ? textBeforeCursor[lastAtIndex - 1] : ' ';
       if (charBeforeAt !== ' ' && charBeforeAt !== '\n' && lastAtIndex !== 0) {
+        console.log('❌ No space before @, char:', charBeforeAt);
         setIsVisible(false);
         return;
       }
 
       // Valid mention context
+      console.log('✅ Valid mention detected:', `"${textAfterAt}"`);
       setMentionQuery(textAfterAt);
       setMentionStartPos(lastAtIndex);
       setIsVisible(true);
@@ -60,19 +73,22 @@ const MentionAutocomplete = ({
   useEffect(() => {
     const searchUsers = async () => {
       if (!isVisible || mentionQuery.length < 1) {
+        console.log('⏭️ Skipping search:', { isVisible, queryLength: mentionQuery.length });
         setSuggestions([]);
         return;
       }
 
+      console.log('🔎 Searching for users:', mentionQuery);
       try {
         const results = await socialAPI.searchMentionableUsers(
           mentionQuery,
           communityId,
           postId
         );
+        console.log('✅ Search results:', results);
         setSuggestions(results);
       } catch (error) {
-        console.error('Failed to search mentionable users:', error);
+        console.error('❌ Failed to search mentionable users:', error);
         setSuggestions([]);
       }
     };

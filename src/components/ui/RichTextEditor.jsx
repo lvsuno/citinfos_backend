@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo, useState, useEffect, useRef } from 'react';
+import React, { useCallback, useMemo, useState, useEffect, useRef, useImperativeHandle, forwardRef } from 'react';
 import { useEditor, EditorContent } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
 import { Placeholder } from '@tiptap/extension-placeholder';
@@ -22,9 +22,9 @@ import { CodeBlock } from '@tiptap/extension-code-block';
 import { HorizontalRule } from '@tiptap/extension-horizontal-rule';
 import { Typography } from '@tiptap/extension-typography';
 import Focus from '@tiptap/extension-focus';
-import { Mention } from '@tiptap/extension-mention';
 import { Dropcursor } from '@tiptap/extension-dropcursor';
-import tippy from 'tippy.js';
+import { Mention } from '@tiptap/extension-mention';
+import { socialAPI } from '../../services/social-api';
 
 // Heroicons (outline) used in toolbar
 import {
@@ -46,8 +46,6 @@ import {
   DocumentTextIcon,
   CubeIcon,
   SparklesIcon,
-  HashtagIcon,
-  AtSymbolIcon,
   PlusIcon,
   TrashIcon,
   ArrowUpIcon,
@@ -644,7 +642,7 @@ const InteractiveImageResize = Image.extend({
   },
 });
 
-const RichTextEditor = ({
+const RichTextEditor = forwardRef(({
   content = '',
   onChange,
   placeholder = 'Start typing...',
@@ -654,14 +652,11 @@ const RichTextEditor = ({
   showToolbar = true,
   editable = true,
   enableAdvancedFeatures = true,
-  enableMentions = true,
-  mentionSuggestions = [],
-  hashtagSuggestions = [],
   onImageUpload,
   onVideoUpload,
   onAudioUpload,
   onMediaAttachmentsChange // New prop to get media attachments
-}) => {
+}, ref) => {
   // State for dropdown menus
   const [tableDropdownOpen, setTableDropdownOpen] = useState(false);
   const [imageDropdownOpen, setImageDropdownOpen] = useState(false);
@@ -682,127 +677,23 @@ const RichTextEditor = ({
   const [perRow, setPerRow] = useState(10);
   const emojiPickerRef = useRef(null);
 
-  // Mention suggestions configuration
-  const mentionSuggestion = useMemo(() => ({
-    items: ({ query }) => {
-      return mentionSuggestions
-        .filter(item => item.name.toLowerCase().startsWith(query.toLowerCase()))
-        .slice(0, 5);
-    },
-    render: () => {
-      let component;
-      let popup;
+  // Mention autocomplete state
+  const [mentionQuery, setMentionQuery] = useState('');
+  const [mentionSuggestions, setMentionSuggestions] = useState([]);
+  const [showMentionDropdown, setShowMentionDropdown] = useState(false);
+  const [selectedMentionIndex, setSelectedMentionIndex] = useState(0);
+  const [mentionDropdownPosition, setMentionDropdownPosition] = useState({ top: 0, left: 0 });
+  const mentionDropdownRef = useRef(null);
+  const mentionCommandRef = useRef(null); // Store the command function
 
-      return {
-        onStart: props => {
-          component = tippy('body', {
-            getReferenceClientRect: props.clientRect,
-            appendTo: () => document.body,
-            content: '<div id="mention-list"></div>',
-            showOnCreate: true,
-            interactive: true,
-            trigger: 'manual',
-            placement: 'bottom-start',
-          })[0];
-
-          popup = component.popper.querySelector('#mention-list');
-          if (popup) {
-            popup.innerHTML = props.items.map((item, index) =>
-              `<div class="mention-item ${index === props.selectedIndex ? 'selected' : ''}" data-index="${index}">
-                <img src="${item.avatar || '/default-avatar.png'}" alt="${item.name}" class="w-6 h-6 rounded-full mr-2" />
-                <span>${item.name}</span>
-              </div>`
-            ).join('');
-          }
-        },
-        onUpdate: props => {
-          if (popup) {
-            popup.innerHTML = props.items.map((item, index) =>
-              `<div class="mention-item ${index === props.selectedIndex ? 'selected' : ''}" data-index="${index}">
-                <img src="${item.avatar || '/default-avatar.png'}" alt="${item.name}" class="w-6 h-6 rounded-full mr-2" />
-                <span>${item.name}</span>
-              </div>`
-            ).join('');
-          }
-        },
-        onKeyDown: props => {
-          if (props.event.key === 'Escape') {
-            component.hide();
-            return true;
-          }
-          return false;
-        },
-        onExit: () => {
-          if (component) {
-            component.destroy();
-            component = null;
-            popup = null;
-          }
-        },
-      };
-    },
-  }), [mentionSuggestions]);
-
-  // Hashtag suggestions configuration
-  const hashtagSuggestion = useMemo(() => ({
-    items: ({ query }) => {
-      return hashtagSuggestions
-        .filter(item => item.tag.toLowerCase().startsWith(query.toLowerCase()))
-        .slice(0, 5);
-    },
-    render: () => {
-      let component;
-      let popup;
-
-      return {
-        onStart: props => {
-          component = tippy('body', {
-            getReferenceClientRect: props.clientRect,
-            appendTo: () => document.body,
-            content: '<div id="hashtag-list"></div>',
-            showOnCreate: true,
-            interactive: true,
-            trigger: 'manual',
-            placement: 'bottom-start',
-          })[0];
-
-          popup = component.popper.querySelector('#hashtag-list');
-          if (popup) {
-            popup.innerHTML = props.items.map((item, index) =>
-              `<div class="hashtag-item ${index === props.selectedIndex ? 'selected' : ''}" data-index="${index}">
-                <span class="text-blue-600">#${item.tag}</span>
-                ${item.description ? `<span class="text-gray-500 text-sm ml-2">${item.description}</span>` : ''}
-              </div>`
-            ).join('');
-          }
-        },
-        onUpdate: props => {
-          if (popup) {
-            popup.innerHTML = props.items.map((item, index) =>
-              `<div class="hashtag-item ${index === props.selectedIndex ? 'selected' : ''}" data-index="${index}">
-                <span class="text-blue-600">#${item.tag}</span>
-                ${item.description ? `<span class="text-gray-500 text-sm ml-2">${item.description}</span>` : ''}
-              </div>`
-            ).join('');
-          }
-        },
-        onKeyDown: props => {
-          if (props.event.key === 'Escape') {
-            component.hide();
-            return true;
-          }
-          return false;
-        },
-        onExit: () => {
-          if (component) {
-            component.destroy();
-            component = null;
-            popup = null;
-          }
-        },
-      };
-    },
-  }), [hashtagSuggestions]);
+  // Hashtag autocomplete state
+  const [hashtagQuery, setHashtagQuery] = useState('');
+  const [hashtagSuggestions, setHashtagSuggestions] = useState([]);
+  const [showHashtagDropdown, setShowHashtagDropdown] = useState(false);
+  const [selectedHashtagIndex, setSelectedHashtagIndex] = useState(0);
+  const [hashtagDropdownPosition, setHashtagDropdownPosition] = useState({ top: 0, left: 0 });
+  const hashtagDropdownRef = useRef(null);
+  const hashtagCommandRef = useRef(null); // Store the command function
 
   // Emoji categories and custom names
   const CUSTOM_EMOJI_NAMES = {
@@ -847,6 +738,48 @@ const RichTextEditor = ({
     } catch(_) {}
   }, [recentEmojis]);
 
+  // Search for mentionable users when mention query changes
+  useEffect(() => {
+    const searchMentions = async () => {
+      if (!mentionQuery || mentionQuery.length < 1) {
+        setMentionSuggestions([]);
+        return;
+      }
+
+      try {
+        const results = await socialAPI.searchMentionableUsers(mentionQuery);
+        setMentionSuggestions(results || []);
+      } catch (error) {
+        console.error('Failed to search mentionable users:', error);
+        setMentionSuggestions([]);
+      }
+    };
+
+    const debounceTimer = setTimeout(searchMentions, 300);
+    return () => clearTimeout(debounceTimer);
+  }, [mentionQuery]);
+
+  // Search for hashtags when hashtag query changes
+  useEffect(() => {
+    const searchHashtags = async () => {
+      if (!hashtagQuery || hashtagQuery.length < 1) {
+        setHashtagSuggestions([]);
+        return;
+      }
+
+      try {
+        const results = await socialAPI.searchHashtags(hashtagQuery, 20);
+        setHashtagSuggestions(results || []);
+      } catch (error) {
+        console.error('Failed to search hashtags:', error);
+        setHashtagSuggestions([]);
+      }
+    };
+
+    const debounceTimer = setTimeout(searchHashtags, 300);
+    return () => clearTimeout(debounceTimer);
+  }, [hashtagQuery]);
+
   const pushRecentEmoji = (emoji) => {
     setRecentEmojis(prev => {
       const filtered = prev.filter(e => e !== emoji);
@@ -881,13 +814,19 @@ const RichTextEditor = ({
       if (showEmojiPicker && emojiPickerRef.current && !emojiPickerRef.current.contains(event.target)) {
         setShowEmojiPicker(false);
       }
+      if (showMentionDropdown && mentionDropdownRef.current && !mentionDropdownRef.current.contains(event.target)) {
+        setShowMentionDropdown(false);
+      }
+      if (showHashtagDropdown && hashtagDropdownRef.current && !hashtagDropdownRef.current.contains(event.target)) {
+        setShowHashtagDropdown(false);
+      }
     };
 
     document.addEventListener('mousedown', handleClickOutside);
     return () => {
       document.removeEventListener('mousedown', handleClickOutside);
     };
-  }, [showEmojiPicker]);
+  }, [showEmojiPicker, showMentionDropdown, showHashtagDropdown]);
 
   const visibleTabs = EMOJI_TABS.slice(emojiTabOffset, emojiTabOffset + 4);
   const baseEmojiSet = activeEmojiTab === 'Recent'
@@ -1036,33 +975,186 @@ const RichTextEditor = ({
         className: 'has-focus',
         mode: 'all',
       }),
-      ...(enableMentions ? [
-        Mention.configure({
-          HTMLAttributes: {
-            class: 'mention',
+      Dropcursor,
+      Mention.configure({
+        HTMLAttributes: {
+          class: 'mention text-blue-600 font-medium',
+        },
+        suggestion: {
+          char: '@',
+          allowSpaces: false,
+          items: ({ query }) => {
+            // Trigger mention search
+            setMentionQuery(query);
+            setShowMentionDropdown(query.length > 0);
+            return mentionSuggestions;
           },
-          suggestions: [
-            {
-              char: '@',
-              ...mentionSuggestion,
-            },
-            {
-              char: '#',
-              ...hashtagSuggestion,
-            },
-          ],
-        }),
-      ] : []),
+          render: () => {
+            return {
+              onStart: (props) => {
+                // Store the command function so onClick can use it
+                mentionCommandRef.current = props.command;
+
+                if (!props.clientRect) return;
+
+                // Get the cursor position relative to viewport
+                const rect = props.clientRect();
+                if (rect) {
+                  // Position dropdown just below the cursor, accounting for scroll
+                  setMentionDropdownPosition({
+                    top: rect.bottom + 5, // Add 5px gap below cursor
+                    left: rect.left,
+                  });
+                }
+                setShowMentionDropdown(true);
+                setSelectedMentionIndex(0);
+              },
+              onUpdate: (props) => {
+                // Update the command function reference
+                mentionCommandRef.current = props.command;
+
+                if (!props.clientRect) return;
+
+                const rect = props.clientRect();
+                if (rect) {
+                  setMentionDropdownPosition({
+                    top: rect.bottom + 5,
+                    left: rect.left,
+                  });
+                }
+                setSelectedMentionIndex(0);
+              },
+              onKeyDown: (props) => {
+                if (props.event.key === 'ArrowUp') {
+                  setSelectedMentionIndex((prev) => Math.max(0, prev - 1));
+                  return true;
+                }
+                if (props.event.key === 'ArrowDown') {
+                  setSelectedMentionIndex((prev) =>
+                    Math.min(mentionSuggestions.length - 1, prev + 1)
+                  );
+                  return true;
+                }
+                if (props.event.key === 'Enter') {
+                  if (mentionSuggestions[selectedMentionIndex]) {
+                    // Use the command function from props to properly replace
+                    props.command({
+                      id: mentionSuggestions[selectedMentionIndex].id,
+                      label: mentionSuggestions[selectedMentionIndex].username,
+                    });
+                  }
+                  return true;
+                }
+                if (props.event.key === 'Escape') {
+                  setShowMentionDropdown(false);
+                  return true;
+                }
+                return false;
+              },
+              onExit: () => {
+                setShowMentionDropdown(false);
+                setMentionQuery('');
+                setMentionSuggestions([]);
+              },
+            };
+          },
+        },
+      }),
+      Mention.extend({
+        name: 'hashtag',
+      }).configure({
+        HTMLAttributes: {
+          class: 'hashtag text-blue-600 font-medium',
+        },
+        suggestion: {
+          char: '#',
+          allowSpaces: false,
+          items: ({ query }) => {
+            // Trigger hashtag search
+            setHashtagQuery(query);
+            setShowHashtagDropdown(query.length > 0);
+            return hashtagSuggestions;
+          },
+          render: () => {
+            return {
+              onStart: (props) => {
+                // Store the command function so onClick can use it
+                hashtagCommandRef.current = props.command;
+
+                if (!props.clientRect) return;
+
+                // Get the cursor position relative to viewport
+                const rect = props.clientRect();
+                if (rect) {
+                  // Position dropdown just below the cursor, accounting for scroll
+                  setHashtagDropdownPosition({
+                    top: rect.bottom + 5, // Add 5px gap below cursor
+                    left: rect.left,
+                  });
+                }
+                setShowHashtagDropdown(true);
+                setSelectedHashtagIndex(0);
+              },
+              onUpdate: (props) => {
+                // Update the command function reference
+                hashtagCommandRef.current = props.command;
+
+                if (!props.clientRect) return;
+
+                const rect = props.clientRect();
+                if (rect) {
+                  setHashtagDropdownPosition({
+                    top: rect.bottom + 5,
+                    left: rect.left,
+                  });
+                }
+                setSelectedHashtagIndex(0);
+              },
+              onKeyDown: (props) => {
+                if (props.event.key === 'ArrowUp') {
+                  setSelectedHashtagIndex((prev) => Math.max(0, prev - 1));
+                  return true;
+                }
+                if (props.event.key === 'ArrowDown') {
+                  setSelectedHashtagIndex((prev) =>
+                    Math.min(hashtagSuggestions.length - 1, prev + 1)
+                  );
+                  return true;
+                }
+                if (props.event.key === 'Enter') {
+                  if (hashtagSuggestions[selectedHashtagIndex]) {
+                    // Use the command function from props to properly replace
+                    props.command({
+                      id: hashtagSuggestions[selectedHashtagIndex].name,
+                      label: hashtagSuggestions[selectedHashtagIndex].name,
+                    });
+                  }
+                  return true;
+                }
+                if (props.event.key === 'Escape') {
+                  setShowHashtagDropdown(false);
+                  return true;
+                }
+                return false;
+              },
+              onExit: () => {
+                setShowHashtagDropdown(false);
+                setHashtagQuery('');
+                setHashtagSuggestions([]);
+              },
+            };
+          },
+        },
+      }),
     ] : [])
   ], [
     placeholder,
     maxLength,
     enableAdvancedFeatures,
-    enableMentions,
-    mentionSuggestion,
-    hashtagSuggestion,
     mentionSuggestions,
-    hashtagSuggestions
+    selectedMentionIndex,
+    hashtagSuggestions,
+    selectedHashtagIndex,
   ]);
 
   const editor = useEditor({
@@ -1744,6 +1836,99 @@ const RichTextEditor = ({
     }
   }, [tableDropdownOpen]);
 
+  // Expose methods to parent component via ref
+  // MUST be called before any conditional returns (React Hooks rules)
+  useImperativeHandle(ref, () => ({
+    // Get current HTML content
+    getHTML: () => editor?.getHTML() || '',
+
+    // Get current JSON content
+    getJSON: () => editor?.getJSON() || {},
+
+    // Get current media attachments
+    getMediaAttachments: () => mediaAttachments,
+
+    // Process content for submission - upload media and replace placeholders
+    processContentForSubmission: async (uploadCallback) => {
+      if (!editor) {
+        return { processedContent: '', mediaFiles: [] };
+      }
+
+      let processedContent = editor.getHTML();
+      const mediaFiles = [];
+
+      for (const attachment of mediaAttachments) {
+        try {
+          // Call upload callback provided by parent
+          const mediaUrl = await uploadCallback(attachment.file, attachment.type);
+
+          if (mediaUrl) {
+            // Replace placeholder with actual URL based on media type
+            if (attachment.type === 'image') {
+              // For images: Replace src attribute while preserving other attributes
+              const imgRegex = new RegExp(
+                `(<img[^>]*data-media-id="${attachment.id}"[^>]*src=")[^"]*("[^>]*>)`,
+                'g'
+              );
+              processedContent = processedContent.replace(imgRegex, `$1${mediaUrl}$2`);
+
+              // Remove data-media-id attribute to clean up
+              processedContent = processedContent.replace(
+                new RegExp(`\\s*data-media-id="${attachment.id}"`, 'g'),
+                ''
+              );
+            } else if (attachment.type === 'video') {
+              // Replace placeholder div with video element
+              processedContent = processedContent.replace(
+                new RegExp(`<div[^>]*data-media-id="${attachment.id}"[^>]*>.*?</div>`, 's'),
+                `<video src="${mediaUrl}" controls class="w-full max-w-2xl rounded-lg"></video>`
+              );
+            } else if (attachment.type === 'audio') {
+              // Replace placeholder div with audio element
+              processedContent = processedContent.replace(
+                new RegExp(`<div[^>]*data-media-id="${attachment.id}"[^>]*>.*?</div>`, 's'),
+                `<audio src="${mediaUrl}" controls class="w-full"></audio>`
+              );
+            }
+
+            // Add to media files list
+            mediaFiles.push({
+              type: attachment.type,
+              url: mediaUrl,
+              file: attachment.file
+            });
+          }
+        } catch (error) {
+          console.error('Failed to upload media:', error);
+        }
+      }
+
+      return { processedContent, mediaFiles };
+    },
+
+    // Clear editor content
+    clearContent: () => {
+      if (editor) {
+        editor.commands.clearContent();
+        setMediaAttachments([]);
+      }
+    },
+
+    // Set editor content
+    setContent: (newContent) => {
+      if (editor) {
+        editor.commands.setContent(newContent);
+      }
+    },
+
+    // Focus editor
+    focus: () => {
+      if (editor) {
+        editor.commands.focus();
+      }
+    }
+  }), [editor, mediaAttachments]);
+
   if (!editor) {
     return (
       <div className={`border border-gray-300 rounded-md ${height} bg-gray-50 animate-pulse ${className}`} />
@@ -2043,6 +2228,19 @@ const RichTextEditor = ({
           font-family: ui-monospace, SFMono-Regular, "SF Mono", Consolas, "Liberation Mono", Menlo, monospace !important;
           font-size: 0.875em !important;
         }
+        /* Hashtag styling - client-side detection */
+        .rich-text-content .hashtag,
+        .rich-text-content a[href^="#"] {
+          color: #2563eb !important; /* Blue-600 */
+          font-weight: 500 !important;
+          cursor: pointer !important;
+          text-decoration: none !important;
+        }
+        .rich-text-content .hashtag:hover,
+        .rich-text-content a[href^="#"]:hover {
+          color: #1d4ed8 !important; /* Blue-700 */
+          text-decoration: underline !important;
+        }
         .rich-text-content pre {
           background-color: #f3f4f6 !important;
           padding: 1rem !important;
@@ -2302,6 +2500,14 @@ const RichTextEditor = ({
           padding: 0.125rem 0.25rem !important;
           border-radius: 0.25rem !important;
           text-decoration: none !important;
+        }
+        .rich-text-content .hashtag {
+          background-color: #dbeafe !important;
+          color: #1d4ed8 !important;
+          padding: 0.125rem 0.25rem !important;
+          border-radius: 0.25rem !important;
+          text-decoration: none !important;
+          font-weight: 500 !important;
         }
         .mention-item, .hashtag-item {
           display: flex !important;
@@ -3006,32 +3212,6 @@ const RichTextEditor = ({
                   )}
                 </div>
               )}
-
-              {/* Mentions */}
-              {enableMentions && (
-                <>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      editor.chain().focus().insertContent('@').run();
-                    }}
-                    className="p-0.5 rounded text-gray-600 hover:bg-gray-100 hover:text-gray-900"
-                    title="Mention User (@)"
-                  >
-                    <AtSymbolIcon className="w-3.5 h-3.5" />
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      editor.chain().focus().insertContent('#').run();
-                    }}
-                    className="p-0.5 rounded text-gray-600 hover:bg-gray-100 hover:text-gray-900"
-                    title="Add Hashtag (#)"
-                  >
-                    <HashtagIcon className="w-3.5 h-3.5" />
-                  </button>
-                </>
-              )}
             </div>
           </div>
         </div>
@@ -3065,8 +3245,168 @@ const RichTextEditor = ({
           </div>
         )}
       </div>
+
+      {/* Mention Autocomplete Dropdown */}
+      {showMentionDropdown && mentionSuggestions.length > 0 && (
+        <div
+          ref={mentionDropdownRef}
+          className="fixed z-50 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-lg shadow-lg max-h-64 overflow-y-auto min-w-72"
+          style={{
+            top: `${mentionDropdownPosition.top}px`,
+            left: `${mentionDropdownPosition.left}px`,
+          }}
+        >
+          {/* Group suggestions by category */}
+          {Object.entries(
+            mentionSuggestions.reduce((groups, user, index) => {
+              const category = user.category || 'Other';
+              if (!groups[category]) {
+                groups[category] = [];
+              }
+              groups[category].push({ ...user, originalIndex: index });
+              return groups;
+            }, {})
+          ).map(([categoryName, categoryUsers]) => (
+            <div key={categoryName}>
+              {/* Category Header */}
+              <div className="px-3 py-1 text-xs font-medium text-gray-500 dark:text-gray-400 bg-gray-50 dark:bg-gray-700/50 border-b border-gray-100 dark:border-gray-600">
+                {categoryName}
+              </div>
+
+              {/* Category Users */}
+              <ul className="py-1">
+                {categoryUsers.map((user, idx) => {
+                  const globalIndex = mentionSuggestions.findIndex(u => u.id === user.id);
+                  const isSelected = globalIndex === selectedMentionIndex;
+
+                  return (
+                    <li
+                      key={user.id}
+                      className={`px-3 py-2 cursor-pointer flex items-center space-x-3 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors ${
+                        isSelected
+                          ? 'bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400'
+                          : 'text-gray-900 dark:text-gray-100'
+                      }`}
+                      onClick={() => {
+                        // Use the stored command function to properly replace the @query with mention
+                        if (mentionCommandRef.current) {
+                          mentionCommandRef.current({
+                            id: user.id,
+                            label: user.username,
+                          });
+                          setShowMentionDropdown(false);
+                          setMentionQuery('');
+                        }
+                      }}
+                      onMouseEnter={() => setSelectedMentionIndex(globalIndex)}
+                    >
+                      <div className="w-8 h-8 rounded-full bg-gray-300 dark:bg-gray-600 flex items-center justify-center text-sm font-medium flex-shrink-0">
+                        {user.avatar_url ? (
+                          <img
+                            src={user.avatar_url}
+                            alt={user.username}
+                            className="w-8 h-8 rounded-full object-cover"
+                          />
+                        ) : (
+                          <span className="text-gray-600 dark:text-gray-300">
+                            {user.display_name?.charAt(0).toUpperCase() || user.username?.charAt(0).toUpperCase()}
+                          </span>
+                        )}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="font-medium truncate">@{user.username}</div>
+                        {user.display_name !== user.username && (
+                          <div className="text-sm text-gray-500 dark:text-gray-400 truncate">
+                            {user.display_name}
+                          </div>
+                        )}
+                      </div>
+                      {/* Priority badge */}
+                      {user.priority === 'follower' && (
+                        <div className="text-xs bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-400 px-2 py-1 rounded">
+                          Following
+                        </div>
+                      )}
+                    </li>
+                  );
+                })}
+              </ul>
+            </div>
+          ))}
+
+          {/* Help text */}
+          <div className="px-3 py-2 text-xs text-gray-500 dark:text-gray-400 border-t border-gray-100 dark:border-gray-600 bg-gray-50 dark:bg-gray-700/50">
+            Use ↑↓ to navigate, Enter to select, Esc to close
+          </div>
+        </div>
+      )}
+
+      {/* Hashtag Autocomplete Dropdown */}
+      {showHashtagDropdown && hashtagSuggestions.length > 0 && (
+        <div
+          ref={hashtagDropdownRef}
+          className="fixed z-50 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-lg shadow-lg max-h-64 overflow-y-auto min-w-72"
+          style={{
+            top: `${hashtagDropdownPosition.top}px`,
+            left: `${hashtagDropdownPosition.left}px`,
+          }}
+        >
+          <ul className="py-1">
+            {hashtagSuggestions.map((hashtag, index) => {
+              const isSelected = index === selectedHashtagIndex;
+
+              return (
+                <li
+                  key={hashtag.name}
+                  className={`px-3 py-2 cursor-pointer flex items-center justify-between hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors ${
+                    isSelected
+                      ? 'bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400'
+                      : 'text-gray-900 dark:text-gray-100'
+                  }`}
+                  onClick={() => {
+                    // Use the stored command function to properly replace the #query with hashtag
+                    if (hashtagCommandRef.current) {
+                      hashtagCommandRef.current({
+                        id: hashtag.name,
+                        label: hashtag.name,
+                      });
+                      setShowHashtagDropdown(false);
+                      setHashtagQuery('');
+                    }
+                  }}
+                  onMouseEnter={() => setSelectedHashtagIndex(index)}
+                >
+                  <div className="flex-1 min-w-0">
+                    <div className="font-medium text-blue-600 dark:text-blue-400">
+                      #{hashtag.name}
+                    </div>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    {hashtag.is_trending && (
+                      <div className="text-xs bg-orange-100 dark:bg-orange-900/30 text-orange-600 dark:text-orange-400 px-2 py-1 rounded">
+                        Trending
+                      </div>
+                    )}
+                    <div className="text-xs text-gray-500 dark:text-gray-400">
+                      {hashtag.posts_count} posts
+                    </div>
+                  </div>
+                </li>
+              );
+            })}
+          </ul>
+
+          {/* Help text */}
+          <div className="px-3 py-2 text-xs text-gray-500 dark:text-gray-400 border-t border-gray-100 dark:border-gray-600 bg-gray-50 dark:bg-gray-700/50">
+            Use ↑↓ to navigate, Enter to select, Esc to close
+          </div>
+        </div>
+      )}
     </div>
   );
-};
+});
+
+// Add display name for better debugging
+RichTextEditor.displayName = 'RichTextEditor';
 
 export default RichTextEditor;
