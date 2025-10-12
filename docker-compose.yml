@@ -45,7 +45,7 @@ services:
       context: .
       dockerfile: Dockerfile.backend
     image: citinfos_backend-backend  # Explicitly name the built image
-    command: sh -c "[ \"$START_CLEAN_MIG\" = 'true' ] && ./scripts/clean_migrations.sh; python manage.py makemigrations && python manage.py migrate && ./scripts/auto_cascade_postgres.sh loc_database loc_user postgis && python manage.py load_initial_data && python manage.py collectstatic --noinput && celery -A citinfos_backend beat --detach && daphne -b 0.0.0.0 -p 8000 citinfos_backend.asgi:application"
+    command: sh -c "[ \"$START_CLEAN_MIG\" = 'true' ] && ./scripts/clean_migrations.sh; python manage.py makemigrations && python manage.py migrate && ./scripts/auto_cascade_postgres.sh loc_database loc_user postgis && python manage.py load_initial_data && python manage.py collectstatic --noinput && celery -A citinfos_backend beat --detach && daphne -b 0.0.0.0 -p 8000 --application-close-timeout 5 --ping-timeout 30 --ping-interval 20 citinfos_backend.asgi:application"
     volumes:
       - .:/app
       - ./shapefiles:/app/shapefiles

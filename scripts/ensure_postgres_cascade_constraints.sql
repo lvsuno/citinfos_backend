@@ -6,7 +6,15 @@
 SELECT
   'ALTER TABLE ' || nsp.nspname || '.' || conrelid::regclass || ' DROP CONSTRAINT ' || conname || ';' || E'\n' ||
   'ALTER TABLE ' || nsp.nspname || '.' || conrelid::regclass || ' ADD CONSTRAINT ' || conname ||
-  ' FOREIGN KEY (' || pg_get_constraintdef(c.oid) || ') ON DELETE CASCADE;'
+  ' FOREIGN KEY (' ||
+  (SELECT string_agg(a.attname, ', ' ORDER BY array_position(c.conkey, a.attnum))
+   FROM unnest(c.conkey) AS u(attnum)
+   JOIN pg_attribute a ON a.attnum = u.attnum AND a.attrelid = c.conrelid) ||
+  ') REFERENCES ' || c.confrelid::regclass || ' (' ||
+  (SELECT string_agg(a.attname, ', ' ORDER BY array_position(c.confkey, a.attnum))
+   FROM unnest(c.confkey) AS u(attnum)
+   JOIN pg_attribute a ON a.attnum = u.attnum AND a.attrelid = c.confrelid) ||
+  ') ON DELETE CASCADE;'
 FROM pg_constraint c
 JOIN pg_namespace nsp ON nsp.oid = c.connamespace
 WHERE c.contype = 'f'  -- foreign key constraints only
