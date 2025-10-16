@@ -635,3 +635,50 @@
     border-color: #EF4444;
     box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.1);
 }
+
+/* Indicateurs de validation du mot de passe */
+.passwordRequirements {
+    margin-top: 8px;
+    padding: 12px;
+    background: rgba(255, 255, 255, 0.05);
+    border-radius: 8px;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.passwordRequirements small {
+    color: #94A3B8;
+    font-size: 12px;
+    line-height: 1.4;
+}
+
+.passwordRequirements ul {
+    margin: 6px 0 0 0;
+    padding-left: 16px;
+    list-style: none;
+}
+
+.passwordRequirements li {
+    margin: 4px 0;
+    position: relative;
+    transition: color 0.2s ease;
+}
+
+.passwordRequirements li::before {
+    content: "○";
+    position: absolute;
+    left: -12px;
+    transition: all 0.2s ease;
+}
+
+.passwordRequirements .valid {
+    color: #84CC16;
+}
+
+.passwordRequirements .valid::before {
+    content: "✓";
+    color: #84CC16;
+}
+
+.passwordRequirements .invalid {
+    color: #64748B;
+}

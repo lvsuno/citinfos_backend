@@ -1,0 +1,319 @@
+<!DOCTYPE html>
+<html lang="fr">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Suspension de votre compte</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            line-height: 1.6;
+            margin: 0;
+            padding: 0;
+            background-color: #f5f5f5;
+        }
+
+        .container {
+            max-width: 600px;
+            margin: 0 auto;
+            background-color: #ffffff;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+        }
+
+        .header {
+            background: linear-gradient(135deg, #ff6b6b, #ee5a52);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+
+        .header h1 {
+            margin: 0;
+            font-size: 28px;
+            font-weight: 300;
+        }
+
+        .icon {
+            width: 60px;
+            height: 60px;
+            margin: 0 auto 20px;
+            background-color: rgba(255, 255, 255, 0.2);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 30px;
+        }
+
+        .content {
+            padding: 40px;
+        }
+
+        .alert-box {
+            background-color: #fff3cd;
+            border-left: 4px solid #ffc107;
+            padding: 15px;
+            margin-bottom: 30px;
+            border-radius: 4px;
+        }
+
+        .alert-box strong {
+            color: #856404;
+        }
+
+        .info-section {
+            background-color: #f8f9fa;
+            padding: 20px;
+            border-radius: 8px;
+            margin: 20px 0;
+        }
+
+        .info-row {
+            display: flex;
+            margin-bottom: 10px;
+            padding: 5px 0;
+        }
+
+        .info-label {
+            font-weight: bold;
+            color: #495057;
+            width: 140px;
+            flex-shrink: 0;
+        }
+
+        .info-value {
+            color: #212529;
+            flex: 1;
+        }
+
+        .reason-box {
+            background-color: #f8d7da;
+            border: 1px solid #f5c6cb;
+            border-radius: 8px;
+            padding: 20px;
+            margin: 20px 0;
+        }
+
+        .reason-title {
+            font-weight: bold;
+            color: #721c24;
+            margin-bottom: 10px;
+            font-size: 16px;
+        }
+
+        .reason-text {
+            color: #721c24;
+            white-space: pre-wrap;
+            line-height: 1.5;
+        }
+
+        .details-box {
+            background-color: #e2e3e5;
+            border-radius: 8px;
+            padding: 20px;
+            margin: 20px 0;
+        }
+
+        .details-title {
+            font-weight: bold;
+            color: #383d41;
+            margin-bottom: 10px;
+            font-size: 16px;
+        }
+
+        .details-text {
+            color: #383d41;
+            white-space: pre-wrap;
+            line-height: 1.5;
+        }
+
+        .contact-section {
+            background-color: #d1ecf1;
+            border: 1px solid #bee5eb;
+            border-radius: 8px;
+            padding: 20px;
+            margin: 30px 0;
+        }
+
+        .contact-title {
+            font-weight: bold;
+            color: #0c5460;
+            margin-bottom: 10px;
+        }
+
+        .contact-text {
+            color: #0c5460;
+            margin-bottom: 15px;
+        }
+
+        .contact-email {
+            background-color: #0c5460;
+            color: white;
+            padding: 10px 20px;
+            text-decoration: none;
+            border-radius: 5px;
+            display: inline-block;
+            font-weight: bold;
+        }
+
+        .footer {
+            background-color: #343a40;
+            color: #ffffff;
+            padding: 30px;
+            text-align: center;
+            font-size: 14px;
+        }
+
+        .footer a {
+            color: #17a2b8;
+            text-decoration: none;
+        }
+
+        .divider {
+            height: 1px;
+            background-color: #dee2e6;
+            margin: 30px 0;
+        }
+
+        @media (max-width: 600px) {
+            .container {
+                margin: 0;
+                box-shadow: none;
+            }
+
+            .header,
+            .content,
+            .footer {
+                padding: 20px;
+            }
+
+            .info-row {
+                flex-direction: column;
+            }
+
+            .info-label {
+                width: auto;
+                margin-bottom: 5px;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <div class="header">
+            <div class="icon">⚠️</div>
+            <h1>Suspension de compte</h1>
+        </div>
+
+        <div class="content">
+            <div class="alert-box">
+                <strong>Attention :</strong> Votre compte a été temporairement suspendu par un administrateur.
+            </div>
+
+            <p>Bonjour <strong>{{ user_name }}</strong>,</p>
+
+            <p>Nous vous informons que votre compte sur notre plateforme a été suspendu pour les raisons détaillées
+                ci-dessous.</p>
+
+            <div class="info-section">
+                <h3 style="margin-top: 0; color: #495057;">Informations sur la suspension</h3>
+
+                <div class="info-row">
+                    <span class="info-label">Nom d'utilisateur :</span>
+                    <span class="info-value">{{ username }}</span>
+                </div>
+
+                <div class="info-row">
+                    <span class="info-label">Email :</span>
+                    <span class="info-value">{{ user_email }}</span>
+                </div>
+
+                <div class="info-row">
+                    <span class="info-label">Date de suspension :</span>
+                    <span class="info-value">{{ suspension_date }}</span>
+                </div>
+
+                <div class="info-row">
+                    <span class="info-label">Durée :</span>
+                    <span class="info-value">{{ duration }}</span>
+                </div>
+
+                {% if end_date %}
+                <div class="info-row">
+                    <span class="info-label">Fin de suspension :</span>
+                    <span class="info-value">{{ end_date }}</span>
+                </div>
+                {% endif %}
+            </div>
+
+            <div class="reason-box">
+                <div class="reason-title">🚫 Raison de la suspension</div>
+                <div class="reason-text">{{ suspension_reason }}</div>
+            </div>
+
+            {% if suspension_details %}
+            <div class="details-box">
+                <div class="details-title">📋 Détails supplémentaires</div>
+                <div class="details-text">{{ suspension_details }}</div>
+            </div>
+            {% endif %}
+
+            <div class="divider"></div>
+
+            <h3 style="color: #495057;">Que se passe-t-il maintenant ?</h3>
+
+            <ul style="color: #6c757d; line-height: 1.8;">
+                <li><strong>Accès bloqué :</strong> Vous ne pouvez plus vous connecter à votre compte pendant la durée
+                    de la suspension.</li>
+                <li><strong>Contenu masqué :</strong> Vos publications et profil ne sont plus visibles par les autres
+                    utilisateurs.</li>
+                <li><strong>Notifications suspendues :</strong> Vous ne recevrez plus de notifications de la plateforme.
+                </li>
+                {% if end_date %}
+                <li><strong>Réactivation automatique :</strong> Votre compte sera automatiquement réactivé le {{
+                    end_date }}.</li>
+                {% else %}
+                <li><strong>Durée indéterminée :</strong> La suspension est en vigueur jusqu'à nouvel ordre.</li>
+                {% endif %}
+            </ul>
+
+            <div class="contact-section">
+                <div class="contact-title">💬 Contester cette décision</div>
+                <div class="contact-text">
+                    Si vous pensez que cette suspension est injustifiée ou si vous souhaitez obtenir plus
+                    d'informations,
+                    vous pouvez contacter notre équipe de modération.
+                </div>
+                <a href="mailto:support@citinfos.com?subject=Contestation suspension - {{ username }}"
+                    class="contact-email">
+                    Contacter le support
+                </a>
+            </div>
+
+            <div class="divider"></div>
+
+            <p style="color: #6c757d; font-size: 14px; line-height: 1.6;">
+                <strong>Rappel :</strong> En utilisant notre plateforme, vous acceptez de respecter nos conditions
+                d'utilisation
+                et notre politique de communauté. Nous nous réservons le droit de suspendre ou de fermer définitivement
+                tout compte qui ne respecte pas ces règles.
+            </p>
+        </div>
+
+        <div class="footer">
+            <p>
+                Cet email a été envoyé automatiquement par <strong>CitInfos</strong><br>
+                Pour toute question, contactez-nous à <a href="mailto:support@citinfos.com">support@citinfos.com</a>
+            </p>
+            <p style="margin-top: 20px; font-size: 12px; color: #adb5bd;">
+                © {{ current_year }} CitInfos. Tous droits réservés.<br>
+                <a href="{{ terms_url }}" style="color: #adb5bd;">Conditions d'utilisation</a> |
+                <a href="{{ privacy_url }}" style="color: #adb5bd;">Politique de confidentialité</a>
+            </p>
+        </div>
+    </div>
+</body>
+
+</html>

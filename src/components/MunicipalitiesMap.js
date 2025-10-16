@@ -51,12 +51,14 @@ const MunicipalitiesMap = ({
     onMunicipalitySelect,
     selectedCountry,
     selectedLevel1,  // NEW: Level 1 division (region/province)
-    height = '500px'
+    height = '500px',
+    showAllMunicipalities = false  // NEW: Option to show all municipalities
 }) => {
     const [divisionGeometry, setDivisionGeometry] = useState(null);
     const [divisionCentroid, setDivisionCentroid] = useState(null);
     const [countryBoundary, setCountryBoundary] = useState(null); // NEW: Country boundary
     const [level1Boundary, setLevel1Boundary] = useState(null); // NEW: Level 1 boundary
+    const [allMunicipalities, setAllMunicipalities] = useState(null); // NEW: All municipalities
     const [mapCenter, setMapCenter] = useState([46.8139, -71.2082]); // Default: Quebec center
     const [mapZoom, setMapZoom] = useState(6);
     const [mapBounds, setMapBounds] = useState(null); // NEW: For fitBounds instead of fixed zoom
@@ -288,6 +290,98 @@ const MunicipalitiesMap = ({
         fetchLevel1Boundary();
     }, [selectedLevel1, selectedMunicipality]);
 
+    // NEW: Fetch all Quebec municipalities when showAllMunicipalities is true
+    useEffect(() => {
+        const fetchAllMunicipalities = async () => {
+            if (!showAllMunicipalities) {
+                setAllMunicipalities(null);
+                return;
+            }
+
+            console.log('🏘️ Loading all Quebec municipalities...');
+            setLoading(true);
+
+            try {
+                const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:8000/api';
+                // Use simplification for better performance, limit to reasonable number
+                const response = await fetch(`${API_BASE_URL}/auth/quebec-municipalities-geojson/?simplify=0.002&limit=500`);
+
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+
+                const data = await response.json();
+
+                if (data.success && data.features) {
+                    setAllMunicipalities(data);
+                    console.log(`✅ Loaded ${data.count} municipalities`);
+
+                    // Set map view to Quebec province
+                    setMapCenter([46.8139, -71.2082]);
+                    setMapZoom(7);
+                    setMapBounds(null);
+                } else {
+                    console.error('Failed to load municipalities:', data.error);
+                }
+            } catch (error) {
+                console.error('Error loading all municipalities:', error);
+            } finally {
+                setLoading(false);
+            }
+        };
+
+        fetchAllMunicipalities();
+    }, [showAllMunicipalities]);
+
+    // Helper function to change user location to selected municipality
+    const handleChangeLocation = (municipalityData) => {
+        if (municipalityData.name && municipalityData.id) {
+            // Update municipality context with both name and ID
+            switchMunicipality(municipalityData.name, municipalityData.id);
+
+            // Create slug from municipality name
+            const municipalitySlug = municipalityData.name
+                .toLowerCase()
+                .normalize('NFD')
+                .replace(/[\u0300-\u036f]/g, '')
+                .replace(/[^a-z0-9]/g, '-')
+                .replace(/-+/g, '-')
+                .replace(/^-|-$/g, '');
+
+            // Convert boundary type to singular English form for URL
+            const boundaryTypeMap = {
+                'municipalités': 'municipality',
+                'municipalities': 'municipality',
+                'commune': 'commune',
+                'communes': 'commune',
+                'city': 'city',
+                'cities': 'city',
+                'town': 'town',
+                'towns': 'town',
+                'village': 'village',
+                'villages': 'village'
+            };
+
+            let typeSlug = boundaryTypeMap['municipality'] || 'municipality';
+
+            // Store as current active division
+            const countryCode = 'CAN'; // Quebec municipalities are in Canada
+            setCurrentDivision({
+                id: municipalityData.id,
+                name: municipalityData.name,
+                slug: municipalitySlug,
+                country: countryCode,
+                parent: municipalityData.parent_name ? { name: municipalityData.parent_name } : null,
+                boundary_type: 'Municipalité',
+                admin_level: municipalityData.admin_level || 4,
+                admin_code: municipalityData.admin_code
+            });
+
+            // Navigate to municipality page
+            navigate(`/${typeSlug}/${municipalitySlug}`);
+        }
+    };
+
     const handleVisitDivision = () => {
         if (selectedMunicipality?.name && selectedMunicipality?.boundary_type) {
             // Update municipality context with both name and ID
@@ -423,6 +517,167 @@ const MunicipalitiesMap = ({
                     </>
                 )}
 
+                {/* NEW: Display all Quebec municipalities */}
+                {allMunicipalities && allMunicipalities.features.map((feature, index) => {
+                    const { geometry, properties } = feature;
+
+                    // Convert GeoJSON coordinates to Leaflet format
+                    let coordinates = null;
+                    if (geometry.type === 'Polygon') {
+                        coordinates = geometry.coordinates[0].map(coord => [coord[1], coord[0]]);
+                    } else if (geometry.type === 'MultiPolygon') {
+                        coordinates = geometry.coordinates.map(polygon =>
+                            polygon[0].map(coord => [coord[1], coord[0]])
+                        );
+                    }
+
+                    if (!coordinates) return null;
+
+                    const handleMunicipalityClick = () => {
+                        if (onMunicipalitySelect) {
+                            // Create municipality object compatible with existing interface
+                            const municipality = {
+                                id: properties.id,
+                                name: properties.name,
+                                admin_code: properties.admin_code,
+                                admin_level: properties.admin_level,
+                                parent_name: properties.parent_name,
+                                boundary_type: 'Municipalité',
+                                country: { iso3: 'CAN' }
+                            };
+                            onMunicipalitySelect(municipality);
+                        }
+                    };
+
+                    if (geometry.type === 'Polygon') {
+                        return (
+                            <Polygon
+                                key={`municipality-${index}`}
+                                positions={coordinates}
+                                pathOptions={{
+                                    color: '#10b981',       // Green stroke
+                                    fillColor: '#10b981',   // Green fill
+                                    fillOpacity: 0.1,       // Very light fill
+                                    weight: 1,              // Thin border
+                                    opacity: 0.7
+                                }}
+                                eventHandlers={{
+                                    click: handleMunicipalityClick,
+                                    mouseover: (e) => {
+                                        e.target.setStyle({
+                                            fillOpacity: 0.3,
+                                            weight: 2
+                                        });
+                                    },
+                                    mouseout: (e) => {
+                                        e.target.setStyle({
+                                            fillOpacity: 0.1,
+                                            weight: 1
+                                        });
+                                    }
+                                }}
+                            >
+                                <Popup>
+                                    <div className={styles.popupContent}>
+                                        <h3 className={styles.municipalityName}>
+                                            {properties.name}
+                                        </h3>
+                                        {properties.parent_name && (
+                                            <p className={styles.regionInfo}>
+                                                <strong>MRC:</strong> {properties.parent_name}
+                                            </p>
+                                        )}
+                                        {properties.admin_code && (
+                                            <p className={styles.codeInfo}>
+                                                <strong>Code:</strong> {properties.admin_code}
+                                            </p>
+                                        )}
+                                        <div className={styles.popupButtons}>
+                                            <button
+                                                className={styles.visitButton}
+                                                onClick={handleMunicipalityClick}
+                                            >
+                                                Sélectionner {properties.name}
+                                            </button>
+                                            <button
+                                                className={styles.locationButton}
+                                                onClick={() => handleChangeLocation(properties)}
+                                            >
+                                                Me localiser ici
+                                            </button>
+                                        </div>
+                                    </div>
+                                </Popup>
+                            </Polygon>
+                        );
+                    } else if (geometry.type === 'MultiPolygon') {
+                        return coordinates.map((polygon, polyIndex) => (
+                            <Polygon
+                                key={`municipality-${index}-${polyIndex}`}
+                                positions={polygon}
+                                pathOptions={{
+                                    color: '#10b981',
+                                    fillColor: '#10b981',
+                                    fillOpacity: 0.1,
+                                    weight: 1,
+                                    opacity: 0.7
+                                }}
+                                eventHandlers={{
+                                    click: handleMunicipalityClick,
+                                    mouseover: (e) => {
+                                        e.target.setStyle({
+                                            fillOpacity: 0.3,
+                                            weight: 2
+                                        });
+                                    },
+                                    mouseout: (e) => {
+                                        e.target.setStyle({
+                                            fillOpacity: 0.1,
+                                            weight: 1
+                                        });
+                                    }
+                                }}
+                            >
+                                {polyIndex === 0 && (
+                                    <Popup>
+                                        <div className={styles.popupContent}>
+                                            <h3 className={styles.municipalityName}>
+                                                {properties.name}
+                                            </h3>
+                                            {properties.parent_name && (
+                                                <p className={styles.regionInfo}>
+                                                    <strong>MRC:</strong> {properties.parent_name}
+                                                </p>
+                                            )}
+                                            {properties.admin_code && (
+                                                <p className={styles.codeInfo}>
+                                                    <strong>Code:</strong> {properties.admin_code}
+                                                </p>
+                                            )}
+                                            <div className={styles.popupButtons}>
+                                                <button
+                                                    className={styles.visitButton}
+                                                    onClick={handleMunicipalityClick}
+                                                >
+                                                    Sélectionner {properties.name}
+                                                </button>
+                                                <button
+                                                    className={styles.locationButton}
+                                                    onClick={() => handleChangeLocation(properties)}
+                                                >
+                                                    Me localiser ici
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </Popup>
+                                )}
+                            </Polygon>
+                        ));
+                    }
+
+                    return null;
+                })}
+
                 {/* Display centroid marker */}
                 {divisionCentroid && selectedMunicipality && (
                     <Marker
@@ -449,12 +704,20 @@ const MunicipalitiesMap = ({
                                         <strong>Code:</strong> {selectedMunicipality.admin_code}
                                     </p>
                                 )}
-                                <button
-                                    className={styles.visitButton}
-                                    onClick={handleVisitDivision}
-                                >
-                                    Visiter {selectedMunicipality.name}
-                                </button>
+                                <div className={styles.popupButtons}>
+                                    <button
+                                        className={styles.visitButton}
+                                        onClick={handleVisitDivision}
+                                    >
+                                        Visiter {selectedMunicipality.name}
+                                    </button>
+                                    <button
+                                        className={styles.locationButton}
+                                        onClick={() => handleChangeLocation(selectedMunicipality)}
+                                    >
+                                        Me localiser ici
+                                    </button>
+                                </div>
                             </div>
                         </Popup>
                     </Marker>
@@ -468,12 +731,20 @@ const MunicipalitiesMap = ({
                 </div>
             )}
 
-            {divisionGeometry && (
+            {(divisionGeometry || allMunicipalities) && (
                 <div className={styles.mapLegend}>
-                    <div className={styles.legendItem}>
-                        <span className={styles.legendIconCyan}></span>
-                        <span>{getDivisionTypeLabel()}</span>
-                    </div>
+                    {divisionGeometry && (
+                        <div className={styles.legendItem}>
+                            <span className={styles.legendIconCyan}></span>
+                            <span>{getDivisionTypeLabel()}</span>
+                        </div>
+                    )}
+                    {allMunicipalities && (
+                        <div className={styles.legendItem}>
+                            <span className={styles.legendIconGreen}></span>
+                            <span>Municipalités du Québec ({allMunicipalities.count})</span>
+                        </div>
+                    )}
                 </div>
             )}
         </div>

@@ -27,7 +27,7 @@ def import_quebec_municipalities():
     print("=" * 45)
 
     # File path
-    shapefile_path = "/app/shapefiles/QUEBEC_munic_s.shp"
+    shapefile_path = "/app/shapefiles/quebec_adm/QUEBEC_munic_s.shp"
 
     if not os.path.exists(shapefile_path):
         print(f"❌ Shapefile not found: {shapefile_path}")
@@ -42,7 +42,7 @@ def import_quebec_municipalities():
         quebec = AdministrativeDivision.objects.get(
             country=canada,
             admin_level=1,
-            name='Quebec'
+            name__in=['Quebec', 'Québec']
         )
         print(f"🍁 Province: {quebec.name}")
 
@@ -69,9 +69,9 @@ def import_quebec_municipalities():
         skipped_count = 0
         error_count = 0
 
-        with transaction.atomic():
-            for feature in layer:
-                try:
+        for feature in layer:
+            try:
+                with transaction.atomic():
                     # Get field values
                     municipality_name = feature.get('MUS_NM_MUN')
                     parent_mrc_name = feature.get('MUS_NM_MRC')
@@ -143,10 +143,10 @@ def import_quebec_municipalities():
                     if imported_count % 100 == 0:
                         print(f"✅ Imported {imported_count} municipalities...")
 
-                except Exception as e:
-                    error_count += 1
-                    print(f"❌ Error processing municipality {municipality_name if 'municipality_name' in locals() else 'unknown'}: {str(e)}")
-                    continue
+            except Exception as e:
+                error_count += 1
+                print(f"❌ Error processing municipality {municipality_name if 'municipality_name' in locals() else 'unknown'}: {str(e)}")
+                continue
 
         # Final summary
         print(f"\n🎉 QUEBEC MUNICIPALITIES IMPORT COMPLETE")

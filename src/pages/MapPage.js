@@ -402,8 +402,8 @@ const MapPage = () => {
                 if (!level1ToSelect) {
                     const effectiveLocation = getEffectiveLocation();
                     const userCountryMatches = effectiveLocation?.country === selectedCountry.iso3 ||
-                                              effectiveLocation?.country === selectedCountry.iso2 ||
-                                              effectiveLocation?.country === selectedCountry.name;
+                        effectiveLocation?.country === selectedCountry.iso2 ||
+                        effectiveLocation?.country === selectedCountry.name;
 
                     if (userCountryMatches && effectiveLocation?.level_1_id) {
                         level1ToSelect = result.divisions.find(d => d.id === effectiveLocation.level_1_id);
@@ -476,7 +476,7 @@ const MapPage = () => {
                 selectedLevel1.id,
                 10,
                 divisionId  // Pass division to get closest ones (null if country changed)
-            );            if (result.success) {
+            ); if (result.success) {
                 setDefaultLevelDivisions(result.divisions);
 
                 // Auto-select the division ONLY if hierarchy matches current country
@@ -560,8 +560,8 @@ const MapPage = () => {
 
             // Get URL path based on country
             const countryISO3 = selectedMunicipality.country?.iso3 ||
-                               selectedCountry?.iso3 ||
-                               getPreferredCountry();
+                selectedCountry?.iso3 ||
+                getPreferredCountry();
             const urlPath = getUrlPathByISO3(countryISO3);
 
             console.log('🔗 MapPage navigation:', { slug, countryISO3, urlPath });
@@ -851,6 +851,7 @@ const MapPage = () => {
                                     selectedCountry={selectedCountry}
                                     selectedLevel1={selectedLevel1}
                                     height="500px"
+                                    showAllMunicipalities={true}
                                 />
                             )}
 
@@ -860,15 +861,37 @@ const MapPage = () => {
                                     <div className={styles.quickInfo}>
                                         <div className={styles.quickInfoHeader}>
                                             <LocationIcon className={styles.quickIcon} />
-                                            <span className={styles.quickTitle}>{selectedMunicipality.nom}</span>
+                                            <span className={styles.quickTitle}>
+                                                {selectedMunicipality.name || selectedMunicipality.nom}
+                                            </span>
                                         </div>
-                                        <button
-                                            className={styles.quickVisitButton}
-                                            onClick={handleVisitMunicipality}
-                                        >
-                                            Visiter
-                                            <ArrowForwardIcon className={styles.quickButtonIcon} />
-                                        </button>
+                                        <div className={styles.quickInfoButtons}>
+                                            <button
+                                                className={styles.quickVisitButton}
+                                                onClick={handleVisitMunicipality}
+                                            >
+                                                Visiter
+                                                <ArrowForwardIcon className={styles.quickButtonIcon} />
+                                            </button>
+                                            <button
+                                                className={styles.quickLocationButton}
+                                                onClick={() => {
+                                                    // Update municipality context and navigate to municipality page
+                                                    switchMunicipality(
+                                                        selectedMunicipality.name || selectedMunicipality.nom,
+                                                        selectedMunicipality.id
+                                                    );
+                                                    const slug = getMunicipalitySlug(selectedMunicipality.name || selectedMunicipality.nom);
+                                                    const countryISO3 = selectedMunicipality.country?.iso3 ||
+                                                        selectedCountry?.iso3 ||
+                                                        'CAN';
+                                                    const urlPath = getUrlPathByISO3(countryISO3);
+                                                    navigate(`/${urlPath}/${slug}`);
+                                                }}
+                                            >
+                                                Me localiser ici
+                                            </button>
+                                        </div>
                                     </div>
                                 </div>
                             )}

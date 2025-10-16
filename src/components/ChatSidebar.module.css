@@ -420,6 +420,33 @@
     }
 }
 
+/* Styles pour le modal amélioré */
+.modalSearchContainer {
+    padding: 0 0 16px 0;
+    border-bottom: 1px solid #e3e6ea;
+    margin-bottom: 16px;
+}
+
+.loadingContainer {
+    text-align: center;
+    padding: 40px 20px;
+    color: #65676b;
+}
+
+.userUsername {
+    font-size: 13px;
+    color: #65676b;
+    margin: 2px 0;
+}
+
+.userItem:hover {
+    background: #f0f2f5;
+}
+
+.userItem:active {
+    background: #e4e6ea;
+}
+
 @media (max-width: 480px) {
     .sidebar {
         height: 35%;

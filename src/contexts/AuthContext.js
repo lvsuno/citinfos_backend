@@ -183,10 +183,31 @@ export const AuthProvider = ({ children }) => {
         try {
             setLoading(true);
             console.log('🔑 Starting login process...');
+
+            // First attempt login to get user info
             const result = await apiService.login(usernameOrEmail, password, rememberMe);
 
             if (result.success && result.user) {
                 console.log('✅ Login successful for:', result.user.username || result.user.email);
+
+                // Check if user is admin and remember me is not already set
+                const isAdmin = result.user.profile?.role === 'admin';
+                if (isAdmin && !rememberMe) {
+                    console.log('🔧 Admin detected - enabling persistent session');
+                    // For admins, automatically enable remember me for persistent sessions
+                    try {
+                        const adminResult = await apiService.login(usernameOrEmail, password, true);
+                        if (adminResult.success) {
+                            setUser(adminResult.user);
+                            localStorage.setItem('currentUser', JSON.stringify(adminResult.user));
+                            console.log('✅ Admin persistent session established');
+                            return adminResult;
+                        }
+                    } catch (adminLoginError) {
+                        console.warn('Admin persistent login failed, using normal login:', adminLoginError);
+                        // Fall back to normal login result
+                    }
+                }
 
                 // Always set the user (session is created on backend)
                 setUser(result.user);
@@ -261,7 +282,7 @@ export const AuthProvider = ({ children }) => {
                     success: true,
                     message: result.message,
                     requiresVerification: true,
-                    email: userData.email
+                    email: userData.email  // Toujours utiliser l'email du formulaire
                 };
             }
 
@@ -351,21 +372,25 @@ export const AuthProvider = ({ children }) => {
         if (!user) return false;
 
         // Admin can do anything
-        if (user.role === 'admin') return true;
+        const userRole = user.role || (user.profile && user.profile.role);
+        if (userRole === 'admin') return true;
 
         // Add more permission logic as needed
         return user.permissions && user.permissions.includes(permission);
     };
 
     const isRole = (role) => {
-        return user && user.role === role;
+        if (!user) return false;
+        const userRole = user.role || (user.profile && user.profile.role);
+        return userRole === role;
     };
 
     const getHomeUrl = () => {
         if (!user) return '/';
 
         // Redirect based on user role or municipality
-        if (user.role === 'admin') return '/admin';
+        const userRole = user.role || (user.profile && user.profile.role);
+        if (userRole === 'admin') return '/admin/dashboard';
         if (user.municipality) return `/municipality/${user.municipality}`;
         return '/dashboard';
     };

@@ -39,6 +39,11 @@ const Post = ({ post }) => {
   };
 
   const handleReactionSelect = (reactionType) => {
+    // Vérifier si l'utilisateur est connecté
+    if (!user) {
+      return; // Les utilisateurs non connectés ne peuvent pas réagir
+    }
+
     const newReactions = { ...reactions };
 
     // Si l'utilisateur avait déjà une réaction, la retirer
@@ -59,6 +64,11 @@ const Post = ({ post }) => {
   };
 
   const handleLikeClick = () => {
+    // Vérifier si l'utilisateur est connecté
+    if (!user) {
+      return; // Les utilisateurs non connectés ne peuvent pas réagir
+    }
+
     if (userReaction === 'like') {
       handleReactionSelect('like'); // Retire la réaction
     } else {
@@ -127,12 +137,14 @@ const Post = ({ post }) => {
       <div className={styles.postActions}>
         <div
           className={styles.reactionWrapper}
-          onMouseEnter={() => setShowReactionsPanel(true)}
-          onMouseLeave={() => setShowReactionsPanel(false)}
+          onMouseEnter={() => user && setShowReactionsPanel(true)}
+          onMouseLeave={() => user && setShowReactionsPanel(false)}
         >
           <button
-            className={`${styles.actionButton} ${userReaction ? styles.reacted : ''}`}
+            className={`${styles.actionButton} ${userReaction ? styles.reacted : ''} ${!user ? styles.disabled : ''}`}
             onClick={handleLikeClick}
+            disabled={!user}
+            title={!user ? "Connectez-vous pour réagir" : "J'aime"}
           >
             {userReaction ? (
               <span className={styles.userReactionEmoji}>
@@ -144,12 +156,14 @@ const Post = ({ post }) => {
             <span>J'aime</span>
           </button>
 
-          <ReactionsPanel
-            isVisible={showReactionsPanel}
-            onReactionSelect={handleReactionSelect}
-            onClose={() => setShowReactionsPanel(false)}
-            currentReaction={userReaction}
-          />
+          {user && (
+            <ReactionsPanel
+              isVisible={showReactionsPanel}
+              onReactionSelect={handleReactionSelect}
+              onClose={() => setShowReactionsPanel(false)}
+              currentReaction={userReaction}
+            />
+          )}
         </div>
 
         <button
@@ -160,7 +174,11 @@ const Post = ({ post }) => {
           <span>Commenter</span>
         </button>
 
-        <button className={styles.actionButton}>
+        <button
+          className={`${styles.actionButton} ${!user ? styles.disabled : ''}`}
+          disabled={!user}
+          title={!user ? "Connectez-vous pour partager" : "Partager"}
+        >
           <ShareIcon />
           <span>Partager</span>
         </button>
@@ -240,6 +258,15 @@ const Post = ({ post }) => {
                 </div>
               </div>
             </form>
+          )}
+
+          {/* Message pour les utilisateurs non connectés */}
+          {!user && (
+            <div className={styles.publicUserMessage}>
+              <p className={styles.publicUserText}>
+                <strong>Mode public :</strong> Connectez-vous pour réagir et commenter sur les publications.
+              </p>
+            </div>
           )}
         </div>
       )}

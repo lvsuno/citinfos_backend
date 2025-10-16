@@ -1,0 +1,223 @@
+.municipalityManagement {
+  display: flex;
+  min-height: 100vh;
+  background-color: #f5f5f5;
+}
+
+.mainContent {
+  flex-grow: 1;
+  padding: 24px;
+}
+
+.header {
+  margin-bottom: 24px;
+}
+
+.filtersContainer {
+  padding: 16px;
+  margin-bottom: 24px;
+  background: white;
+  border-radius: 8px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.searchField {
+  margin-bottom: 0;
+}
+
+.statsCard {
+  text-align: center;
+  padding: 16px;
+  min-height: 120px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.statsCard:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
+}
+
+.statsIcon {
+  font-size: 32px;
+  margin-bottom: 8px;
+}
+
+.statsValue {
+  font-size: 24px;
+  font-weight: bold;
+  margin-bottom: 4px;
+}
+
+.statsLabel {
+  font-size: 12px;
+  color: #666;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.municipalityAccordion {
+  margin-bottom: 8px;
+  border-radius: 8px !important;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1) !important;
+}
+
+.municipalityAccordion:before {
+  display: none;
+}
+
+.municipalityHeader {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  padding: 8px 0;
+}
+
+.municipalityIcon {
+  margin-right: 16px;
+  color: #1976d2;
+}
+
+.municipalityInfo {
+  flex-grow: 1;
+}
+
+.municipalityName {
+  font-size: 18px;
+  font-weight: 600;
+  margin-bottom: 4px;
+}
+
+.municipalityLocation {
+  font-size: 14px;
+  color: #666;
+}
+
+.municipalityChips {
+  display: flex;
+  gap: 8px;
+  margin-right: 16px;
+}
+
+.userListItem {
+  padding: 8px 16px;
+  border-radius: 8px;
+  margin-bottom: 4px;
+  transition: background-color 0.2s ease;
+}
+
+.userListItem:hover {
+  background-color: #f5f5f5;
+}
+
+.userAvatar {
+  width: 32px;
+  height: 32px;
+}
+
+.topUserBadge {
+  margin-left: 8px;
+}
+
+.emptyState {
+  padding: 48px;
+  text-align: center;
+  background: white;
+  border-radius: 8px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.emptyStateIcon {
+  font-size: 64px;
+  color: #ccc;
+  margin-bottom: 16px;
+}
+
+.loadingContainer {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 400px;
+}
+
+.accordionDetails {
+  padding: 24px;
+  background-color: #fafafa;
+}
+
+.sectionTitle {
+  font-size: 18px;
+  font-weight: 600;
+  margin-bottom: 16px;
+  color: #333;
+}
+
+.growthPositive {
+  color: #4caf50;
+}
+
+.growthNegative {
+  color: #f44336;
+}
+
+.populationChip {
+  font-weight: 500;
+}
+
+.typeChip {
+  text-transform: capitalize;
+}
+
+.resultCount {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  color: #666;
+}
+
+@media (max-width: 768px) {
+  .mainContent {
+    padding: 16px;
+  }
+  
+  .municipalityHeader {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 12px;
+  }
+  
+  .municipalityChips {
+    margin-right: 0;
+  }
+  
+  .filtersContainer {
+    padding: 12px;
+  }
+  
+  .accordionDetails {
+    padding: 16px;
+  }
+}
+
+@media (max-width: 600px) {
+  .statsCard {
+    min-height: 100px;
+    padding: 12px;
+  }
+  
+  .statsIcon {
+    font-size: 28px;
+  }
+  
+  .statsValue {
+    font-size: 20px;
+  }
+  
+  .municipalityName {
+    font-size: 16px;
+  }
+}

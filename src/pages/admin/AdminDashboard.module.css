@@ -1,0 +1,64 @@
+/* AdminDashboard.module.css */
+.adminDashboard {
+    display: flex;
+    min-height: 100vh;
+    background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+}
+
+.mainContent {
+    flex: 1;
+    overflow-y: auto;
+    padding: 0;
+}
+
+.contentContainer {
+    padding: 2rem;
+    max-width: none !important;
+    /* Override Material-UI default */
+}
+
+.loadingContainer {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 100vh;
+    background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+}
+
+.errorContainer {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 100vh;
+    background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+}
+
+.overviewPaper {
+    padding: 2rem;
+    background: rgba(255, 255, 255, 0.95);
+    backdrop-filter: blur(10px);
+    border-radius: 16px;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.featureList {
+    margin-top: 1rem;
+    padding-left: 1.5rem;
+}
+
+.featureList li {
+    margin-bottom: 0.5rem;
+    color: #64748B;
+}
+
+/* Responsive design */
+@media (max-width: 768px) {
+    .adminDashboard {
+        flex-direction: column;
+    }
+
+    .contentContainer {
+        padding: 1rem;
+    }
+}

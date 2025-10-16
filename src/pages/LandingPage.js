@@ -44,6 +44,10 @@ const LandingPage = () => {
     window.open('https://www.youtube.com/', '_blank');
   };
 
+  const handleAccessPublic = () => {
+    navigate('/municipality/sherbrooke/accueil');
+  };
+
   const features = [
     {
       icon: <LocationOnOutlined className={styles.featureIcon} />,
@@ -120,7 +124,7 @@ const LandingPage = () => {
                 </div>
 
                 <h1 className={styles.heroTitle}>
-                  La parole à tout le monde dans votre
+                  La vie de la communauté dans votre
                   <span className={styles.gradientText}> municipalité</span>
                 </h1>
 
@@ -130,12 +134,13 @@ const LandingPage = () => {
 
                 <div className={styles.heroButtons}>
                   <Button
+                    variant="primary"
                     className={styles.primaryButton}
-                    onClick={handleWatchDemo}
+                    onClick={() => navigate('/municipality/sherbrooke/accueil')}
                     size="lg"
                   >
-                    <YouTubeIcon className={styles.buttonIcon} />
-                    <span>Voir démo</span>
+                    <LocationOnOutlined className={styles.buttonIcon} />
+                    <span>Explorer</span>
                   </Button>
 
                   <Button
@@ -228,14 +233,28 @@ const LandingPage = () => {
                 <p className={styles.ctaSubtitle}>
                   Rejoignez dès aujourd'hui des milliers de citoyens qui construisent l'avenir de leur municipalité
                 </p>
-                <Button
-                  className={styles.ctaButton}
-                  onClick={handleGetStarted}
-                  size="lg"
-                >
-                  <span>Commencer l'aventure</span>
-                  <AutoAwesomeOutlined className={styles.buttonIcon} />
-                </Button>
+                <div className={styles.ctaButtons}>
+                  <Button
+                    className={styles.ctaButton}
+                    onClick={handleGetStarted}
+                    size="lg"
+                  >
+                    <span>Commencer l'aventure</span>
+                    <AutoAwesomeOutlined className={styles.buttonIcon} />
+                  </Button>
+                  <Button
+                    variant="outline-light"
+                    className={styles.publicAccessButton}
+                    onClick={handleAccessPublic}
+                    size="lg"
+                  >
+                    <LocationOnOutlined className={styles.buttonIcon} />
+                    <span>Accès public - Explorer Sherbrooke</span>
+                  </Button>
+                </div>
+                <p className={styles.publicAccessNote}>
+                  Découvrez la plateforme en mode public avec l'exemple de Sherbrooke
+                </p>
               </div>
             </Col>
           </Row>

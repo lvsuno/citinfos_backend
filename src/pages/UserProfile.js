@@ -1,14 +1,15 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import Layout from '../components/Layout';
-import PostCreator from '../components/PostCreator';
+import PostCreationModal from '../components/PostCreationModal';
 import Post from '../components/Post';
 import {
     Person as PersonIcon,
     LocationOn as LocationIcon,
     CalendarToday as CalendarIcon,
     Email as EmailIcon,
-    Edit as EditIcon
+    Edit as EditIcon,
+    Add as AddIcon
 } from '@mui/icons-material';
 import styles from './UserProfile.module.css';
 
@@ -16,6 +17,7 @@ const UserProfile = () => {
     const { user } = useAuth();
     const [userPosts, setUserPosts] = useState([]);
     const [isEditing, setIsEditing] = useState(false);
+    const [showPostCreationModal, setShowPostCreationModal] = useState(false);
 
     // Obtenir les initiales du nom d'utilisateur
     const getUserInitials = () => {
@@ -52,6 +54,78 @@ const UserProfile = () => {
         };
 
         setUserPosts([postWithUser, ...userPosts]);
+    };
+
+    // Gestion du modal de création de posts
+    const handlePostSubmit = async (postData) => {
+        try {
+            // Créer un nouveau post basé sur les données du modal
+            const newPost = {
+                id: Date.now(),
+                content: postData.content.article || 'Nouveau post',
+                type: postData.type,
+                author: {
+                    id: user.id,
+                    name: `${user.firstName || ''} ${user.lastName || ''}`.trim() || user.email?.split('@')[0] || 'Utilisateur',
+                    avatar: user.avatar,
+                    initials: getUserInitials()
+                },
+                timestamp: new Date(),
+                reactions: { like: 0, love: 0, haha: 0, wow: 0, sad: 0, angry: 0 },
+                comments: [],
+                visibility: postData.visibility,
+                section: 'Mon Profil',
+                municipality: user.location?.city || 'Ma Ville'
+            };
+
+            // Ajouter le poll si c'est un sondage
+            if (postData.type === 'poll' && postData.content.poll) {
+                newPost.poll = {
+                    question: postData.content.poll.question,
+                    options: postData.content.poll.options.map((option, index) => ({
+                        id: index,
+                        text: option,
+                        votes: 0
+                    })),
+                    allowMultiple: postData.content.poll.allowMultiple,
+                    totalVotes: 0
+                };
+            }
+
+            // Ajouter les médias si c'est un post média
+            if (postData.type === 'media' && postData.content.media) {
+                newPost.attachments = postData.content.media;
+            }
+
+            setUserPosts([newPost, ...userPosts]);
+            setShowPostCreationModal(false);
+        } catch (error) {
+            console.error('Erreur lors de la création du post:', error);
+        }
+    };
+
+    const handleImageUpload = async (file) => {
+        // Simuler l'upload d'image
+        return {
+            url: URL.createObjectURL(file),
+            alt: file.name
+        };
+    };
+
+    const handleVideoUpload = async (file) => {
+        // Simuler l'upload de vidéo
+        return {
+            url: URL.createObjectURL(file),
+            title: file.name
+        };
+    };
+
+    const handleAudioUpload = async (file) => {
+        // Simuler l'upload d'audio
+        return {
+            url: URL.createObjectURL(file),
+            title: file.name
+        };
     };
 
     const formatJoinDate = () => {
@@ -180,13 +254,33 @@ const UserProfile = () => {
                         <h2>Mes Publications</h2>
                     </div>
 
-                    {/* Créateur de posts - seulement si authentifié */}
+                    {/* Bouton de création de posts - seulement si authentifié */}
                     {user && (
-                        <PostCreator
-                            onPostCreated={handlePostCreated}
-                            sectionName="Mon Profil"
-                            municipalityName={user.location?.city || 'Ma Ville'}
-                        />
+                        <div className={styles.postCreatorPlaceholder}>
+                            <div className={styles.postCreatorContent}>
+                                <div className={styles.userAvatar}>
+                                    {user?.avatar ? (
+                                        <img src={user.avatar} alt="Avatar" />
+                                    ) : (
+                                        <span>{getUserInitials()}</span>
+                                    )}
+                                </div>
+                                <button
+                                    className={styles.postCreatorButton}
+                                    onClick={() => setShowPostCreationModal(true)}
+                                >
+                                    <span className={styles.postCreatorPlaceholderText}>
+                                        Quoi de neuf dans votre profil ?
+                                    </span>
+                                </button>
+                                <button
+                                    className={styles.addPostButton}
+                                    onClick={() => setShowPostCreationModal(true)}
+                                >
+                                    <AddIcon />
+                                </button>
+                            </div>
+                        </div>
                     )}
 
                     {/* Feed des posts de l'utilisateur */}
@@ -208,6 +302,16 @@ const UserProfile = () => {
                     )}
                 </div>
             </div>
+
+            {/* Modal de création de posts */}
+            <PostCreationModal
+                isOpen={showPostCreationModal}
+                onClose={() => setShowPostCreationModal(false)}
+                onSubmit={handlePostSubmit}
+                onImageUpload={handleImageUpload}
+                onVideoUpload={handleVideoUpload}
+                onAudioUpload={handleAudioUpload}
+            />
         </Layout>
     );
 };

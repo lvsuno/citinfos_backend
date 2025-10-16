@@ -2,22 +2,19 @@ import React from 'react';
 import { useNavigate, useParams, useLocation } from 'react-router-dom';
 import {
     Home as HomeIcon,
-    Palette as ArtIcon,
-    MenuBook as LitteratureIcon,
-    Create as PoesieIcon,
-    PhotoCamera as PhotoIcon,
-    History as HistoireIcon,
-    Sports as SportIcon,
+    Newspaper as NouvellesIcon,
+    RoomService as ServicesIcon,
     TheaterComedy as CultureIcon,
-    EmojiEvents as ReconnaissanceIcon,
-    Timeline as ChronologieIcon,
-    Event as EventIcon,
-    DirectionsBus as TransportIcon,
-    Business as CommerceIcon,
-    LocationCity as CentreVilleIcon,
+    Business as EconomieIcon,
+    Palette as ArtIcon,
+    Sports as SportsIcon,
+    EmojiEvents as DistinctionIcon,
+    PhotoCamera as PhotosVideosIcon,
+    HowToVote as ParticipationIcon,
     Map as MapIcon,
-    MyLocation as MyLocationIcon,
     Close as CloseIcon,
+    ExpandMore as ExpandMoreIcon,
+    ExpandLess as ExpandLessIcon,
 } from '@mui/icons-material';
 import { useAuth } from '../contexts/AuthContext';
 import { useMunicipality } from '../contexts/MunicipalityContext';
@@ -34,6 +31,19 @@ const Sidebar = ({ activeRubrique, onRubriqueChange, isOpen, onClose, municipali
     const navigate = useNavigate();
     const location = useLocation();
     const { municipalitySlug } = useParams();
+    
+    // État pour contrôler l'expansion des sections
+    const [expandedSections, setExpandedSections] = React.useState({
+        'nouvelles': false,
+        'services': false,
+        'culture': false,
+        'economie': false,
+        'art': false,
+        'sports': false,
+        'distinction': false,
+        'photos-videos': false,
+        'participation': false
+    });
 
     // Detect current URL path (municipality, commune, city, etc.)
     const currentUrlPath = location.pathname.split('/')[1];
@@ -64,23 +74,109 @@ const Sidebar = ({ activeRubrique, onRubriqueChange, isOpen, onClose, municipali
         final: displayName
     });
 
-    // Rubriques pour la communauté - mix culturel et pratique
-    const rubriques = [
-        { name: 'Accueil', icon: HomeIcon, count: null, path: 'accueil', description: 'Tableau de bord principal' },
-        { name: 'Actualités', icon: CentreVilleIcon, count: null, path: 'actualites', description: 'Actualités locales' },
-        { name: 'Événements', icon: EventIcon, count: null, path: 'evenements', description: 'Événements et festivités' },
-        { name: 'Transport', icon: TransportIcon, count: null, path: 'transport', description: 'Transport et circulation' },
-        { name: 'Commerces', icon: CommerceIcon, count: null, path: 'commerces', description: 'Commerce local' },
-        { name: 'Art', icon: ArtIcon, count: null, path: 'art', description: 'Créations artistiques' },
-        { name: 'Littérature', icon: LitteratureIcon, count: null, path: 'litterature', description: 'Œuvres littéraires' },
-        { name: 'Poésie', icon: PoesieIcon, count: null, path: 'poesie', description: 'Poèmes et vers' },
-        { name: 'Photographie', icon: PhotoIcon, count: null, path: 'photographie', description: 'Images et captures' },
-        { name: 'Histoire', icon: HistoireIcon, count: null, path: 'histoire', description: 'Patrimoine local' },
-        { name: 'Sport', icon: SportIcon, count: null, path: 'sport', description: 'Activités sportives' },
-        { name: 'Culture', icon: CultureIcon, count: null, path: 'culture', description: 'Événements culturels' },
-        { name: 'Reconnaissance', icon: ReconnaissanceIcon, count: null, path: 'reconnaissance', description: 'Valorisation communautaire' },
-        { name: 'Chronologie', icon: ChronologieIcon, count: null, path: 'chronologie', description: 'Timeline des événements' },
+    // Rubriques organisées par catégories selon votre demande
+    const rubriquesSections = [
+        {
+            title: 'Accueil',
+            key: 'accueil',
+            icon: HomeIcon,
+            isMain: true,
+            path: 'accueil',
+            description: 'Tableau de bord principal'
+        },
+        {
+            title: 'Nouvelles',
+            key: 'nouvelles',
+            icon: NouvellesIcon,
+            items: [
+                { name: 'Actualités', path: 'actualites', description: 'Actualités locales' },
+                { name: 'Annonces', path: 'annonces', description: 'Annonces officielles' }
+            ]
+        },
+        {
+            title: 'Services',
+            key: 'services',
+            icon: ServicesIcon,
+            items: [
+                { name: 'Services municipaux', path: 'services', description: 'Services publics' },
+                { name: 'Transport', path: 'transport', description: 'Transport et circulation' },
+                { name: 'Commerces', path: 'commerces', description: 'Commerce local' }
+            ]
+        },
+        {
+            title: 'Culture',
+            key: 'culture',
+            icon: CultureIcon,
+            items: [
+                { name: 'Événements culturels', path: 'culture', description: 'Événements culturels' },
+                { name: 'Littérature', path: 'litterature', description: 'Œuvres littéraires' },
+                { name: 'Poésie', path: 'poesie', description: 'Poèmes et vers' },
+                { name: 'Histoire', path: 'histoire', description: 'Patrimoine local' }
+            ]
+        },
+        {
+            title: 'Économie',
+            key: 'economie',
+            icon: EconomieIcon,
+            items: [
+                { name: 'Développement économique', path: 'economie', description: 'Économie locale' },
+                { name: 'Opportunités', path: 'opportunites', description: 'Opportunités d\'affaires' }
+            ]
+        },
+        {
+            title: 'Art',
+            key: 'art',
+            icon: ArtIcon,
+            items: [
+                { name: 'Créations artistiques', path: 'art', description: 'Créations artistiques' },
+                { name: 'Expositions', path: 'expositions', description: 'Expositions d\'art' }
+            ]
+        },
+        {
+            title: 'Sports',
+            key: 'sports',
+            icon: SportsIcon,
+            items: [
+                { name: 'Activités sportives', path: 'sport', description: 'Activités sportives' },
+                { name: 'Événements sportifs', path: 'evenements-sportifs', description: 'Compétitions et événements' }
+            ]
+        },
+        {
+            title: 'Distinction',
+            key: 'distinction',
+            icon: DistinctionIcon,
+            items: [
+                { name: 'Reconnaissances', path: 'reconnaissance', description: 'Valorisation communautaire' },
+                { name: 'Prix et honneurs', path: 'prix', description: 'Prix et distinctions' }
+            ]
+        },
+        {
+            title: 'Photos et Vidéos',
+            key: 'photos-videos',
+            icon: PhotosVideosIcon,
+            items: [
+                { name: 'Galerie photos', path: 'photographie', description: 'Images et captures' },
+                { name: 'Vidéos', path: 'videos', description: 'Contenu vidéo' }
+            ]
+        },
+        {
+            title: 'Participation Citoyenne',
+            key: 'participation',
+            icon: ParticipationIcon,
+            items: [
+                { name: 'Consultations', path: 'consultations', description: 'Consultations publiques' },
+                { name: 'Suggestions', path: 'suggestions', description: 'Boîte à suggestions' },
+                { name: 'Événements', path: 'evenements', description: 'Événements participatifs' }
+            ]
+        }
     ];
+
+    const toggleSection = (sectionKey) => {
+        setExpandedSections(prev => ({
+            ...prev,
+            [sectionKey]: !prev[sectionKey]
+        }));
+    };
 
     // Navigation spéciale pour la carte (au niveau global)
     const handleMapClick = () => {
@@ -93,22 +189,25 @@ const Sidebar = ({ activeRubrique, onRubriqueChange, isOpen, onClose, municipali
         }
     };
 
-    const handleRubriqueClick = async (rubrique) => {
+    const handleRubriqueClick = async (rubriqueOrPath) => {
+        // Si c'est un objet rubrique, utiliser le path, sinon c'est déjà un path
+        const path = typeof rubriqueOrPath === 'object' ? rubriqueOrPath.path : rubriqueOrPath;
+        
         // Get the current slug from URL or active municipality
         const currentSlug = municipalitySlug || (activeMunicipality ? getMunicipalitySlug(activeMunicipality.nom) : null);
 
         if (currentSlug) {
             // Navigation vers la section de la municipalité actuelle using dynamic URL path
-            navigate(`/${urlPath}/${currentSlug}/${rubrique.path}`);
+            navigate(`/${urlPath}/${currentSlug}/${path}`);
         } else {
             // Fallback to user's default division
             const defaultUrl = await getDefaultDivisionUrl(user, null);
-            navigate(defaultUrl.replace('/accueil', `/${rubrique.path}`));
+            navigate(defaultUrl.replace('/accueil', `/${path}`));
         }
 
         // Appeler onRubriqueChange si fourni pour la compatibilité
         if (onRubriqueChange) {
-            onRubriqueChange(rubrique.path); // Passer le path au lieu du nom
+            onRubriqueChange(path); // Passer le path au lieu du nom
         }
     };
 
@@ -154,26 +253,68 @@ const Sidebar = ({ activeRubrique, onRubriqueChange, isOpen, onClose, municipali
                 <nav className={styles.navigation}>
                     <h3 className={styles.navTitle}>Rubriques</h3>
                     <ul className={styles.rubriquesList}>
-                        {rubriques.map((rubrique, index) => {
-                            const Icon = rubrique.icon;
-                            // Logique améliorée pour comparer les rubriques actives
+                        {rubriquesSections.map((section, index) => {
+                            const Icon = section.icon;
                             const currentPath = activeRubrique?.toLowerCase();
-                            const rubriquerPath = rubrique.path.toLowerCase();
-                            const isActive = currentPath === rubriquerPath;
+                            
+                            // Section principale (Accueil)
+                            if (section.isMain) {
+                                const isActive = currentPath === section.path.toLowerCase();
+                                return (
+                                    <li key={index} className={styles.rubriqueItem}>
+                                        <button
+                                            className={`${styles.rubriqueButton} ${isActive ? styles.active : ''}`}
+                                            onClick={() => handleRubriqueClick(section.path)}
+                                            title={section.description}
+                                        >
+                                            <Icon className={styles.rubriqueIcon} />
+                                            <span className={styles.rubriqueName}>{section.title}</span>
+                                        </button>
+                                    </li>
+                                );
+                            }
+
+                            // Sections avec sous-éléments
+                            const isExpanded = expandedSections[section.key];
+                            const hasActiveChild = section.items?.some(item => 
+                                currentPath === item.path.toLowerCase()
+                            );
 
                             return (
                                 <li key={index} className={styles.rubriqueItem}>
+                                    {/* En-tête de section */}
                                     <button
-                                        className={`${styles.rubriqueButton} ${isActive ? styles.active : ''}`}
-                                        onClick={() => handleRubriqueClick(rubrique)}
-                                        title={rubrique.description}
+                                        className={`${styles.rubriqueButton} ${styles.sectionHeader} ${hasActiveChild ? styles.hasActiveChild : ''}`}
+                                        onClick={() => toggleSection(section.key)}
+                                        title={`${isExpanded ? 'Réduire' : 'Développer'} la section ${section.title}`}
                                     >
                                         <Icon className={styles.rubriqueIcon} />
-                                        <span className={styles.rubriqueName}>{rubrique.name}</span>
-                                        {rubrique.count && (
-                                            <span className={styles.rubriqueCount}>{rubrique.count}</span>
-                                        )}
+                                        <span className={styles.rubriqueName}>{section.title}</span>
+                                        {isExpanded ? 
+                                            <ExpandLessIcon className={styles.expandIcon} /> : 
+                                            <ExpandMoreIcon className={styles.expandIcon} />
+                                        }
                                     </button>
+
+                                    {/* Sous-éléments */}
+                                    {isExpanded && section.items && (
+                                        <ul className={styles.subItems}>
+                                            {section.items.map((item, itemIndex) => {
+                                                const isActive = currentPath === item.path.toLowerCase();
+                                                return (
+                                                    <li key={itemIndex} className={styles.subItem}>
+                                                        <button
+                                                            className={`${styles.subItemButton} ${isActive ? styles.active : ''}`}
+                                                            onClick={() => handleRubriqueClick(item.path)}
+                                                            title={item.description}
+                                                        >
+                                                            <span className={styles.subItemName}>{item.name}</span>
+                                                        </button>
+                                                    </li>
+                                                );
+                                            })}
+                                        </ul>
+                                    )}
                                 </li>
                             );
                         })}

@@ -1,5 +1,34 @@
 // Données des posts pour la ville de Sherbrooke
 export const sherbrookePosts = [
+    // Post très récent pour tester le tri par récence
+    {
+        id: "post-sherbrooke-recent",
+        municipality: "Sherbrooke",
+        author: {
+            id: "user-recent-poster",
+            name: "Emma Leduc",
+            avatar: null,
+            initials: "EL"
+        },
+        content: "Bonjour tout le monde ! 👋 Qui a vu le magnifique arc-en-ciel ce matin au-dessus du mont Bellevue ? J'espère que quelqu'un a pris une photo ! 🌈 #Sherbrooke #ArcEnCiel #MontBellevue",
+        attachments: [],
+        timestamp: new Date(Date.now() - 30 * 60 * 1000), // Il y a 30 minutes
+        createdAt: new Date(Date.now() - 30 * 60 * 1000).toISOString(),
+        section: "Accueil",
+        featured: false,
+        reactions: {
+            like: 5,
+            love: 2,
+            haha: 0,
+            wow: 3,
+            sad: 0,
+            angry: 0
+        },
+        userReaction: null,
+        comments: [],
+        commentsCount: 0
+    },
+
     {
         id: "post-sherbrooke-1",
         municipality: "Sherbrooke",
@@ -19,7 +48,9 @@ export const sherbrookePosts = [
             }
         ],
         timestamp: new Date(Date.now() - 2 * 60 * 60 * 1000), // Il y a 2 heures
+        createdAt: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(),
         section: "Photographie",
+        featured: true, // Post à la une
         reactions: {
             like: 24,
             love: 8,
@@ -83,7 +114,9 @@ export const sherbrookePosts = [
             }
         ],
         timestamp: new Date(Date.now() - 6 * 60 * 60 * 1000), // Il y a 6 heures
+        createdAt: new Date(Date.now() - 6 * 60 * 60 * 1000).toISOString(),
         section: "Événements",
+        featured: true, // Post à la une - annonce importante
         reactions: {
             like: 89,
             love: 34,
@@ -146,7 +179,9 @@ export const sherbrookePosts = [
         content: "Quelqu'un sait-il pourquoi la rue King Ouest est fermée près du Carrefour de l'Estrie ? 🚧 J'ai dû faire un détour de 20 minutes ce matin... Y a-t-il des travaux prévus longtemps ?",
         attachments: [],
         timestamp: new Date(Date.now() - 4 * 60 * 60 * 1000), // Il y a 4 heures
+        createdAt: new Date(Date.now() - 4 * 60 * 60 * 1000).toISOString(),
         section: "Transport",
+        featured: false, // Post normal
         reactions: {
             like: 15,
             love: 0,
@@ -216,7 +251,9 @@ export const sherbrookePosts = [
             }
         ],
         timestamp: new Date(Date.now() - 8 * 60 * 60 * 1000), // Il y a 8 heures
+        createdAt: new Date(Date.now() - 8 * 60 * 60 * 1000).toISOString(),
         section: "Commerces",
+        featured: false, // Post normal
         reactions: {
             like: 67,
             love: 23,

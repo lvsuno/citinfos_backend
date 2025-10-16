@@ -5,10 +5,21 @@ asynchronously to reduce user waiting time.
 """
 from datetime import timedelta
 import logging
-from celery import shared_task
 from django.utils import timezone
 from django.core.exceptions import ObjectDoesNotExist
 from typing import Any, Dict
+
+# Conditional import for Celery
+try:
+    from celery import shared_task
+    CELERY_AVAILABLE = True
+except ImportError:
+    # Celery not available, create dummy decorator
+    def shared_task(bind=False, max_retries=3):
+        def decorator(func):
+            return func
+        return decorator
+    CELERY_AVAILABLE = False
 
 
 logger = logging.getLogger('accounts.tasks')

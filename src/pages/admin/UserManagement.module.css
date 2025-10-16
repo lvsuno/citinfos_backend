@@ -1,0 +1,137 @@
+/* UserManagement.module.css */
+.userManagement {
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+}
+
+.loadingContainer {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 4rem;
+    text-align: center;
+}
+
+.headerPaper {
+    padding: 2rem;
+    background: rgba(255, 255, 255, 0.95);
+    backdrop-filter: blur(10px);
+    border-radius: 16px;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.filtersPaper {
+    padding: 1.5rem;
+    background: rgba(255, 255, 255, 0.95);
+    backdrop-filter: blur(10px);
+    border-radius: 12px;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.tablePaper {
+    background: rgba(255, 255, 255, 0.95);
+    backdrop-filter: blur(10px);
+    border-radius: 12px;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    overflow: hidden;
+}
+
+.userCell {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.userCell>div {
+    min-width: 0;
+}
+
+.emailCell {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.locationCell {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.dateCell {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+/* Table customization */
+.tablePaper .MuiTableHead-root {
+    background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%);
+}
+
+.tablePaper .MuiTableCell-head {
+    font-weight: 600;
+    color: #334155;
+    border-bottom: 2px solid #e2e8f0;
+}
+
+.tablePaper .MuiTableRow-root:hover {
+    background: rgba(6, 182, 212, 0.05);
+}
+
+.tablePaper .MuiTableCell-root {
+    border-bottom: 1px solid rgba(224, 224, 224, 0.5);
+}
+
+/* Responsive design */
+@media (max-width: 768px) {
+    .userManagement {
+        gap: 1rem;
+    }
+
+    .headerPaper {
+        padding: 1.5rem;
+    }
+
+    .filtersPaper {
+        padding: 1rem;
+    }
+
+    .userCell {
+        gap: 8px;
+    }
+
+    .userCell .MuiAvatar-root {
+        width: 32px !important;
+        height: 32px !important;
+    }
+
+    .emailCell,
+    .locationCell,
+    .dateCell {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 4px;
+    }
+
+    .emailCell .MuiSvgIcon-root,
+    .locationCell .MuiSvgIcon-root,
+    .dateCell .MuiSvgIcon-root {
+        display: none;
+    }
+}
+
+@media (max-width: 480px) {
+    .tablePaper {
+        overflow-x: auto;
+    }
+
+    .tablePaper .MuiTable-root {
+        min-width: 800px;
+    }
+}

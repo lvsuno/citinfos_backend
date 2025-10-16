@@ -24,7 +24,7 @@ def import_quebec_mrcs():
 
     # Open shapefile
     driver = ogr.GetDriverByName('ESRI Shapefile')
-    ds = driver.Open('/app/shapefiles/QUEBEC_mrc_s.shp', 0)
+    ds = driver.Open('/app/shapefiles/quebec_adm/QUEBEC_mrc_s.shp', 0)
     layer = ds.GetLayer()
 
     print(f'Processing {layer.GetFeatureCount()} MRCs...')

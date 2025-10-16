@@ -46,7 +46,6 @@ ENV PATH="/opt/venv/bin:$PATH"
 # Copy only backend code and config (adjust as needed)
 COPY manage.py ./
 COPY middleware.py ./
-COPY requirements.txt ./
 COPY citinfos_backend/ ./citinfos_backend/
 COPY accounts/ ./accounts/
 COPY ai_conversations/ ./ai_conversations/
@@ -54,13 +53,13 @@ COPY analytics/ ./analytics/
 COPY communities/ ./communities/
 COPY content/ ./content/
 COPY core/ ./core/
-COPY logs/ ./logs/
-COPY media/ ./media/
+# COPY logs/ ./logs/  # Logs directory doesn't exist, will be created at runtime
+# COPY media/ ./media/  # Media directory doesn't exist, will be created at runtime
 COPY messaging/ ./messaging/
 COPY notifications/ ./notifications/
 COPY polls/ ./polls/
 COPY search/ ./search/
-COPY static/ ./static/
+# COPY static/ ./static/  # Static directory doesn't exist, will be created by collectstatic
     # COPY staticfiles/ ./staticfiles/
 COPY wsgi.py ./wsgi.py
 COPY GeoLite2-City.mmdb ./GeoLite2-City.mmdb
@@ -77,5 +76,8 @@ RUN chmod +x scripts/clean_migrations.sh scripts/auto_cascade_postgres.sh script
 
 # Collect static (for production)
 RUN mkdir -p /app/staticfiles
+RUN mkdir -p /app/static
+RUN mkdir -p /app/logs
+RUN mkdir -p /app/media
 
 ENV PYTHONUNBUFFERED=1

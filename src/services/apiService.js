@@ -61,6 +61,27 @@ class ApiService {
       async (error) => {
         const originalRequest = error.config;
 
+        // Check for account suspension (403 with specific code)
+        if (error.response?.status === 403) {
+          const errorData = error.response?.data || {};
+          const errorCode = errorData?.code;
+
+          if (errorCode === 'ACCOUNT_SUSPENDED') {
+            // Store suspension data for the suspension page
+            localStorage.setItem('suspensionData', JSON.stringify(errorData));
+
+            // Clear authentication tokens
+            this.clearTokens();
+
+            // Dispatch custom event for suspension
+            window.dispatchEvent(new CustomEvent('accountSuspended', {
+              detail: { suspensionData: errorData }
+            }));
+
+            return Promise.reject(error);
+          }
+        }
+
         if (error.response?.status === 401 && !originalRequest._retry) {
           const errorData = error.response?.data || {};
           const errorCode = errorData?.code;
@@ -186,8 +207,7 @@ class ApiService {
       return {
         success: true,
         message: response.data.message || 'Registration successful! Please check your email for verification.',
-        user: response.data.user,
-        email: userData.email
+        user: response.data.user
       };
     } catch (error) {
       console.error('Registration error:', error);
@@ -301,7 +321,52 @@ class ApiService {
 
       switch (status) {
         case 400:
-          return new Error(data.message || data.error || 'Invalid request');
+          // Handle validation errors from Django serializer
+          if (data && typeof data === 'object') {
+            // Check if it's validation errors (field-specific errors)
+            if (data.password) {
+              return new Error(`Mot de passe : ${Array.isArray(data.password) ? data.password.join(', ') : data.password}`);
+            }
+            if (data.email) {
+              return new Error(`Email : ${Array.isArray(data.email) ? data.email.join(', ') : data.email}`);
+            }
+            if (data.username) {
+              return new Error(`Nom d'utilisateur : ${Array.isArray(data.username) ? data.username.join(', ') : data.username}`);
+            }
+            if (data.phone_number) {
+              return new Error(`Téléphone : ${Array.isArray(data.phone_number) ? data.phone_number.join(', ') : data.phone_number}`);
+            }
+            if (data.division_id) {
+              return new Error(`Municipalité : ${Array.isArray(data.division_id) ? data.division_id.join(', ') : data.division_id}`);
+            }
+            if (data.accept_terms) {
+              return new Error(`Conditions : ${Array.isArray(data.accept_terms) ? data.accept_terms.join(', ') : data.accept_terms}`);
+            }
+            if (data.date_of_birth) {
+              return new Error(`Date de naissance : ${Array.isArray(data.date_of_birth) ? data.date_of_birth.join(', ') : data.date_of_birth}`);
+            }
+
+            // Check for general error messages
+            if (data.message || data.error) {
+              return new Error(data.message || data.error);
+            }
+
+            // If we have multiple field errors, combine them
+            const errorMessages = [];
+            for (const [field, errors] of Object.entries(data)) {
+              if (Array.isArray(errors)) {
+                errorMessages.push(`${field}: ${errors.join(', ')}`);
+              } else if (typeof errors === 'string') {
+                errorMessages.push(`${field}: ${errors}`);
+              }
+            }
+
+            if (errorMessages.length > 0) {
+              return new Error(errorMessages.join(' | '));
+            }
+          }
+
+          return new Error(data.message || data.error || 'Données invalides');
         case 401:
           return new Error(data.message || 'Authentication required');
         case 403:
@@ -318,6 +383,119 @@ class ApiService {
     } else {
       return new Error(error.message || 'An unexpected error occurred');
     }
+  }
+
+  // Admin methods
+  async getAdminUsers(params = {}) {
+    // Utiliser l'endpoint principal avec pagination et filtres
+    return this.get('/admin/users/', { params });
+  }
+
+  async getAdminUser(userId) {
+    return this.get(`/admin/users/${userId}/`);
+  }
+
+  async getAdminUserStats() {
+    return this.get('/admin/stats/');
+  }
+
+  async getAdminUserDetailStats(userId) {
+    return this.get(`/admin/users/${userId}/stats/`);
+  }
+
+  async performAdminUserAction(userId, action, data = {}) {
+    return this.post(`/admin/users/${userId}/action/`, { action, ...data });
+  }
+
+  // Admin municipality methods
+  async getAdminMunicipalities(params = {}) {
+    return this.get('/admin/municipalities/', { params });
+  }
+
+  async getAdminMunicipalitiesOverview() {
+    return this.get('/admin/municipalities/overview/');
+  }
+
+  async getAdminMunicipalityStats(municipalityId) {
+    return this.get(`/admin/municipalities/${municipalityId}/stats/`);
+  }
+
+  async getAdminMunicipalityActiveUsers(municipalityId) {
+    return this.get(`/admin/municipalities/${municipalityId}/active-users/`);
+  }
+
+  // Admin support methods
+  async getAdminSupportTickets(params = {}) {
+    return this.get('/admin/support/tickets/', { params });
+  }
+
+  async getAdminSupportTicketDetail(ticketId) {
+    return this.get(`/admin/support/tickets/${ticketId}/`);
+  }
+
+  async sendAdminSupportReply(ticketId, data) {
+    return this.post(`/admin/support/tickets/${ticketId}/reply/`, data);
+  }
+
+  async updateAdminSupportTicket(ticketId, data) {
+    return this.patch(`/admin/support/tickets/${ticketId}/update/`, data);
+  }
+
+  async getAdminSupportStats() {
+    return this.get('/admin/support/stats/');
+  }
+
+  // =============================================================================
+  // Messaging API Methods
+  // =============================================================================
+
+  // Get all users available for messaging
+  async getMessagingUsers() {
+    return this.get('/messaging/users/');
+  }
+
+  // Search users for messaging
+  async searchMessagingUsers(query) {
+    return this.get('/messaging/users/search/', { params: { q: query } });
+  }
+
+  // Get chat rooms/conversations
+  async getChatRooms() {
+    return this.get('/messaging/rooms/');
+  }
+
+  // Create direct message conversation
+  async createDirectMessage(userId) {
+    return this.post('/messaging/rooms/create_direct_message/', { user_id: userId });
+  }
+
+  // Send message
+  async sendMessage(roomId, content, messageType = 'text') {
+    return this.post('/messaging/messages/', {
+      room: roomId,
+      content: content,
+      message_type: messageType
+    });
+  }
+
+  // Get messages for a room
+  async getRoomMessages(roomId) {
+    return this.get(`/messaging/messages/`, { params: { room: roomId } });
+  }
+
+  // Mark message as read
+  async markMessageAsRead(messageId) {
+    return this.post(`/messaging/messages/${messageId}/mark_as_read/`);
+  }
+
+  // Update user presence status
+  async updatePresenceStatus(status) {
+    return this.post('/messaging/presence/update_status/', { status });
+  }
+
+  // Get online users
+  async getOnlineUsers() {
+    return this.get('/messaging/presence/online_users/');
   }
 }
 

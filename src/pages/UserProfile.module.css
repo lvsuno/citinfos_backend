@@ -239,6 +239,77 @@
     }
 }
 
+/* Créateur de posts modernisé */
+.postCreatorPlaceholder {
+    background: #FFFFFF;
+    border-radius: 16px;
+    border: 1px solid #F1F5F9;
+    padding: 24px;
+    margin-bottom: 24px;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+}
+
+.postCreatorPlaceholder:hover {
+    box-shadow: 0 8px 25px rgba(0, 0, 0, 0.08);
+    border-color: #E2E8F0;
+}
+
+.postCreatorContent {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+}
+
+.postCreatorButton {
+    flex: 1;
+    background: #F8FAFC;
+    border: 1px solid #E2E8F0;
+    border-radius: 50px;
+    padding: 16px 20px;
+    color: #64748B;
+    cursor: pointer;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    font-size: 16px;
+    text-align: left;
+}
+
+.postCreatorButton:hover {
+    background: #F1F5F9;
+    border-color: #CBD5E1;
+    color: #475569;
+}
+
+.postCreatorPlaceholderText {
+    color: #64748B;
+    font-size: 16px;
+}
+
+.addPostButton {
+    background: linear-gradient(135deg, #06B6D4 0%, #0891B2 100%);
+    border: none;
+    border-radius: 50%;
+    width: 48px;
+    height: 48px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: white;
+    cursor: pointer;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    box-shadow: 0 4px 14px rgba(6, 182, 212, 0.3);
+}
+
+.addPostButton:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 25px rgba(6, 182, 212, 0.4);
+    background: linear-gradient(135deg, #0891B2 0%, #0E7490 100%);
+}
+
+.addPostButton svg {
+    font-size: 24px;
+}
+
 /* Responsive Design */
 @media (max-width: 768px) {
     .profileContainer {
@@ -341,6 +412,7 @@
         font-size: 20px;
     }
 }
+
 /* Authentication required styles */
 .authRequired {
     background: #f8fafc;

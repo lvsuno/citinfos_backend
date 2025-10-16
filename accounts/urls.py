@@ -6,6 +6,7 @@ from . import public_views
 from . import contact_change_views
 from . import social_auth_views
 from . import geolocation_views
+from . import admin_views
 
 router = DefaultRouter()
 router.register(r'users', views.UserViewSet, basename='user')
@@ -62,6 +63,10 @@ urlpatterns = [
     # Password utility endpoints
     path('api/auth/generate-passwords/',
          views.generate_password_suggestions_view, name='generate_passwords'),
+
+    # Public support endpoints
+    path('api/public/support/create-ticket/', admin_views.public_create_support_ticket,
+         name='public_create_support_ticket'),
 
     # Contact change endpoints (Email/Phone)
     path('api/auth/change-email/', contact_change_views.request_email_change,
@@ -122,10 +127,40 @@ urlpatterns = [
     path('api/auth/divisions/by-slug/',
          geolocation_views.get_division_by_slug,
          name='get_division_by_slug'),
+    path('api/auth/quebec-municipalities-geojson/',
+         geolocation_views.get_quebec_municipalities_geojson,
+         name='get_quebec_municipalities_geojson'),
 
     # Include router URLs for profiles
     path('api/', include(router.urls)),
     path('api/', include(public_router.urls)),
+
+    # =========================================================================
+    # ADMIN ENDPOINTS (Admin-only access)
+    # =========================================================================
+    
+    # Admin user management (test endpoint first)
+    path('api/admin/test/', admin_views.admin_test, name='admin_test'),
+    path('api/admin/users-simple/', admin_views.admin_users_list, name='admin_users_simple'),
+    path('api/admin/users/', admin_views.AdminUserListViewSet.as_view({'get': 'list'}), name='admin_user_list'),
+    path('api/admin/users/create/', admin_views.admin_create_user, name='admin_create_user'),
+    path('api/admin/users/<int:user_id>/', admin_views.admin_user_detail_by_user_id, name='admin_user_detail_by_id'),
+    path('api/admin/users/<int:user_id>/stats/', admin_views.admin_user_detail_stats, name='admin_user_detail_stats'),
+    path('api/admin/stats/', admin_views.admin_user_stats, name='admin_user_stats'),
+    path('api/admin/users/<int:user_id>/action/', admin_views.admin_user_action, name='admin_user_action'),
+
+    # Admin municipality management
+    path('api/admin/municipalities/', admin_views.admin_municipalities_list, name='admin_municipalities_list'),
+    path('api/admin/municipalities/overview/', admin_views.admin_municipalities_overview, name='admin_municipalities_overview'),
+    path('api/admin/municipalities/<uuid:municipality_id>/stats/', admin_views.admin_municipality_stats, name='admin_municipality_stats'),
+    path('api/admin/municipalities/<uuid:municipality_id>/active-users/', admin_views.admin_municipality_active_users, name='admin_municipality_active_users'),
+
+    # Admin support management
+    path('api/admin/support/tickets/', admin_views.admin_support_tickets_list, name='admin_support_tickets_list'),
+    path('api/admin/support/tickets/<uuid:ticket_id>/', admin_views.admin_support_ticket_detail, name='admin_support_ticket_detail'),
+    path('api/admin/support/tickets/<uuid:ticket_id>/reply/', admin_views.admin_support_ticket_reply, name='admin_support_ticket_reply'),
+    path('api/admin/support/tickets/<uuid:ticket_id>/update/', admin_views.admin_support_ticket_update, name='admin_support_ticket_update'),
+    path('api/admin/support/stats/', admin_views.admin_support_stats, name='admin_support_stats'),
 
     # Additional public profile endpoints
     path('api/public/profiles/username/<str:username>/',

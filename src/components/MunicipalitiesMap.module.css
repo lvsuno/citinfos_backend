@@ -46,6 +46,12 @@
     font-weight: 600;
 }
 
+.popupButtons {
+    display: flex;
+    gap: 8px;
+    margin-top: 12px;
+}
+
 .visitButton {
     background: linear-gradient(135deg, #84CC16 0%, #65A30D 100%);
     color: white;
@@ -55,8 +61,7 @@
     font-size: 14px;
     font-weight: 600;
     cursor: pointer;
-    margin-top: 12px;
-    width: 100%;
+    flex: 1;
     transition: all 0.2s ease;
 }
 
@@ -64,6 +69,25 @@
     background: linear-gradient(135deg, #65A30D 0%, #4D7C0F 100%);
     transform: translateY(-1px);
     box-shadow: 0 4px 12px rgba(132, 204, 22, 0.3);
+}
+
+.locationButton {
+    background: linear-gradient(135deg, #8B5CF6 0%, #7C3AED 100%);
+    color: white;
+    border: none;
+    padding: 8px 16px;
+    border-radius: 6px;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    flex: 1;
+    transition: all 0.2s ease;
+}
+
+.locationButton:hover {
+    background: linear-gradient(135deg, #7C3AED 0%, #6D28D9 100%);
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(139, 92, 246, 0.3);
 }
 
 /* Légende de la carte */
@@ -134,9 +158,17 @@
         font-size: 13px;
     }
 
-    .visitButton {
+    .popupButtons {
+        flex-direction: column;
+        gap: 6px;
+    }
+
+    .visitButton,
+    .locationButton {
         font-size: 13px;
         padding: 6px 12px;
+        flex: none;
+        width: 100%;
     }
 }
 

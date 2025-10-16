@@ -1,12 +1,13 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
     Search as SearchIcon,
     Add as AddIcon,
     MoreVert as MoreIcon,
-    Circle as OnlineIcon
+    Circle as OnlineIcon,
+    PersonAdd as PersonAddIcon
 } from '@mui/icons-material';
-import { STATIC_USERS } from '../data/users';
 import { useAuth } from '../contexts/AuthContext';
+import { apiService } from '../services/apiService';
 import styles from './ChatSidebar.module.css';
 
 const ChatSidebar = ({
@@ -20,22 +21,99 @@ const ChatSidebar = ({
     const { user: currentUser } = useAuth();
     const [searchTerm, setSearchTerm] = useState('');
     const [showNewChatModal, setShowNewChatModal] = useState(false);
+    const [availableUsers, setAvailableUsers] = useState([]);
+    const [loading, setLoading] = useState(false);
+    const [searchResults, setSearchResults] = useState([]);
+    const [isSearching, setIsSearching] = useState(false);
+    const [modalSearchTerm, setModalSearchTerm] = useState('');
 
-    // Utilisateurs disponibles basés sur les vrais utilisateurs (excluant l'utilisateur actuel)
-    const availableUsers = STATIC_USERS
-        .filter(u => u.id !== currentUser?.id)
-        .map(u => ({
-            id: u.id,
-            name: `${u.firstName} ${u.lastName}`,
-            avatar: u.avatar, // Utiliser directement l'avatar de l'utilisateur
-            isOnline: onlineUsers.includes(u.id),
-            municipality: u.location.city
-        }));
+    // Charger la liste des utilisateurs disponibles quand le modal s'ouvre
+    useEffect(() => {
+        if (showNewChatModal && availableUsers.length === 0) {
+            loadAvailableUsers();
+        }
+    }, [showNewChatModal]);
+
+    // Recherche en temps réel dans le modal
+    useEffect(() => {
+        if (modalSearchTerm.trim()) {
+            searchUsers(modalSearchTerm);
+        } else {
+            setSearchResults([]);
+            setIsSearching(false);
+        }
+    }, [modalSearchTerm]);
+
+    const loadAvailableUsers = async () => {
+        try {
+            setLoading(true);
+            const response = await apiService.getMessagingUsers();
+            console.log('Response from API:', response); // Debug log
+            console.log('Response data:', response.data); // Debug log
+            
+            // Vérifier la structure de la réponse - les données sont dans response.data.results
+            const usersList = response?.data?.results || [];
+            if (!Array.isArray(usersList)) {
+                console.error('Expected array but got:', typeof usersList, usersList);
+                setAvailableUsers([]);
+                return;
+            }
+            
+            const users = usersList.map(user => ({
+                id: user.id,
+                name: user.full_name || user.username,
+                username: user.username,
+                email: user.email,
+                avatar: user.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(user.full_name || user.username)}&background=random&size=64`,
+                isOnline: user.is_online,
+                municipality: user.municipality || 'Non spécifiée'
+            }));
+            setAvailableUsers(users);
+        } catch (error) {
+            console.error('Erreur lors du chargement des utilisateurs:', error);
+            setAvailableUsers([]);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const searchUsers = async (query) => {
+        try {
+            setIsSearching(true);
+            const response = await apiService.searchMessagingUsers(query);
+            console.log('Search response from API:', response); // Debug log
+            console.log('Search response data:', response.data); // Debug log
+            
+            // Vérifier la structure de la réponse - les données sont dans response.data.results
+            const usersList = response?.data?.results || [];
+            if (!Array.isArray(usersList)) {
+                console.error('Expected array but got:', typeof usersList, usersList);
+                setSearchResults([]);
+                return;
+            }
+            
+            const users = usersList.map(user => ({
+                id: user.id,
+                name: user.full_name || user.username,
+                username: user.username,
+                email: user.email,
+                avatar: user.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(user.full_name || user.username)}&background=random&size=64`,
+                isOnline: user.is_online,
+                municipality: user.municipality || 'Non spécifiée'
+            }));
+            setSearchResults(users);
+        } catch (error) {
+            console.error('Erreur lors de la recherche:', error);
+            setSearchResults([]);
+        } finally {
+            setIsSearching(false);
+        }
+    };
 
     // Filtrer les conversations selon le terme de recherche
     const filteredConversations = conversations.filter(conv =>
-        conv.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        conv.municipality.toLowerCase().includes(searchTerm.toLowerCase())
+        (conv.name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (conv.municipality || '').toLowerCase().includes(searchTerm.toLowerCase())
     );
 
     // Formater le timestamp
@@ -57,10 +135,34 @@ const ChatSidebar = ({
         });
     };
 
-    const handleNewConversation = (user) => {
-        onStartNewConversation(user);
-        setShowNewChatModal(false);
+    const handleNewConversation = async (user) => {
+        try {
+            setLoading(true);
+            // Appeler la fonction du parent avec les données utilisateur
+            // Le hook useMessaging s'occupera de créer la conversation
+            await onStartNewConversation(user);
+            
+            setShowNewChatModal(false);
+            setModalSearchTerm('');
+            setSearchResults([]);
+        } catch (error) {
+            console.error('Erreur lors de la création de la conversation:', error);
+            // TODO: Afficher un message d'erreur à l'utilisateur
+        } finally {
+            setLoading(false);
+        }
     };
+
+    const handleCloseModal = () => {
+        setShowNewChatModal(false);
+        setModalSearchTerm('');
+        setSearchResults([]);
+    };
+
+    // Déterminer quels utilisateurs afficher dans le modal
+    const usersToDisplay = modalSearchTerm.trim() 
+        ? searchResults 
+        : availableUsers;
 
     return (
         <div className={styles.sidebar}>
@@ -152,13 +254,13 @@ const ChatSidebar = ({
 
             {/* Modal pour nouveau chat */}
             {showNewChatModal && (
-                <div className={styles.modalOverlay} onClick={() => setShowNewChatModal(false)}>
+                <div className={styles.modalOverlay} onClick={handleCloseModal}>
                     <div className={styles.modal} onClick={(e) => e.stopPropagation()}>
                         <div className={styles.modalHeader}>
                             <h3>Nouveau Chat</h3>
                             <button
                                 className={styles.closeButton}
-                                onClick={() => setShowNewChatModal(false)}
+                                onClick={handleCloseModal}
                             >
                                 ×
                             </button>
@@ -169,41 +271,75 @@ const ChatSidebar = ({
                                 Sélectionnez un utilisateur pour commencer une nouvelle conversation :
                             </p>
 
-                            <div className={styles.usersList}>
-                                {availableUsers.map((user) => (
-                                    <div
-                                        key={user.id}
-                                        className={styles.userItem}
-                                        onClick={() => handleNewConversation(user)}
-                                    >
-                                        <div className={styles.avatarContainer}>
-                                            <img
-                                                src={user.avatar}
-                                                alt={user.name}
-                                                className={styles.avatar}
-                                            />
-                                            {user.isOnline && (
-                                                <OnlineIcon className={styles.onlineIndicator} />
-                                            )}
-                                        </div>
-
-                                        <div className={styles.userInfo}>
-                                            <h4 className={styles.userName}>{user.name}</h4>
-                                            <p className={styles.userMunicipality}>
-                                                📍 {user.municipality}
-                                            </p>
-                                        </div>
-
-                                        <div className={styles.userStatus}>
-                                            {user.isOnline ? (
-                                                <span className={styles.onlineText}>En ligne</span>
-                                            ) : (
-                                                <span className={styles.offlineText}>Hors ligne</span>
-                                            )}
-                                        </div>
-                                    </div>
-                                ))}
+                            {/* Barre de recherche dans le modal */}
+                            <div className={styles.modalSearchContainer}>
+                                <div className={styles.searchBox}>
+                                    <SearchIcon className={styles.searchIcon} />
+                                    <input
+                                        type="text"
+                                        placeholder="Rechercher un utilisateur..."
+                                        value={modalSearchTerm}
+                                        onChange={(e) => setModalSearchTerm(e.target.value)}
+                                        className={styles.searchInput}
+                                    />
+                                </div>
                             </div>
+
+                            {loading ? (
+                                <div className={styles.loadingContainer}>
+                                    <p>Chargement des utilisateurs...</p>
+                                </div>
+                            ) : (
+                                <div className={styles.usersList}>
+                                    {usersToDisplay.length > 0 ? (
+                                        usersToDisplay.map((user) => (
+                                            <div
+                                                key={user.id}
+                                                className={styles.userItem}
+                                                onClick={() => handleNewConversation(user)}
+                                            >
+                                                <div className={styles.avatarContainer}>
+                                                    <img
+                                                        src={user.avatar}
+                                                        alt={user.name}
+                                                        className={styles.avatar}
+                                                        onError={(e) => {
+                                                            e.target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(user.name)}&background=random&size=64`;
+                                                        }}
+                                                    />
+                                                    {user.isOnline && (
+                                                        <OnlineIcon className={styles.onlineIndicator} />
+                                                    )}
+                                                </div>
+
+                                                <div className={styles.userInfo}>
+                                                    <h4 className={styles.userName}>{user.name}</h4>
+                                                    <p className={styles.userUsername}>@{user.username}</p>
+                                                    <p className={styles.userMunicipality}>
+                                                        📍 {user.municipality}
+                                                    </p>
+                                                </div>
+
+                                                <div className={styles.userStatus}>
+                                                    {user.isOnline ? (
+                                                        <span className={styles.onlineText}>En ligne</span>
+                                                    ) : (
+                                                        <span className={styles.offlineText}>Hors ligne</span>
+                                                    )}
+                                                </div>
+                                            </div>
+                                        ))
+                                    ) : (
+                                        <div className={styles.emptyState}>
+                                            {modalSearchTerm.trim() ? (
+                                                <p>Aucun utilisateur trouvé pour "{modalSearchTerm}"</p>
+                                            ) : (
+                                                <p>Aucun utilisateur disponible</p>
+                                            )}
+                                        </div>
+                                    )}
+                                </div>
+                            )}
                         </div>
                     </div>
                 </div>

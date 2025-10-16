@@ -2451,5 +2451,202 @@ class UserBadge(models.Model):
         return f"{self.profile.user.username} earned {self.badge.code}"
 
 
+# =============================================================================
+# SUPPORT SYSTEM MODELS
+# =============================================================================
+
+class SupportTicket(models.Model):
+    """Support ticket model for user requests."""
+    
+    PRIORITY_CHOICES = [
+        ('low', 'Faible'),
+        ('medium', 'Moyenne'),
+        ('high', 'Élevée'),
+        ('urgent', 'Urgente'),
+    ]
+    
+    STATUS_CHOICES = [
+        ('open', 'Ouvert'),
+        ('in_progress', 'En cours'),
+        ('waiting_user', 'En attente utilisateur'),
+        ('resolved', 'Résolu'),
+        ('closed', 'Fermé'),
+    ]
+    
+    CATEGORY_CHOICES = [
+        ('technical', 'Problème technique'),
+        ('account', 'Problème de compte'),
+        ('billing', 'Facturation'),
+        ('feature_request', 'Demande de fonctionnalité'),
+        ('report', 'Signalement'),
+        ('other', 'Autre'),
+    ]
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    
+    # Ticket identification
+    ticket_number = models.CharField(max_length=20, unique=True, editable=False)
+    
+    # User information
+    user = models.ForeignKey(
+        'auth.User',
+        on_delete=models.CASCADE,
+        related_name='support_tickets',
+        null=True, blank=True  # Allow anonymous tickets
+    )
+    user_email = models.EmailField()  # Store email even for anonymous users
+    user_name = models.CharField(max_length=100)
+    
+    # Ticket details
+    subject = models.CharField(max_length=200)
+    description = models.TextField()
+    category = models.CharField(max_length=20, choices=CATEGORY_CHOICES, default='other')
+    priority = models.CharField(max_length=10, choices=PRIORITY_CHOICES, default='medium')
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='open')
+    
+    # Assignment
+    assigned_to = models.ForeignKey(
+        'auth.User',
+        on_delete=models.SET_NULL,
+        related_name='assigned_tickets',
+        null=True, blank=True,
+        limit_choices_to={'profile__role': 'admin'}
+    )
+    
+    # Metadata
+    user_agent = models.TextField(blank=True)
+    ip_address = models.GenericIPAddressField(null=True, blank=True)
+    browser_info = models.JSONField(default=dict, blank=True)
+    
+    # Timestamps
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    resolved_at = models.DateTimeField(null=True, blank=True)
+    closed_at = models.DateTimeField(null=True, blank=True)
+    
+    # Soft delete
+    is_deleted = models.BooleanField(default=False)
+    deleted_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['status', '-created_at']),
+            models.Index(fields=['assigned_to', '-created_at']),
+            models.Index(fields=['user', '-created_at']),
+            models.Index(fields=['ticket_number']),
+        ]
+
+    def save(self, *args, **kwargs):
+        """Generate ticket number if not set."""
+        if not self.ticket_number:
+            import time
+            # Format: YYYY-HHMMSS (Year-HourMinuteSecond)
+            timestamp = time.strftime('%Y-%H%M%S')
+            # Add a random 3-digit suffix to avoid collisions
+            import random
+            suffix = random.randint(100, 999)
+            self.ticket_number = f"TK-{timestamp}-{suffix}"
+        super().save(*args, **kwargs)
+
+    def __str__(self):
+        return f"#{self.ticket_number} - {self.subject}"
+
+    @property
+    def is_overdue(self):
+        """Check if ticket is overdue based on priority."""
+        from django.utils import timezone
+        from datetime import timedelta
+        
+        if self.status in ['resolved', 'closed']:
+            return False
+            
+        overdue_hours = {
+            'urgent': 2,
+            'high': 24,
+            'medium': 72,
+            'low': 168,  # 1 week
+        }
+        
+        hours = overdue_hours.get(self.priority, 72)
+        deadline = self.created_at + timedelta(hours=hours)
+        return timezone.now() > deadline
+
+
+class SupportMessage(models.Model):
+    """Messages within a support ticket."""
+    
+    MESSAGE_TYPES = [
+        ('user_message', 'Message utilisateur'),
+        ('admin_reply', 'Réponse admin'),
+        ('system_note', 'Note système'),
+        ('status_change', 'Changement de statut'),
+    ]
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    
+    # Relations
+    ticket = models.ForeignKey(
+        SupportTicket,
+        on_delete=models.CASCADE,
+        related_name='messages'
+    )
+    sender = models.ForeignKey(
+        'auth.User',
+        on_delete=models.CASCADE,
+        related_name='support_messages',
+        null=True, blank=True  # Can be null for system messages
+    )
+    
+    # Message content
+    message_type = models.CharField(max_length=20, choices=MESSAGE_TYPES, default='user_message')
+    content = models.TextField()
+    is_internal = models.BooleanField(default=False)  # Internal admin notes
+    
+    # Attachments (future feature)
+    attachments = models.JSONField(default=list, blank=True)
+    
+    # Metadata
+    ip_address = models.GenericIPAddressField(null=True, blank=True)
+    user_agent = models.TextField(blank=True)
+    
+    # Timestamps
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    # Read status
+    is_read_by_user = models.BooleanField(default=False)
+    is_read_by_admin = models.BooleanField(default=False)
+    
+    # Soft delete
+    is_deleted = models.BooleanField(default=False)
+    deleted_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ['created_at']
+        indexes = [
+            models.Index(fields=['ticket', 'created_at']),
+            models.Index(fields=['sender', '-created_at']),
+            models.Index(fields=['message_type']),
+        ]
+
+    def __str__(self):
+        sender_name = self.sender.username if self.sender else "Système"
+        return f"{sender_name} sur #{self.ticket.ticket_number}"
+
+    def save(self, *args, **kwargs):
+        """Auto-mark as read by sender."""
+        is_new = self._state.adding
+        super().save(*args, **kwargs)
+        
+        if is_new and self.sender:
+            # Auto-mark as read by the sender
+            if hasattr(self.sender, 'profile') and self.sender.profile.role == 'admin':
+                self.is_read_by_admin = True
+            else:
+                self.is_read_by_user = True
+            super().save(update_fields=['is_read_by_admin', 'is_read_by_user'])
+
+
 # Import contact change models
 from .contact_change_models import ContactChangeRequest, ContactChangeLog

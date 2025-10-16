@@ -27,7 +27,8 @@
 
 /* Ajustement automatique si le panneau dépasse à gauche */
 .reactionsPanel[data-overflow="left"] {
-    left: 0;
+    left: auto;
+    right: 0;
     transform: none;
 }
 

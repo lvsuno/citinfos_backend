@@ -10,6 +10,7 @@ import { trackPageVisit } from '../utils/navigationTracker';
 import { getDefaultDivisionUrl } from '../utils/defaultDivisionRedirect';
 import Layout from '../components/Layout';
 import PostFeed from '../components/PostFeed';
+import HomeNavigation from '../components/HomeNavigation';
 import PostCreationModal from '../components/PostCreationModal';
 import VerifyAccount from '../components/VerifyAccount';
 import apiService from '../services/apiService';
@@ -32,6 +33,7 @@ const MunicipalityDashboard = () => {
     const [showVerificationModal, setShowVerificationModal] = useState(false);
     const [verificationMessage, setVerificationMessage] = useState('');
     const [showPostCreationModal, setShowPostCreationModal] = useState(false);
+    const [homeSortOrder, setHomeSortOrder] = useState('recent'); // État pour le tri des posts dans l'accueil
 
     // Detect current URL path (municipality, commune, city, etc.)
     const currentUrlPath = location.pathname.split('/')[1];
@@ -328,9 +330,10 @@ const MunicipalityDashboard = () => {
             onRubriqueChange={handleRubriqueChange}
             municipalityName={pageDivision?.name || municipality.nom}
             pageDivision={pageDivision}
+            initialChatUser={location.state?.openChatWithUser}
         >
             <div className={styles.sectionContent}>
-                {renderSectionContent(activeRubrique, municipality, handlePostCreated, posts, user, navigate, pageDivision, handleOpenPostCreationModal)}
+                {renderSectionContent(activeRubrique, municipality, handlePostCreated, posts, user, navigate, pageDivision, handleOpenPostCreationModal, homeSortOrder, setHomeSortOrder)}
             </div>
 
             {/* Post Creation Modal */}
@@ -368,7 +371,7 @@ const getUserInitials = (user) => {
 };
 
 // Fonction pour rendre le contenu spécifique à chaque section
-const renderSectionContent = (section, municipality, onPostCreated, posts, user, navigate, pageDivision, onOpenPostCreationModal) => {
+const renderSectionContent = (section, municipality, onPostCreated, posts, user, navigate, pageDivision, onOpenPostCreationModal, homeSortOrder, setHomeSortOrder) => {
     const sectionLower = section.toLowerCase();
 
     // Fonction pour obtenir le nom d'affichage de la section
@@ -509,8 +512,16 @@ const renderSectionContent = (section, municipality, onPostCreated, posts, user,
                                 </div>
                             </div>
                         )}
+                        
+                        {/* Navigation pour trier les posts dans l'accueil */}
+                        <HomeNavigation 
+                            activeSort={homeSortOrder}
+                            onSortChange={setHomeSortOrder}
+                        />
+                        
                         <PostFeed
                             municipalityName={divisionName}
+                            sortOrder={homeSortOrder}
                             onCreatePostClick={onOpenPostCreationModal}
                         />
                     </div>

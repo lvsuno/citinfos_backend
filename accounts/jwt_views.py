@@ -466,6 +466,18 @@ def login_with_verification_check(request):
             'code': 'NO_PROFILE'
         }, status=status.HTTP_404_NOT_FOUND)
 
+    # Step 1.5: Check if user is suspended
+    if profile.is_suspended:
+        return Response({
+            'error': 'Account suspended',
+            'status': 'suspended',
+            'message': 'Votre compte a été suspendu. Un email de notification a été envoyé à votre adresse.',
+            'code': 'ACCOUNT_SUSPENDED',
+            'suspended_at': profile.suspended_at.isoformat() if profile.suspended_at else None,
+            'suspension_reason': profile.suspension_reason or 'Raison non spécifiée',
+            'email': user.email
+        }, status=status.HTTP_403_FORBIDDEN)
+
     # Step 2: ALWAYS create session immediately after authentication
 
     # Step 2: OPTIMIZED SESSION CREATION (No reuse needed)

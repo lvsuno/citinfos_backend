@@ -35,6 +35,14 @@ const Dashboard = () => {
                             verificationMessage: location.state.verificationMessage || ''
                         }
                     });
+                } else if (location.state?.openChatWithUser) {
+                    // Préserver les données de chat
+                    navigate(divisionUrl, {
+                        replace: true,
+                        state: {
+                            openChatWithUser: location.state.openChatWithUser
+                        }
+                    });
                 } else {
                     navigate(divisionUrl, { replace: true });
                 }

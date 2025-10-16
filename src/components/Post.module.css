@@ -378,6 +378,22 @@
     background: linear-gradient(135deg, rgba(102, 126, 234, 0.1) 0%, rgba(102, 126, 234, 0.05) 100%);
 }
 
+.actionButton.disabled {
+    color: #94A3B8;
+    cursor: not-allowed;
+    opacity: 0.6;
+    transform: none !important;
+}
+
+.actionButton.disabled:hover {
+    color: #94A3B8;
+    transform: none !important;
+}
+
+.actionButton.disabled:hover::before {
+    background: transparent;
+}
+
 .userReactionEmoji {
     font-size: 20px;
     animation: reactionPop 0.5s cubic-bezier(0.68, -0.55, 0.265, 1.55);
@@ -718,6 +734,28 @@
     to {
         transform: rotate(360deg);
     }
+}
+
+/* Message pour utilisateurs publics */
+.publicUserMessage {
+    background: linear-gradient(135deg, #FEF3E2 0%, #FDF4E6 100%);
+    border: 1px solid #F3E8D1;
+    border-radius: 12px;
+    padding: 16px 20px;
+    margin-top: 16px;
+    text-align: center;
+}
+
+.publicUserText {
+    color: #92661C;
+    font-size: 14px;
+    font-weight: 500;
+    margin: 0;
+    line-height: 1.4;
+}
+
+.publicUserText strong {
+    color: #A16309;
 }
 
 /* Responsive Design */

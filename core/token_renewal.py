@@ -72,6 +72,38 @@ class TokenRenewalService:
 
             if not session_id:
                 logger.debug("No session ID available for token renewal")
+                
+                # Special handling for admin users - try to get user first to check if admin
+                if user_id:
+                    try:
+                        user = User.objects.select_related('profile').get(id=user_id)
+                        
+                        # Check if user is admin - admins can renew tokens without session ID
+                        if hasattr(user, 'profile') and user.profile.role == 'admin':
+                            logger.info(f"🔧 Admin user {user.username} renewing token without session ID")
+                            
+                            # Generate new tokens for admin without session dependency
+                            refresh = RefreshToken.for_user(user)
+                            access_token = refresh.access_token
+                            
+                            # Add basic claims
+                            access_token['username'] = user.username
+                            access_token['email'] = user.email
+                            access_token['role'] = user.profile.role
+                            access_token['is_verified'] = user.profile.is_verified
+                            
+                            return {
+                                'success': True,
+                                'access_token': str(access_token),
+                                'refresh_token': str(refresh),
+                                'user': user,
+                                'session_id': None,  # No session for admin
+                                'error': None
+                            }
+                            
+                    except User.DoesNotExist:
+                        pass
+                
                 return {'success': False, 'error': 'No session ID for renewal'}
 
             # Hash the session ID before lookup (same logic as middleware)

@@ -14,7 +14,15 @@ import { formatDistanceToNow } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import styles from './NotificationPanel.module.css';
 
-const NotificationPanel = ({ isOpen, onClose, notifications, onMarkAsRead, onMarkAllAsRead }) => {
+const NotificationPanel = ({
+    isOpen,
+    onClose,
+    notifications,
+    onMarkAsRead,
+    onMarkAllAsRead,
+    loading = false,
+    error = null
+}) => {
     const [filter, setFilter] = useState('all'); // all, unread, read
 
     if (!isOpen) return null;
@@ -37,44 +45,60 @@ const NotificationPanel = ({ isOpen, onClose, notifications, onMarkAsRead, onMar
     };
 
     const getNotificationText = (notification) => {
-        const { type, user, content, target } = notification;
+        const { type, user, content, target, title } = notification;
 
+        // Si on a un titre, l'utiliser
+        if (title) {
+            return <span>{title}</span>;
+        }
+
+        // Sinon, utiliser la logique existante avec le contenu
         switch (type) {
             case 'like':
                 return (
                     <span>
-                        <strong>{user.name}</strong> a aimé votre publication
+                        <strong>{user?.name || 'Quelqu\'un'}</strong> a aimé votre publication
                         {target && <em> "{target.slice(0, 50)}..."</em>}
                     </span>
                 );
             case 'comment':
                 return (
                     <span>
-                        <strong>{user.name}</strong> a commenté votre publication
+                        <strong>{user?.name || 'Quelqu\'un'}</strong> a commenté votre publication
                         {content && <em> : "{content.slice(0, 100)}..."</em>}
                     </span>
                 );
             case 'message':
+            case 'new_message':
                 return (
                     <span>
-                        <strong>{user.name}</strong> vous a envoyé un message
+                        <strong>{user?.name || 'Quelqu\'un'}</strong> vous a envoyé un message
                         {content && <em> : "{content.slice(0, 80)}..."</em>}
                     </span>
                 );
             case 'follow':
                 return (
                     <span>
-                        <strong>{user.name}</strong> a commencé à vous suivre
+                        <strong>{user?.name || 'Quelqu\'un'}</strong> a commencé à vous suivre
                     </span>
                 );
             case 'event':
+            case 'system':
+            case 'welcome':
                 return (
                     <span>
-                        <strong>Événement :</strong> {content}
+                        <strong>Système :</strong> {content}
+                    </span>
+                );
+            case 'badge':
+            case 'achievement':
+                return (
+                    <span>
+                        <strong>Félicitations !</strong> {content}
                     </span>
                 );
             default:
-                return <span>{content}</span>;
+                return <span>{content || 'Notification'}</span>;
         }
     };
 
@@ -142,7 +166,18 @@ const NotificationPanel = ({ isOpen, onClose, notifications, onMarkAsRead, onMar
 
                 {/* Liste des notifications */}
                 <div className={styles.notificationsList}>
-                    {filteredNotifications.length > 0 ? (
+                    {loading ? (
+                        <div className={styles.loadingState}>
+                            <div className={styles.loadingSpinner}></div>
+                            <p>Chargement des notifications...</p>
+                        </div>
+                    ) : error ? (
+                        <div className={styles.errorState}>
+                            <div className={styles.errorIcon}>⚠️</div>
+                            <h4>Erreur de chargement</h4>
+                            <p>Impossible de charger les notifications</p>
+                        </div>
+                    ) : filteredNotifications.length > 0 ? (
                         filteredNotifications.map((notification) => (
                             <div
                                 key={notification.id}

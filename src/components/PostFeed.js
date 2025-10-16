@@ -6,7 +6,7 @@ import { getPostsByMunicipality, getPostsByMunicipalityAndSection } from '../dat
 import Post from './Post';
 import styles from './PostFeed.module.css';
 
-const PostFeed = ({ municipalityName, section = null, onCreatePostClick }) => {
+const PostFeed = ({ municipalityName, section = null, sortOrder = 'recent', onCreatePostClick }) => {
     const { user } = useAuth();
     const navigate = useNavigate();
 
@@ -21,9 +21,28 @@ const PostFeed = ({ municipalityName, section = null, onCreatePostClick }) => {
     }
 
     // Filtrer les posts selon la municipalité et optionnellement la section
-    const posts = section
+    let posts = section
         ? getPostsByMunicipalityAndSection(municipalityName, section)
         : getPostsByMunicipality(municipalityName);
+
+    // Trier les posts selon l'ordre demandé
+    if (posts && posts.length > 0) {
+        posts = [...posts].sort((a, b) => {
+            switch (sortOrder) {
+                case 'featured':
+                    // Priorité aux posts épinglés/featured, puis par date
+                    if (a.featured && !b.featured) return -1;
+                    if (!a.featured && b.featured) return 1;
+                    // Si même statut featured, trier par date
+                    return new Date(b.createdAt) - new Date(a.createdAt);
+                
+                case 'recent':
+                default:
+                    // Tri par date de création (plus récents en premier)
+                    return new Date(b.createdAt) - new Date(a.createdAt);
+            }
+        });
+    }
 
     const handleCreatePost = () => {
         if (user) {

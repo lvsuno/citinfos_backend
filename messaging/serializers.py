@@ -2,7 +2,34 @@
 
 from rest_framework import serializers
 from accounts.models import UserProfile
-from .models import ChatRoom, Message, MessageRead
+from .models import ChatRoom, Message, MessageRead, UserPresence
+
+
+class UserListSerializer(serializers.ModelSerializer):
+    """Serializer for user list in messaging context."""
+    username = serializers.CharField(source='user.username', read_only=True)
+    email = serializers.CharField(source='user.email', read_only=True)
+    full_name = serializers.SerializerMethodField()
+    avatar = serializers.ImageField(source='profile_picture', read_only=True)
+    is_online = serializers.SerializerMethodField()
+
+    class Meta:
+        model = UserProfile
+        fields = ['id', 'username', 'email', 'full_name', 'avatar', 'is_online']
+
+    def get_full_name(self, obj):
+        """Get user's full name."""
+        if obj.user.first_name and obj.user.last_name:
+            return f"{obj.user.first_name} {obj.user.last_name}"
+        return obj.user.username
+
+    def get_is_online(self, obj):
+        """Check if user is currently online."""
+        try:
+            presence = obj.presence
+            return presence.status in ['online', 'away', 'busy']
+        except UserPresence.DoesNotExist:
+            return False
 
 
 # MessageAttachment model not yet implemented
@@ -41,17 +68,17 @@ class MessageSerializer(serializers.ModelSerializer):
         fields = [
             'id', 'room', 'sender', 'sender_username', 'sender_avatar',
             'content', 'message_type', 'attachments', 'read_by',
-            'is_read_by_current_user', 'is_edited', 'edited_at',
-            'reply_to', 'sent_at'
+            'is_read_by_current_user', 'is_edited', 'updated_at',
+            'reply_to', 'created_at'
         ]
-        read_only_fields = ['id', 'sender', 'sent_at', 'is_edited', 'edited_at']
+        read_only_fields = ['id', 'sender', 'created_at', 'is_edited', 'updated_at']
 
     def get_is_read_by_current_user(self, obj):
         """Check if current user has read this message."""
         request = self.context.get('request')
         if request and request.user.is_authenticated:
             try:
-                profile = request.user.userprofile
+                profile = request.user.profile
                 return obj.read_by.filter(user=profile).exists()
             except UserProfile.DoesNotExist:
                 return False
@@ -97,13 +124,13 @@ class ChatRoomSerializer(serializers.ModelSerializer):
 
     def get_last_message(self, obj):
         """Get the last message in the room."""
-        last_message = obj.messages.order_by('-sent_at').first()
+        last_message = obj.messages.order_by('-created_at').first()
         if last_message:
             return {
                 'id': last_message.id,
                 'content': last_message.content,
                 'sender_username': last_message.sender.user.username,
-                'sent_at': last_message.sent_at,
+                'created_at': last_message.created_at,
                 'message_type': last_message.message_type
             }
         return None
@@ -113,7 +140,7 @@ class ChatRoomSerializer(serializers.ModelSerializer):
         request = self.context.get('request')
         if request and request.user.is_authenticated:
             try:
-                profile = request.user.userprofile
+                profile = request.user.profile
                 # Count messages not read by current user
                 return obj.messages.exclude(
                     read_by__user=profile
@@ -127,7 +154,7 @@ class ChatRoomSerializer(serializers.ModelSerializer):
         request = self.context.get('request')
         if request and request.user.is_authenticated:
             try:
-                profile = request.user.userprofile
+                profile = request.user.profile
                 return obj.participants.filter(id=profile.id).exists()
             except UserProfile.DoesNotExist:
                 return False
@@ -152,7 +179,7 @@ class ChatRoomCreateUpdateSerializer(serializers.ModelSerializer):
         if request and hasattr(request, 'user'):
             # Ensure current user is included in participants
             try:
-                current_profile = request.user.userprofile
+                current_profile = request.user.profile
                 if current_profile not in value:
                     value.append(current_profile)
             except UserProfile.DoesNotExist:
@@ -166,3 +193,30 @@ class ChatRoomCreateUpdateSerializer(serializers.ModelSerializer):
                 "Direct message rooms must have exactly 2 participants."
             )
         return data
+
+
+class UserPresenceSerializer(serializers.ModelSerializer):
+    """Serializer for user presence/online status."""
+    username = serializers.CharField(source='user.user.username', read_only=True)
+    display_name = serializers.CharField(source='user.display_name', read_only=True)
+    is_online = serializers.SerializerMethodField()
+
+    class Meta:
+        model = UserPresence
+        fields = [
+            'id', 'user', 'username', 'display_name', 'status',
+            'last_seen', 'custom_status', 'status_emoji', 'is_online'
+        ]
+        read_only_fields = ['id', 'user', 'last_seen']
+
+    def get_is_online(self, obj):
+        """Get if user is considered online."""
+        return obj.is_online()
+
+
+class UserPresenceUpdateSerializer(serializers.ModelSerializer):
+    """Serializer for updating user presence."""
+
+    class Meta:
+        model = UserPresence
+        fields = ['status', 'custom_status', 'status_emoji']

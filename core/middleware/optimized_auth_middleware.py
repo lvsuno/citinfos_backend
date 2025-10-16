@@ -50,6 +50,7 @@ class OptimizedAuthenticationMiddleware(MiddlewareMixin):
             '/api/auth/countries/',  # List available countries
             '/api/auth/divisions/',  # Browse divisions by country/level
             '/api/auth/division-neighbors/',  # Get neighboring divisions
+            '/api/auth/quebec-municipalities-geojson/',  # Quebec municipalities GeoJSON
 
             # Social authentication endpoints (Django AllAuth)
             '/api/auth/social/',
@@ -154,7 +155,16 @@ class OptimizedAuthenticationMiddleware(MiddlewareMixin):
                 user_id = decoded.get('user_id')
                 session_id = decoded.get('sid')
 
-                if not session_id:
+                # Check if user is admin - admins can have tokens without session ID
+                is_admin = False
+                try:
+                    from accounts.models import UserProfile
+                    profile = UserProfile.objects.get(user_id=user_id, is_deleted=False)
+                    is_admin = profile.role == 'admin'
+                except:
+                    pass
+
+                if not session_id and not is_admin:
                     raise InvalidToken("Token missing session information")
 
                 jwt_validation_time = (time.time() - jwt_start_time) * 1000
@@ -165,12 +175,14 @@ class OptimizedAuthenticationMiddleware(MiddlewareMixin):
                 request.validated_session_id = session_id
                 request.jwt_user_id = user_id
 
-                logger.debug(f"✅ JWT valid for user {user_id}, session {session_id}")
+                logger.debug(f"✅ JWT valid for user {user_id}, session {session_id}, admin: {is_admin}")
 
                 # REQUIREMENT 5: Periodic session renewal check (avoid session expiry)
-                # Hash session_id before using with Redis
-                hashed_session_id = self._hash_session_id(session_id)
-                self._check_periodic_session_renewal(hashed_session_id)
+                # Only check for non-admin users or users with session ID
+                if session_id:
+                    # Hash session_id before using with Redis
+                    hashed_session_id = self._hash_session_id(session_id)
+                    self._check_periodic_session_renewal(hashed_session_id)
 
                 success = True
                 auth_method = 'jwt_primary_success'

@@ -8,20 +8,46 @@ import {
     Settings as SettingsIcon,
     Logout as LogoutIcon,
     Person as PersonIcon,
-    ArrowDropDown as ArrowDropDownIcon
+    ArrowDropDown as ArrowDropDownIcon,
+    People as PeopleIcon
 } from '@mui/icons-material';
 import { useAuth } from '../contexts/AuthContext';
 import NotificationPanel from './NotificationPanel';
-import { demoNotifications, markNotificationAsRead, markAllNotificationsAsRead } from '../data/notifications';
+import { useNotifications } from '../hooks/useNotifications';
 import styles from './TopBar.module.css';
 
-const TopBar = ({ onToggleSidebar, onChatToggle }) => {
+const TopBar = ({ onToggleSidebar, onChatToggle, onNetworkingToggle }) => {
     const { user, logout } = useAuth();
     const navigate = useNavigate();
     const [searchQuery, setSearchQuery] = useState('');
     const [showProfileMenu, setShowProfileMenu] = useState(false);
     const [showNotifications, setShowNotifications] = useState(false);
-    const [notifications, setNotifications] = useState(demoNotifications);
+
+    // Utiliser le hook de notifications
+    const {
+        notifications,
+        summary,
+        loading: notificationsLoading,
+        error: notificationsError,
+        markAsRead,
+        markAllAsRead,
+        refreshNotifications
+    } = useNotifications({
+        autoRefresh: true,
+        refreshInterval: 30000 // 30 secondes
+    });
+
+    // Debug : afficher les données dans la console
+    React.useEffect(() => {
+        console.log('TopBar - Notifications state:', {
+            notifications,
+            summary,
+            loading: notificationsLoading,
+            error: notificationsError,
+            user: user,
+            isAuthenticated: !!user
+        });
+    }, [notifications, summary, notificationsLoading, notificationsError, user]);
 
     // Obtenir les initiales du nom d'utilisateur
     const getUserInitials = () => {
@@ -41,18 +67,30 @@ const TopBar = ({ onToggleSidebar, onChatToggle }) => {
 
     const handleNotificationClick = () => {
         setShowNotifications(!showNotifications);
+        // Actualiser les notifications quand on ouvre le panneau
+        if (!showNotifications) {
+            refreshNotifications();
+        }
     };
 
     const handleNotificationClose = () => {
         setShowNotifications(false);
     };
 
-    const handleMarkAsRead = (notificationId) => {
-        setNotifications(prev => markNotificationAsRead(prev, notificationId));
+    const handleMarkAsRead = async (notificationId) => {
+        try {
+            await markAsRead(notificationId);
+        } catch (error) {
+            console.error('Erreur lors du marquage de la notification:', error);
+        }
     };
 
-    const handleMarkAllAsRead = () => {
-        setNotifications(prev => markAllNotificationsAsRead(prev));
+    const handleMarkAllAsRead = async () => {
+        try {
+            await markAllAsRead();
+        } catch (error) {
+            console.error('Erreur lors du marquage de toutes les notifications:', error);
+        }
     };
 
     const handleMessagesClick = () => {
@@ -60,6 +98,12 @@ const TopBar = ({ onToggleSidebar, onChatToggle }) => {
             onChatToggle();
         } else {
             // TODO: Fallback si onChatToggle n'est pas fourni
+        }
+    };
+
+    const handleNetworkingClick = () => {
+        if (onNetworkingToggle) {
+            onNetworkingToggle();
         }
     };
 
@@ -110,8 +154,8 @@ const TopBar = ({ onToggleSidebar, onChatToggle }) => {
         };
     }, [showProfileMenu, showNotifications]);
 
-    // Calculer le nombre de notifications non lues
-    const unreadCount = notifications.filter(n => !n.isRead).length;
+    // Calculer le nombre de notifications non lues depuis le résumé
+    const unreadCount = summary.unread_count || 0;
 
     return (
         <div className={styles.topBar}>
@@ -157,6 +201,15 @@ const TopBar = ({ onToggleSidebar, onChatToggle }) => {
                                 )}
                             </button>
                         </div>
+
+                        {/* Réseautage */}
+                        <button
+                            className={styles.iconButton}
+                            onClick={handleNetworkingClick}
+                            title="Réseautage"
+                        >
+                            <PeopleIcon />
+                        </button>
 
                         {/* Messages */}
                         <button
@@ -262,6 +315,8 @@ const TopBar = ({ onToggleSidebar, onChatToggle }) => {
                 notifications={notifications}
                 onMarkAsRead={handleMarkAsRead}
                 onMarkAllAsRead={handleMarkAllAsRead}
+                loading={notificationsLoading}
+                error={notificationsError}
             />
         </div>
     );

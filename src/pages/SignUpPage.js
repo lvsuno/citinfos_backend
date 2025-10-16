@@ -157,8 +157,18 @@ const SignUpPage = () => {
 
     if (!formData.password) {
       newErrors.password = 'Le mot de passe est requis';
-    } else if (formData.password.length < 6) {
-      newErrors.password = 'Le mot de passe doit contenir au moins 6 caractères';
+    } else if (formData.password.length < 8) {
+      newErrors.password = 'Le mot de passe doit contenir au moins 8 caractères';
+    } else {
+      // Vérifications de sécurité plus strictes
+      const hasUpperCase = /[A-Z]/.test(formData.password);
+      const hasSpecialChar = /[!@#$%^&*]/.test(formData.password);
+
+      if (!hasUpperCase) {
+        newErrors.password = 'Le mot de passe doit contenir au moins une lettre majuscule (A-Z)';
+      } else if (!hasSpecialChar) {
+        newErrors.password = 'Le mot de passe doit contenir au moins un caractère spécial (!@#$%^&*)';
+      }
     }
 
     if (!formData.confirmPassword) {
@@ -198,7 +208,7 @@ const SignUpPage = () => {
 
       if (result.success && result.requiresVerification) {
         // Registration successful, show verification modal
-        setRegistrationEmail(result.email || formData.email);
+        setRegistrationEmail(formData.email);  // Utiliser directement l'email du formulaire
         setShowVerification(true);
 
         // Clear the form
@@ -473,6 +483,22 @@ const SignUpPage = () => {
                       </div>
                     </div>
                     {errors.password && <div className={styles.errorText}>{errors.password}</div>}
+                    <div className={styles.passwordRequirements}>
+                      <small>
+                        Le mot de passe doit contenir :
+                        <ul>
+                          <li className={formData.password.length >= 8 ? styles.valid : styles.invalid}>
+                            Au moins 8 caractères
+                          </li>
+                          <li className={/[A-Z]/.test(formData.password) ? styles.valid : styles.invalid}>
+                            Au moins une lettre majuscule (A-Z)
+                          </li>
+                          <li className={/[!@#$%^&*]/.test(formData.password) ? styles.valid : styles.invalid}>
+                            Au moins un caractère spécial (!@#$%^&*)
+                          </li>
+                        </ul>
+                      </small>
+                    </div>
                   </div>
 
                   <div className={styles.inputGroup}>

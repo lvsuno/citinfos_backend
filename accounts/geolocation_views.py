@@ -1018,3 +1018,152 @@ def get_division_by_slug(request):
             'success': False,
             'error': 'Internal server error'
         }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+@api_view(['GET'])
+@permission_classes([AllowAny])
+def get_quebec_municipalities_geojson(request):
+    """
+    Get all Quebec municipalities with their geometries in GeoJSON format.
+    Optimized for map visualization with optional geometry simplification.
+    
+    Query Parameters:
+        simplify: Optional float value (0.001-0.01) to simplify geometries for better performance
+        limit: Optional integer to limit number of results (default: no limit)
+    
+    Returns:
+        {
+            "success": true,
+            "type": "FeatureCollection",
+            "features": [
+                {
+                    "type": "Feature",
+                    "geometry": {...},
+                    "properties": {
+                        "id": "uuid",
+                        "name": "Municipality Name",
+                        "admin_code": "12345",
+                        "parent_name": "MRC Name",
+                        "admin_level": 4
+                    }
+                }
+            ],
+            "count": 1304
+        }
+    """
+    try:
+        # Get simplification parameter for performance optimization
+        simplify_tolerance = request.GET.get('simplify')
+        if simplify_tolerance:
+            try:
+                simplify_tolerance = float(simplify_tolerance)
+                # Clamp to reasonable range
+                simplify_tolerance = max(0.0001, min(0.01, simplify_tolerance))
+            except ValueError:
+                simplify_tolerance = None
+
+        # Get limit parameter
+        limit = request.GET.get('limit')
+        if limit:
+            try:
+                limit = int(limit)
+                limit = max(1, min(2000, limit))  # Reasonable limits
+            except ValueError:
+                limit = None
+
+        # Get Canada
+        canada = Country.objects.filter(name__icontains='Canada').first()
+        if not canada:
+            return Response({
+                'success': False,
+                'error': 'Canada not found'
+            }, status=status.HTTP_404_NOT_FOUND)
+
+        # Get Quebec province
+        quebec = AdministrativeDivision.objects.filter(
+            country=canada,
+            admin_level=1,
+            name__in=['Quebec', 'Québec']
+        ).first()
+        
+        if not quebec:
+            return Response({
+                'success': False,
+                'error': 'Quebec province not found'
+            }, status=status.HTTP_404_NOT_FOUND)
+
+        # Get all Quebec municipalities (level 4) with geometry
+        queryset = AdministrativeDivision.objects.filter(
+            country=canada,
+            admin_level=4,
+            parent__parent__parent=quebec,  # Municipality -> MRC -> Region -> Province
+            area_geometry__isnull=False  # Only include municipalities with geometry
+        ).select_related('parent')
+
+        # Apply limit if specified
+        if limit:
+            queryset = queryset[:limit]
+
+        municipalities = list(queryset)
+
+        # Build GeoJSON FeatureCollection
+        features = []
+        for municipality in municipalities:
+            try:
+                # Get geometry
+                geometry = municipality.area_geometry
+                if not geometry:
+                    continue
+
+                # Apply simplification if requested
+                if simplify_tolerance and geometry:
+                    geometry = geometry.simplify(tolerance=simplify_tolerance, preserve_topology=True)
+
+                # Convert to GeoJSON geometry
+                geometry_geojson = {
+                    'type': geometry.geom_type,
+                    'coordinates': geometry.coords
+                }
+
+                # Build feature properties
+                properties = {
+                    'id': str(municipality.id),
+                    'name': municipality.name,
+                    'admin_code': municipality.admin_code,
+                    'admin_level': municipality.admin_level,
+                    'parent_name': municipality.parent.name if municipality.parent else None,
+                    'data_source': municipality.data_source
+                }
+
+                # Create GeoJSON feature
+                feature = {
+                    'type': 'Feature',
+                    'geometry': geometry_geojson,
+                    'properties': properties
+                }
+
+                features.append(feature)
+
+            except Exception as e:
+                logger.warning(f"Error processing municipality {municipality.name}: {e}")
+                continue
+
+        # Return GeoJSON FeatureCollection
+        return Response({
+            'success': True,
+            'type': 'FeatureCollection',
+            'features': features,
+            'count': len(features),
+            'total_municipalities': AdministrativeDivision.objects.filter(
+                country=canada,
+                admin_level=4,
+                parent__parent__parent=quebec
+            ).count()
+        })
+
+    except Exception as e:
+        logger.error(f"Error in get_quebec_municipalities_geojson: {e}")
+        return Response({
+            'success': False,
+            'error': 'Internal server error'
+        }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)

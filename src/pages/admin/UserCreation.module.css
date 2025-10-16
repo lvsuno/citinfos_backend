@@ -1,0 +1,255 @@
+/* UserCreation.module.css */
+
+.creationContainer {
+    padding: 24px;
+    max-width: 1000px;
+    margin: 0 auto;
+}
+
+.creationHeader {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    margin-bottom: 32px;
+}
+
+.creationTitle {
+    font-size: 2rem !important;
+    font-weight: bold !important;
+    color: #1e293b !important;
+}
+
+.stepperContainer {
+    margin-bottom: 32px;
+}
+
+.stepContent {
+    min-height: 400px;
+    padding: 24px 0;
+}
+
+.formSection {
+    margin-bottom: 32px;
+}
+
+.sectionTitle {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 24px !important;
+    color: #334155 !important;
+    font-weight: 600 !important;
+}
+
+.formField {
+    margin-bottom: 16px !important;
+}
+
+.passwordSection {
+    position: relative;
+}
+
+.generatePasswordBtn {
+    margin-top: 8px !important;
+    font-size: 0.875rem !important;
+}
+
+.permissionsSection {
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    padding: 16px;
+    background-color: #f8fafc;
+}
+
+.permissionItem {
+    margin-bottom: 8px !important;
+}
+
+.roleChip {
+    font-weight: 600 !important;
+    font-size: 0.875rem !important;
+}
+
+.adminChip {
+    background: linear-gradient(45deg, #06b6d4, #0891b2) !important;
+    color: white !important;
+}
+
+.moderatorChip {
+    background: linear-gradient(45deg, #7c3aed, #6366f1) !important;
+    color: white !important;
+}
+
+.confirmationCard {
+    margin-bottom: 24px;
+    border: 1px solid #e2e8f0 !important;
+    border-radius: 12px !important;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05) !important;
+}
+
+.confirmationTitle {
+    font-weight: 600 !important;
+    color: #374151 !important;
+    margin-bottom: 16px !important;
+}
+
+.confirmationItem {
+    margin-bottom: 8px !important;
+}
+
+.actionButtons {
+    display: flex;
+    justify-content: space-between;
+    padding-top: 24px;
+    border-top: 1px solid #e2e8f0;
+}
+
+.backButton {
+    color: #6b7280 !important;
+}
+
+.nextButton {
+    background: linear-gradient(45deg, #06b6d4, #0891b2) !important;
+    color: white !important;
+}
+
+.submitButton {
+    background: linear-gradient(45deg, #10b981, #059669) !important;
+    color: white !important;
+}
+
+.loadingButton {
+    opacity: 0.7;
+    pointer-events: none;
+}
+
+.alert {
+    margin-bottom: 24px !important;
+    border-radius: 8px !important;
+}
+
+.divisionAutocomplete {
+    margin-bottom: 16px;
+}
+
+.bioField {
+    margin-top: 16px;
+}
+
+/* Responsive design */
+@media (max-width: 768px) {
+    .creationContainer {
+        padding: 16px;
+    }
+    
+    .creationTitle {
+        font-size: 1.5rem !important;
+    }
+    
+    .actionButtons {
+        flex-direction: column;
+        gap: 16px;
+    }
+    
+    .stepContent {
+        min-height: 300px;
+    }
+    
+    .formField {
+        margin-bottom: 24px !important;
+    }
+}
+
+/* Dark mode support */
+@media (prefers-color-scheme: dark) {
+    .creationTitle {
+        color: #f1f5f9 !important;
+    }
+    
+    .sectionTitle {
+        color: #e2e8f0 !important;
+    }
+    
+    .permissionsSection {
+        background-color: #1e293b !important;
+        border-color: #334155 !important;
+    }
+    
+    .confirmationCard {
+        background-color: #1e293b !important;
+        border-color: #334155 !important;
+    }
+    
+    .confirmationTitle {
+        color: #e2e8f0 !important;
+    }
+}
+
+/* Animation pour les étapes */
+.stepContent {
+    animation: fadeIn 0.3s ease-in-out;
+}
+
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(20px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* Style pour les icônes */
+.sectionIcon {
+    color: #06b6d4 !important;
+}
+
+.roleIcon {
+    margin-right: 8px !important;
+}
+
+/* Styles pour les champs de formulaire */
+.formField .MuiTextField-root {
+    transition: all 0.3s ease;
+}
+
+.formField .MuiTextField-root:hover {
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.formField .MuiTextField-root.Mui-focused {
+    box-shadow: 0 4px 12px rgba(6, 182, 212, 0.2);
+}
+
+/* Styles pour les cases à cocher */
+.permissionItem .MuiCheckbox-root {
+    color: #06b6d4 !important;
+}
+
+.permissionItem .MuiCheckbox-root.Mui-checked {
+    color: #0891b2 !important;
+}
+
+/* Styles pour les sélecteurs */
+.formField .MuiSelect-root {
+    transition: all 0.3s ease;
+}
+
+.formField .MuiSelect-root:hover {
+    background-color: #f8fafc;
+}
+
+/* Styles pour les boutons */
+.generatePasswordBtn {
+    background: linear-gradient(45deg, #f59e0b, #d97706) !important;
+    color: white !important;
+    text-transform: none !important;
+    border-radius: 6px !important;
+}
+
+.generatePasswordBtn:hover {
+    background: linear-gradient(45deg, #d97706, #b45309) !important;
+    box-shadow: 0 2px 8px rgba(245, 158, 11, 0.3) !important;
+}

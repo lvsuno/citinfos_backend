@@ -130,24 +130,46 @@ export const getMunicipalityUrl = (municipalityName, section = 'accueil') => {
 };
 
 /**
- * Obtient l'URL de redirection après connexion basée sur les données utilisateur
- * @param {object} user - Les données de l'utilisateur
+ * Obtenir l'URL de redirection pour un utilisateur
+ * @param {object} user - L'utilisateur
  * @returns {string} L'URL de redirection
  */
 export const getUserRedirectUrl = (user) => {
-    if (!user) return '/dashboard';
+    console.log('🔧 getUserRedirectUrl called with user:', user);
+
+    if (!user) {
+        console.log('🔧 No user, returning /dashboard');
+        return '/dashboard';
+    }
+
+    // Priorité 0: Vérifier le rôle de l'utilisateur (peut être dans user.role ou user.profile.role)
+    const userRole = user.role || (user.profile && user.profile.role);
+    console.log('🔧 User role detected:', userRole);
+
+    if (userRole === 'admin') {
+        console.log('🔧 Admin user detected, redirecting to admin dashboard');
+        return '/admin/dashboard';
+    }
+
+    if (userRole === 'moderator') {
+        console.log('🔧 Moderator user detected, redirecting to moderator dashboard');
+        return '/moderator/dashboard';
+    }
 
     // Priorité 1: city dans location
     if (user.location && user.location.city) {
+        console.log('🔧 User has location.city:', user.location.city);
         return getMunicipalityUrl(user.location.city);
     }
 
     // Priorité 2: municipality directement sur l'utilisateur
     if (user.municipality) {
+        console.log('🔧 User has municipality:', user.municipality);
         return getMunicipalityUrl(user.municipality);
     }
 
     // Fallback: dashboard générique
+    console.log('🔧 Fallback to /dashboard');
     return '/dashboard';
 };
 

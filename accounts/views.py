@@ -180,12 +180,12 @@ def email_verify(request):
         if vcode.code.upper() != code.upper() or not vcode.is_active:
             return Response({'error': 'Invalid or expired code.'}, status=400)
 
-        # Use the proper use_code() method which handles:
+        # Use the proper mark_as_used() method which handles:
         # 1. Marking code as used
         # 2. Setting is_verified = True
         # 3. Setting last_verified_at timestamp
         # 4. Assigning registration_index (for badges)
-        if not vcode.use_code():
+        if not vcode.mark_as_used():
             return Response(
                 {'error': 'Code already used or expired.'},
                 status=400

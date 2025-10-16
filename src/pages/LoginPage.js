@@ -109,6 +109,20 @@ const LoginPage = () => {
                 const userHomeUrl = getUserRedirectUrl(result.user);
                 console.log('🔍 DEBUG: User home URL:', userHomeUrl);
 
+                // For admin users, always go directly to admin dashboard
+                if (userHomeUrl === '/admin/dashboard') {
+                    console.log('🔍 DEBUG: Admin detected, redirecting directly to admin dashboard');
+                    navigate('/admin/dashboard');
+                    return;
+                }
+
+                // For moderator users, always go directly to moderator dashboard
+                if (userHomeUrl === '/moderator/dashboard') {
+                    console.log('🔍 DEBUG: Moderator detected, redirecting directly to moderator dashboard');
+                    navigate('/moderator/dashboard');
+                    return;
+                }
+
                 // Check if backend provided last visited URL from previous session
                 let redirectUrl;
                 let reason;

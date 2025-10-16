@@ -1,5 +1,5 @@
 /**
- * Navigation Tracker - Tracks user's page visits for smart login redirect
+ * Navigation Tracker - Tracks user's page visits for smart redirect
  *
  * Tracks:
  * - Last visited division URL
@@ -51,11 +51,19 @@ export const trackLogout = () => {
 };
 
 /**
- * Get smart redirect URL after login
+ * Get smart redirect URL based on previous session data
  * @param {string} userHomeDivisionUrl - User's home division URL
  * @returns {object} {url: string, reason: string}
  */
 export const getSmartRedirectUrl = (userHomeDivisionUrl) => {
+    // Priority: Always respect admin dashboard URLs - never override them
+    if (userHomeDivisionUrl === '/admin/dashboard') {
+        return {
+            url: userHomeDivisionUrl,
+            reason: 'Admin user - going to admin dashboard'
+        };
+    }
+
     const lastVisitedUrl = localStorage.getItem(STORAGE_KEYS.LAST_VISITED_URL);
     const lastVisitedTime = localStorage.getItem(STORAGE_KEYS.LAST_VISITED_TIME);
     const logoutTime = localStorage.getItem(STORAGE_KEYS.LOGOUT_TIME);
