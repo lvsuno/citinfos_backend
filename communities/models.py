@@ -126,6 +126,13 @@ class Community(models.Model):
     rules = models.JSONField(default=list, blank=True)
     tags = models.JSONField(default=list, blank=True)
 
+    # Rubrique configuration
+    enabled_rubriques = models.JSONField(
+        default=list,
+        blank=True,
+        help_text="List of enabled rubrique template IDs (UUIDs as strings)"
+    )
+
     # Settings
     allow_posts = models.BooleanField(default=True)
     require_post_approval = models.BooleanField(default=False)
@@ -337,6 +344,157 @@ class Community(models.Model):
 
     def __str__(self):
         return self.name
+
+    # Rubrique management helper methods
+    def get_enabled_rubriques(self):
+        """
+        Get all enabled rubriques for this community as a queryset.
+
+        Returns:
+            QuerySet of RubriqueTemplate objects that are enabled for this community.
+        """
+        if not self.enabled_rubriques:
+            return RubriqueTemplate.objects.none()
+
+        return RubriqueTemplate.objects.filter(
+            id__in=self.enabled_rubriques,
+            is_active=True
+        ).order_by('path', 'default_order')
+
+    def is_rubrique_enabled(self, rubrique_id):
+        """
+        Check if a specific rubrique is enabled for this community.
+
+        Args:
+            rubrique_id: UUID or string UUID of the rubrique to check
+
+        Returns:
+            Boolean indicating if the rubrique is enabled
+        """
+        if not self.enabled_rubriques:
+            return False
+
+        # Convert to string for comparison
+        rubrique_id_str = str(rubrique_id)
+        return rubrique_id_str in self.enabled_rubriques
+
+    def get_rubrique_tree(self):
+        """
+        Get enabled rubriques organized in a hierarchical tree structure.
+
+        Returns:
+            List of dicts representing the rubrique hierarchy:
+            [
+                {
+                    'id': UUID,
+                    'template_type': 'evenements',
+                    'name': 'Événements',
+                    'icon': '🎭',
+                    'depth': 0,
+                    'children': [
+                        {'id': UUID, 'template_type': 'evenements_concerts', ...},
+                        ...
+                    ]
+                },
+                ...
+            ]
+        """
+        enabled = self.get_enabled_rubriques()
+
+        # Build tree structure
+        tree = []
+        rubrique_map = {}
+
+        # First pass: create all nodes
+        for rubrique in enabled:
+            node = {
+                'id': str(rubrique.id),
+                'template_type': rubrique.template_type,
+                'name': rubrique.default_name,
+                'icon': rubrique.default_icon,
+                'color': rubrique.default_color,
+                'depth': rubrique.depth,
+                'path': rubrique.path,
+                'parent_id': str(rubrique.parent_id) if rubrique.parent_id else None,
+                'children': [],
+                'isExpandable': False  # Will be set to True if has children
+            }
+            rubrique_map[str(rubrique.id)] = node
+
+        # Second pass: build hierarchy
+        for node in rubrique_map.values():
+            if node['parent_id'] and node['parent_id'] in rubrique_map:
+                # Add to parent's children
+                rubrique_map[node['parent_id']]['children'].append(node)
+                # Mark parent as expandable
+                rubrique_map[node['parent_id']]['isExpandable'] = True
+            else:
+                # Top-level rubrique
+                tree.append(node)
+
+        return tree
+
+    def add_rubrique(self, rubrique_id):
+        """
+        Enable a rubrique for this community.
+
+        Args:
+            rubrique_id: UUID or string UUID of the rubrique to enable
+
+        Returns:
+            Boolean indicating if the rubrique was added (False if already enabled)
+        """
+        rubrique_id_str = str(rubrique_id)
+
+        # Verify rubrique exists and is active
+        try:
+            rubrique = RubriqueTemplate.objects.get(id=rubrique_id_str, is_active=True)
+        except RubriqueTemplate.DoesNotExist:
+            return False
+
+        # Initialize list if needed
+        if self.enabled_rubriques is None:
+            self.enabled_rubriques = []
+
+        # Check if already enabled
+        if rubrique_id_str in self.enabled_rubriques:
+            return False
+
+        # Add rubrique
+        self.enabled_rubriques.append(rubrique_id_str)
+        self.save(update_fields=['enabled_rubriques', 'updated_at'])
+        return True
+
+    def remove_rubrique(self, rubrique_id):
+        """
+        Disable a rubrique for this community.
+
+        Note: Cannot remove required rubriques.
+
+        Args:
+            rubrique_id: UUID or string UUID of the rubrique to disable
+
+        Returns:
+            Boolean indicating if the rubrique was removed (False if not enabled or required)
+        """
+        rubrique_id_str = str(rubrique_id)
+
+        # Check if rubrique is required
+        try:
+            rubrique = RubriqueTemplate.objects.get(id=rubrique_id_str)
+            if rubrique.is_required:
+                return False
+        except RubriqueTemplate.DoesNotExist:
+            return False
+
+        # Check if enabled
+        if not self.enabled_rubriques or rubrique_id_str not in self.enabled_rubriques:
+            return False
+
+        # Remove rubrique
+        self.enabled_rubriques.remove(rubrique_id_str)
+        self.save(update_fields=['enabled_rubriques', 'updated_at'])
+        return True
 
     # def can_user_access_geographically(self, user_profile, current_country=None, current_city=None):
     #     """
@@ -678,6 +836,202 @@ class Community(models.Model):
     #     return True, None
 
 
+class RubriqueTemplate(models.Model):
+    """Global hierarchical library of ALL possible rubriques and subsections.
+
+    This model contains an exhaustive list of all possible rubriques organized
+    hierarchically. Communities simply select which ones they want to enable
+    via a JSONField list of IDs. No per-community records are created.
+
+    Architecture Flow:
+        1. RubriqueTemplate = Global hierarchical tree (100-200 records total)
+           - Main rubriques (parent=None, depth=0)
+           - Subsections (parent=rubrique, depth=1+)
+        2. Community.enabled_rubriques = JSONField with list of rubrique IDs
+        3. Thread.rubrique_template = FK to ANY rubrique (main or subsection)
+        4. Validation: rubrique_template.id must be in community.enabled_rubriques
+
+    Example hierarchy:
+        Événements (parent=None, depth=0)
+        ├── Concerts (parent=Événements, depth=1)
+        ├── Sports (parent=Événements, depth=1)
+        │   ├── Hockey (parent=Sports, depth=2)
+        │   └── Soccer (parent=Sports, depth=2)
+        └── Festivals (parent=Événements, depth=1)
+
+    For 10,000 communities:
+        - ~200 RubriqueTemplate records (global)
+        - 0 additional records (just JSON arrays in Community)
+        - Threads FK directly to global RubriqueTemplate
+    """
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+
+    # Hierarchical structure (self-referential)
+    parent = models.ForeignKey(
+        'self',
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name='children',
+        help_text="Parent rubrique (null for top-level rubriques)"
+    )
+
+    # Template identification (unique code for referencing)
+    template_type = models.CharField(
+        max_length=50,
+        unique=True,
+        help_text="Unique code (e.g., 'actualites', 'evenements_sports_hockey')"
+    )
+
+    # Default values (French - primary language)
+    default_name = models.CharField(
+        max_length=100,
+        help_text="Default French name for this rubrique"
+    )
+    default_name_en = models.CharField(
+        max_length=100,
+        blank=True,
+        help_text="Default English name"
+    )
+    default_description = models.TextField(
+        max_length=500,
+        blank=True,
+        help_text="Default description template"
+    )
+    default_icon = models.CharField(
+        max_length=50,
+        blank=True,
+        help_text="Default icon (MUI icon name)"
+    )
+    default_color = models.CharField(
+        max_length=7,
+        blank=True,
+        default='#6366f1',
+        help_text="Default color (hex code)"
+    )
+
+    # Hierarchy metadata (denormalized for performance)
+    depth = models.PositiveIntegerField(
+        default=0,
+        help_text="0=top-level, 1=subsection, 2=sub-subsection, etc."
+    )
+    path = models.CharField(
+        max_length=500,
+        blank=True,
+        help_text="Materialized path (e.g., '001.002.003')"
+    )
+
+    # Behavior flags
+    is_required = models.BooleanField(
+        default=False,
+        help_text="Auto-enable for all new communities"
+    )
+    allow_threads = models.BooleanField(
+        default=True,
+        help_text="Allow creating threads in this rubrique"
+    )
+    allow_direct_posts = models.BooleanField(
+        default=False,
+        help_text="Allow posts without threads"
+    )
+
+    # Ordering
+    default_order = models.PositiveIntegerField(
+        default=0,
+        help_text="Default display order within parent or at root level"
+    )
+
+    # Metadata
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    is_active = models.BooleanField(
+        default=True,
+        help_text="Template is active and available for use"
+    )
+
+    class Meta:
+        db_table = 'rubrique_templates'
+        ordering = ['parent__default_order', 'default_order', 'default_name']
+        verbose_name = 'Rubrique Template'
+        verbose_name_plural = 'Rubrique Templates'
+        indexes = [
+            models.Index(fields=['parent', 'default_order']),
+            models.Index(fields=['depth']),
+            models.Index(fields=['path']),
+        ]
+
+    def __str__(self):
+        if self.parent:
+            return f"{self.parent.default_name} → {self.default_name}"
+        return self.default_name
+
+    def get_hierarchy_path(self, separator=' → '):
+        """Get full path from root to this rubrique."""
+        path_parts = []
+        current = self
+        while current:
+            path_parts.insert(0, current.default_name)
+            current = current.parent
+        return separator.join(path_parts)
+
+    def get_ancestors(self):
+        """Get all ancestor rubriques from root to parent."""
+        if not self.parent:
+            return RubriqueTemplate.objects.none()
+
+        ancestors = []
+        current = self.parent
+        while current:
+            ancestors.insert(0, current)
+            current = current.parent
+
+        return RubriqueTemplate.objects.filter(id__in=[r.id for r in ancestors])
+
+    def get_descendants(self, include_self=False):
+        """Get all descendant rubriques recursively."""
+        descendants = []
+
+        if include_self:
+            descendants.append(self.id)
+
+        def collect_descendants(rubrique):
+            for child in rubrique.children.filter(is_active=True):
+                descendants.append(child.id)
+                collect_descendants(child)
+
+        collect_descendants(self)
+        return RubriqueTemplate.objects.filter(id__in=descendants)
+
+    def save(self, *args, **kwargs):
+        """Auto-calculate depth and path on save."""
+        # Calculate depth
+        if self.parent:
+            self.depth = self.parent.depth + 1
+        else:
+            self.depth = 0
+
+        # Generate materialized path
+        if self.parent:
+            parent_path = self.parent.path or str(self.parent.default_order).zfill(3)
+            self.path = f"{parent_path}.{str(self.default_order).zfill(3)}"
+        else:
+            self.path = str(self.default_order).zfill(3)
+
+        super().save(*args, **kwargs)
+
+
+def get_default_rubrique_template():
+    """Get the default rubrique template (Actualités) for threads."""
+    from communities.models import RubriqueTemplate
+    try:
+        return RubriqueTemplate.objects.get(template_type='actualites').id
+    except RubriqueTemplate.DoesNotExist:
+        # Fallback to first available template
+        first_template = RubriqueTemplate.objects.first()
+        return first_template.id if first_template else None
+
+
 class Thread(models.Model):
     """Discussion thread inside a community.
 
@@ -687,6 +1041,17 @@ class Thread(models.Model):
     like marking best comments or closing the thread.
     """
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+
+    # Rubrique template relationship (REQUIRED for all threads)
+    rubrique_template = models.ForeignKey(
+        'RubriqueTemplate',
+        on_delete=models.PROTECT,  # Can't delete template if threads exist
+        related_name='threads',
+        default=get_default_rubrique_template,
+        help_text="Rubrique category for this thread (REQUIRED)"
+    )
+
+    # Community relationship
     community = models.ForeignKey(
         Community,
         on_delete=models.CASCADE,
@@ -700,6 +1065,16 @@ class Thread(models.Model):
         related_name='created_threads'
     )
     body = models.TextField(blank=True)
+
+    # Best post (for Q&A, solutions, helpful posts, etc.)
+    best_post = models.ForeignKey(
+        'content.Post',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='thread_best_post_for',
+        help_text="Post marked as best by thread creator"
+    )
 
     # Thread configuration
     is_closed = models.BooleanField(default=False)
@@ -729,6 +1104,49 @@ class Thread(models.Model):
 
     def __str__(self):
         return f"{self.title} - {self.community.name}"
+
+    def clean(self):
+        """Validate thread data."""
+        super().clean()
+        from django.core.exceptions import ValidationError
+
+        # Validate rubrique_template is required
+        if not self.rubrique_template:
+            raise ValidationError({
+                'rubrique_template': 'All threads must have a rubrique.'
+            })
+
+        # Validate rubrique is enabled for this community
+        if self.rubrique_template and self.community:
+            # Check if rubrique is in community's enabled_rubriques list
+            enabled_rubriques = self.community.enabled_rubriques or []
+            rubrique_id = str(self.rubrique_template.id)
+
+            if rubrique_id not in enabled_rubriques:
+                raise ValidationError({
+                    'rubrique_template':
+                        f"Rubrique '{self.rubrique_template.default_name}' "
+                        f"is not enabled for '{self.community.name}'."
+                })
+
+    def save(self, *args, **kwargs):
+        """Save thread after validation and generate slug if needed."""
+        # Generate slug from title if not present
+        if not self.slug and self.title:
+            from django.utils.text import slugify
+            base_slug = slugify(self.title)[:250]
+            slug = base_slug
+            counter = 1
+
+            # Ensure slug is unique
+            while Thread.objects.filter(slug=slug).exclude(id=self.id).exists():
+                slug = f"{base_slug[:240]}-{counter}"
+                counter += 1
+
+            self.slug = slug
+
+        self.full_clean()
+        super().save(*args, **kwargs)
 
     def restore_instance(self, cascade=True):
         """Restore this soft-deleted thread and optionally cascade to related objects."""
