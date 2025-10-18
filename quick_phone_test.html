@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Quick Phone Validation Test</title>
+    <style>
+        body { font-family: Arial; padding: 20px; }
+        .test { margin: 10px 0; padding: 10px; border: 1px solid #ccc; }
+        .valid { background: #d4edda; }
+        .invalid { background: #f8d7da; }
+    </style>
+</head>
+<body>
+    <h1>Phone Validation Test - What SignUpPage Sees</h1>
+    <div id="results"></div>
+
+    <script type="module">
+        import { validatePhoneNumber } from './src/utils/phoneValidation.js';
+
+        const tests = [
+            { phone: '5141234567', country: 'CA', desc: 'Canadian local format' },
+            { phone: '+1 514 123 4567', country: 'CA', desc: 'Canadian with +1' },
+            { phone: '+15141234567', country: 'CA', desc: 'Canadian E.164' },
+            { phone: '97123456', country: 'BJ', desc: 'Benin 8-digit' },
+            { phone: '01 97 12 34 56', country: 'BJ', desc: 'Benin 10-digit with 01' },
+            { phone: '+229 97 12 34 56', country: 'BJ', desc: 'Benin with +229' },
+        ];
+
+        const resultsDiv = document.getElementById('results');
+
+        tests.forEach(test => {
+            const result = validatePhoneNumber(test.phone, test.country);
+
+            const div = document.createElement('div');
+            div.className = `test ${result.valid ? 'valid' : 'invalid'}`;
+            div.innerHTML = `
+                <strong>${test.desc}</strong><br>
+                Input: <code>${test.phone}</code> (Country: ${test.country})<br>
+                Result: ${result.valid ? '✅ VALID' : '❌ INVALID'}<br>
+                ${result.valid ? `
+                    Formatted: ${result.formatted}<br>
+                    National: ${result.national}<br>
+                ` : `
+                    Error: ${result.error}
+                `}
+            `;
+            resultsDiv.appendChild(div);
+        });
+    </script>
+</body>
+</html>
