@@ -19,9 +19,7 @@ class SocialAPI extends BaseAPIService {
           post: 28,  // From backend: Post ContentType ID
           comment: 22  // From backend: Comment ContentType ID
         };
-      } catch (error) {
-        console.warn('Failed to get content types, using fallback values');
-        this.contentTypes = {
+      } catch (error) {        this.contentTypes = {
           post: 28,
           comment: 22
         };
@@ -200,9 +198,7 @@ class SocialAPI extends BaseAPIService {
             ...postResponse,
             attachments: attachments
           };
-        } catch (error) {
-          console.error('Post creation failed:', error);
-          throw error;
+        } catch (error) {          throw error;
         }
       }
 
@@ -371,11 +367,7 @@ class SocialAPI extends BaseAPIService {
       const response = await this.get(url);
       return response.id; // Return the UserProfile ID
     } catch (error) {
-      if (error.response?.status === 403) {
-        console.warn(`Cannot mention @${username}: You can only mention users you follow or users in the same community`);
-      } else {
-        console.warn(`Failed to resolve username @${username}:`, error);
-      }
+      if (error.response?.status === 403) {      } else {      }
       return null;
     }
   };
@@ -392,9 +384,7 @@ class SocialAPI extends BaseAPIService {
       }
       const response = await this.get(url);
       return response.results || response;
-    } catch (error) {
-      console.warn(`Failed to search mentionable users:`, error);
-      return [];
+    } catch (error) {      return [];
     }
   };
 
@@ -409,9 +399,7 @@ class SocialAPI extends BaseAPIService {
         posts_count: hashtag.posts_count,
         is_trending: hashtag.is_trending,
       }));
-    } catch (error) {
-      console.warn(`Failed to search hashtags:`, error);
-      return [];
+    } catch (error) {      return [];
     }
   };
 
@@ -499,9 +487,7 @@ class SocialAPI extends BaseAPIService {
         return retriedCommunities && retriedCommunities.length > 0
           ? retriedCommunities[0]
           : null;
-      } catch (error) {
-        console.error('Failed to get/create community for division:', error);
-        throw error;
+      } catch (error) {        throw error;
       }
     }
   };
@@ -533,8 +519,17 @@ class SocialAPI extends BaseAPIService {
 
     // Create a new thread with optional first post
     create: async (threadData) => {
+      // Validate required fields
+      if (!threadData.community_id) {
+        throw new Error('Community ID is required to create a thread');
+      }
+      if (!threadData.rubrique_template_id) {
+        throw new Error('Rubrique template ID is required to create a thread');
+      }
+
       return this.post('/threads/', {
         community: threadData.community_id,
+        rubrique_template: threadData.rubrique_template_id,
         title: threadData.title,
         body: threadData.body || '',
         first_post_content: threadData.first_post_content,
@@ -550,6 +545,25 @@ class SocialAPI extends BaseAPIService {
     // Delete thread
     delete: async (slug) => {
       return this.delete(`/threads/${slug}/`);
+    },
+
+    // Get posts in a thread
+    posts: async (threadSlug) => {
+      return this.get(`/threads/${threadSlug}/posts/`);
+    }
+  };
+
+  // RUBRIQUE TEMPLATES API
+  rubriqueTemplates = {
+    // List all rubrique templates
+    list: async () => {
+      return this.get('/rubrique-templates/');
+    },
+
+    // Get rubrique template by template_type (slug)
+    getByType: async (templateType) => {
+      const templates = await this.list();
+      return templates.find(t => t.template_type === templateType);
     }
   };
 
@@ -596,6 +610,33 @@ class SocialAPI extends BaseAPIService {
 
     undislikeComment: async (commentId) => {
       return this.post(`/content/posts/comments/${commentId}/dislike/`);
+    }
+  };
+
+  // Emoji reactions API (22 reaction types)
+  reactions = {
+    // React to a post with an emoji reaction
+    reactPost: async (postId, reactionType) => {
+      return this.post(`/content/posts/${postId}/react/`, {
+        reaction_type: reactionType
+      });
+    },
+
+    // Remove reaction from a post
+    unreactPost: async (postId) => {
+      return this.post(`/content/posts/${postId}/unreact/`);
+    },
+
+    // React to a comment with an emoji reaction
+    reactComment: async (commentId, reactionType) => {
+      return this.post(`/content/posts/comments/${commentId}/react/`, {
+        reaction_type: reactionType
+      });
+    },
+
+    // Remove reaction from a comment
+    unreactComment: async (commentId) => {
+      return this.post(`/content/posts/comments/${commentId}/unreact/`);
     }
   };
 
@@ -700,9 +741,7 @@ class SocialAPI extends BaseAPIService {
         // Return the repost data - extract from the response structure
         return repostResponse.repost || repostResponse;
 
-      } catch (error) {
-        console.error('Repost creation with attachments failed:', error);
-        throw error;
+      } catch (error) {        throw error;
       }
     },
 
@@ -723,9 +762,7 @@ class SocialAPI extends BaseAPIService {
       try {
         const reposts = await this.get(`/content/posts/?original_post=${postId}&post_type=repost`);
         return (reposts.results || reposts).length > 0;
-      } catch (error) {
-        console.warn('Check repost status failed:', error);
-        return false;
+      } catch (error) {        return false;
       }
     }
   };
@@ -778,9 +815,7 @@ class SocialAPI extends BaseAPIService {
       try {
         const deliveries = await this.get('/direct-share-deliveries/?is_read=false');
         return (deliveries.results || deliveries).length;
-      } catch (error) {
-        console.warn('Get unread shares count failed:', error);
-        return 0;
+      } catch (error) {        return 0;
       }
     }
   };
@@ -815,9 +850,7 @@ class SocialAPI extends BaseAPIService {
         try {
           // Resolve username to UserProfile ID with community context
           const profileId = await socialAPI.resolveUsername(username, communityId);
-          if (!profileId) {
-            console.warn(`User @${username} not found or cannot be mentioned`);
-            continue;
+          if (!profileId) {            continue;
           }
 
           const mentionData = {
@@ -828,9 +861,7 @@ class SocialAPI extends BaseAPIService {
 
           const mention = await socialAPI.mentions.create(mentionData);
           mentions.push(mention);
-        } catch (err) {
-          console.warn(`Failed to create mention for @${username}:`, err);
-        }
+        } catch (err) {        }
       }
       return mentions;
     },
