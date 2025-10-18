@@ -1,0 +1,335 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Phone Validation Test</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            max-width: 1200px;
+            margin: 40px auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        h1 {
+            color: #333;
+            border-bottom: 3px solid #007bff;
+            padding-bottom: 10px;
+        }
+        .test-section {
+            background: white;
+            border-radius: 8px;
+            padding: 20px;
+            margin: 20px 0;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .country-header {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-size: 24px;
+            margin-bottom: 20px;
+            color: #007bff;
+        }
+        .test-case {
+            border: 1px solid #e0e0e0;
+            border-radius: 6px;
+            padding: 15px;
+            margin: 10px 0;
+            background: #fafafa;
+        }
+        .test-number {
+            font-family: 'Courier New', monospace;
+            font-size: 18px;
+            font-weight: bold;
+            color: #333;
+            margin-bottom: 10px;
+        }
+        .test-description {
+            color: #666;
+            font-size: 14px;
+            margin-bottom: 10px;
+        }
+        .result {
+            margin-top: 10px;
+            padding: 10px;
+            border-radius: 4px;
+        }
+        .result.valid {
+            background: #d4edda;
+            border: 1px solid #c3e6cb;
+            color: #155724;
+        }
+        .result.invalid {
+            background: #f8d7da;
+            border: 1px solid #f5c6cb;
+            color: #721c24;
+        }
+        .result-details {
+            margin-top: 8px;
+            font-size: 13px;
+            font-family: 'Courier New', monospace;
+        }
+        .result-label {
+            font-weight: bold;
+            display: inline-block;
+            width: 140px;
+        }
+        .status-icon {
+            font-size: 20px;
+            margin-right: 8px;
+        }
+        .summary {
+            background: #e3f2fd;
+            border: 1px solid #90caf9;
+            border-radius: 6px;
+            padding: 15px;
+            margin: 20px 0;
+        }
+        .summary h3 {
+            margin-top: 0;
+            color: #1976d2;
+        }
+        .stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin-top: 10px;
+        }
+        .stat-card {
+            background: white;
+            padding: 15px;
+            border-radius: 4px;
+            text-align: center;
+        }
+        .stat-value {
+            font-size: 32px;
+            font-weight: bold;
+            color: #007bff;
+        }
+        .stat-label {
+            color: #666;
+            font-size: 14px;
+            margin-top: 5px;
+        }
+        button {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 6px;
+            font-size: 16px;
+            cursor: pointer;
+            margin: 10px 0;
+        }
+        button:hover {
+            background: #0056b3;
+        }
+    </style>
+</head>
+<body>
+    <h1>📱 Phone Number Validation Test Suite</h1>
+
+    <div class="summary" id="summary">
+        <h3>Test Summary</h3>
+        <div class="stats">
+            <div class="stat-card">
+                <div class="stat-value" id="total-tests">0</div>
+                <div class="stat-label">Total Tests</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value" id="valid-tests" style="color: #28a745;">0</div>
+                <div class="stat-label">Valid Numbers</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value" id="invalid-tests" style="color: #dc3545;">0</div>
+                <div class="stat-label">Invalid Numbers</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value" id="success-rate">0%</div>
+                <div class="stat-label">Detection Accuracy</div>
+            </div>
+        </div>
+    </div>
+
+    <button onclick="runTests()">🔄 Run Tests</button>
+
+    <div id="test-results"></div>
+
+    <script type="module">
+        import { parsePhoneNumber, isValidPhoneNumber } from 'https://cdn.skypack.dev/libphonenumber-js';
+
+        const testCases = {
+            benin: {
+                flag: '🇧🇯',
+                name: 'Benin',
+                code: 'BJ',
+                phoneCode: '+229',
+                tests: [
+                    // Valid numbers (NEW FORMAT with 01 prefix - 10 digits total)
+                    { number: '+229 01 97 12 34 56', description: '✅ Valid mobile NEW FORMAT (01 + 97 MTN)', expected: true },
+                    { number: '+229 01 96 12 34 56', description: '✅ Valid mobile NEW FORMAT (01 + 96 Moov)', expected: true },
+                    { number: '+229 01 90 12 34 56', description: '✅ Valid mobile NEW FORMAT (01 + 90)', expected: true },
+                    { number: '+22901971234567', description: '✅ Valid without spaces (10 digits)', expected: true },
+                    { number: '01 97 12 34 56', description: '✅ Valid local format with 01 prefix', expected: true },
+
+                    // Old format (8 digits - may still work in transition period)
+                    { number: '+229 97 12 34 56', description: '🔄 OLD format (8 digits) - may be deprecated', expected: false },
+                    { number: '+229 96 12 34 56', description: '🔄 OLD format (8 digits) - may be deprecated', expected: false },
+                    { number: '97 12 34 56', description: '🔄 OLD format without country code', expected: false },
+
+                    // Invalid numbers
+                    { number: '+229 01 97 12 34', description: '❌ Too short (8 digits)', expected: false },
+                    { number: '+229 01 97 12 34 56 78', description: '❌ Too long (12 digits)', expected: false },
+                    { number: '+229 01 87 12 34 56', description: '❌ Invalid operator prefix (87)', expected: false },
+                    { number: '+229 00 97 12 34 56', description: '❌ Invalid prefix (00 instead of 01)', expected: false },
+                    { number: '+229 02 97 12 34 56', description: '❌ Invalid prefix (02 instead of 01)', expected: false },
+                    { number: '123456', description: '❌ Too short', expected: false },
+                    { number: 'abcd1234', description: '❌ Contains letters', expected: false },
+                ]
+            },
+            canada: {
+                flag: '🇨🇦',
+                name: 'Canada',
+                code: 'CA',
+                phoneCode: '+1',
+                tests: [
+                    // Valid numbers
+                    { number: '+1 514 234 5678', description: '✅ Valid Montreal (514)', expected: true },
+                    { number: '+1 416 789 0123', description: '✅ Valid Toronto (416)', expected: true },
+                    { number: '+1 604 567 8901', description: '✅ Valid Vancouver (604)', expected: true },
+                    { number: '514 234 5678', description: '✅ Valid without country code', expected: true },
+                    { number: '5142345678', description: '✅ Valid without spaces', expected: true },
+                    { number: '(514) 234-5678', description: '✅ Valid with parentheses', expected: true },
+                    { number: '+1-514-234-5678', description: '✅ Valid with dashes', expected: true },
+
+                    // Invalid numbers
+
+                    // Invalid numbers
+                    { number: '+1 514 234', description: '❌ Too short (6 digits)', expected: false },
+                    { number: '+1 514 234 5678 890', description: '❌ Too long (13 digits)', expected: false },
+                    { number: '+1 014 234 5678', description: '❌ Invalid area code (014)', expected: false },
+                    { number: '+1 999 234 5678', description: '❌ Invalid area code (999)', expected: false },
+                    { number: '123456', description: '❌ Too short', expected: false },
+                    { number: 'test-number', description: '❌ Invalid characters', expected: false },
+                    { number: '+1 555 0100', description: '❌ Incomplete number', expected: false },
+                ]
+            }
+        };
+
+        function validatePhone(number, countryCode) {
+            try {
+                const isValid = isValidPhoneNumber(number, countryCode);
+
+                if (!isValid) {
+                    return { valid: false, error: 'Invalid phone number format' };
+                }
+
+                const parsed = parsePhoneNumber(number, countryCode);
+
+                return {
+                    valid: true,
+                    formatted: parsed.formatInternational(),
+                    national: parsed.formatNational(),
+                    international: parsed.number,
+                    countryCode: parsed.country,
+                    type: parsed.getType(),
+                };
+            } catch (error) {
+                return { valid: false, error: error.message };
+            }
+        }
+
+        function runTests() {
+            const resultsDiv = document.getElementById('test-results');
+            resultsDiv.innerHTML = '';
+
+            let totalTests = 0;
+            let validTests = 0;
+            let invalidTests = 0;
+            let correctPredictions = 0;
+
+            for (const [country, data] of Object.entries(testCases)) {
+                const section = document.createElement('div');
+                section.className = 'test-section';
+
+                const header = document.createElement('div');
+                header.className = 'country-header';
+                header.innerHTML = `${data.flag} ${data.name} (${data.phoneCode})`;
+                section.appendChild(header);
+
+                data.tests.forEach((test, index) => {
+                    totalTests++;
+
+                    const testDiv = document.createElement('div');
+                    testDiv.className = 'test-case';
+
+                    const numberDiv = document.createElement('div');
+                    numberDiv.className = 'test-number';
+                    numberDiv.textContent = test.number;
+                    testDiv.appendChild(numberDiv);
+
+                    const descDiv = document.createElement('div');
+                    descDiv.className = 'test-description';
+                    descDiv.textContent = test.description;
+                    testDiv.appendChild(descDiv);
+
+                    const result = validatePhone(test.number, data.code);
+                    const isCorrect = result.valid === test.expected;
+
+                    if (result.valid) validTests++;
+                    else invalidTests++;
+
+                    if (isCorrect) correctPredictions++;
+
+                    const resultDiv = document.createElement('div');
+                    resultDiv.className = `result ${result.valid ? 'valid' : 'invalid'}`;
+
+                    const statusIcon = result.valid ? '✅' : '❌';
+                    const statusText = result.valid ? 'VALID' : 'INVALID';
+                    const correctIcon = isCorrect ? '🎯' : '⚠️';
+
+                    resultDiv.innerHTML = `
+                        <div>
+                            <span class="status-icon">${statusIcon}</span>
+                            <strong>${statusText}</strong> ${correctIcon} ${isCorrect ? 'Correct' : 'Unexpected'}
+                        </div>
+                        ${result.valid ? `
+                            <div class="result-details">
+                                <div><span class="result-label">📱 Formatted:</span> ${result.formatted}</div>
+                                <div><span class="result-label">🏠 National:</span> ${result.national}</div>
+                                <div><span class="result-label">🌍 International:</span> ${result.international}</div>
+                                <div><span class="result-label">🌐 Country:</span> ${result.countryCode}</div>
+                                <div><span class="result-label">📞 Type:</span> ${result.type || 'N/A'}</div>
+                            </div>
+                        ` : `
+                            <div class="result-details">
+                                <div><span class="result-label">⚠️ Error:</span> ${result.error}</div>
+                            </div>
+                        `}
+                    `;
+
+                    testDiv.appendChild(resultDiv);
+                    section.appendChild(testDiv);
+                });
+
+                resultsDiv.appendChild(section);
+            }
+
+            // Update summary
+            const successRate = ((correctPredictions / totalTests) * 100).toFixed(1);
+            document.getElementById('total-tests').textContent = totalTests;
+            document.getElementById('valid-tests').textContent = validTests;
+            document.getElementById('invalid-tests').textContent = invalidTests;
+            document.getElementById('success-rate').textContent = successRate + '%';
+        }
+
+        // Make runTests available globally
+        window.runTests = runTests;
+
+        // Auto-run tests on load
+        window.addEventListener('load', runTests);
+    </script>
+</body>
+</html>

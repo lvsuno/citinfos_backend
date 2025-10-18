@@ -32,6 +32,7 @@ django.setup()
 from django.contrib.gis.geos import GEOSGeometry, MultiPolygon, Polygon
 from django.contrib.gis.gdal import DataSource
 from core.models import AdministrativeDivision, Country
+from core.country_data import get_country_info
 from django.db import transaction
 
 # Setup logging
@@ -79,13 +80,62 @@ class AdminDataImporter:
         self.total_errors = 0
 
     def get_or_create_country(self, name, code):
-        """Get or create a country"""
+        """Get or create a country with phone data from country_data.py"""
+        # Get country info from lookup table
+        country_info = get_country_info(code)
+
+        # Prepare defaults with phone data if available
+        defaults = {'name': name}
+        if country_info:
+            defaults.update({
+                'iso2': country_info.get('iso2'),
+                'iso3': code,
+                'phone_code': country_info.get('phone_code'),
+                'flag_emoji': country_info.get('flag_emoji'),
+                'region': country_info.get('region')
+            })
+        else:
+            # Fallback to just ISO3 if no data found
+            defaults['iso3'] = code
+
         country, created = Country.objects.get_or_create(
             code=code,
-            defaults={'name': name}
+            defaults=defaults
         )
+
+        # Update existing country with phone data if it was missing
+        if not created and country_info:
+            updated = False
+            if not country.phone_code and country_info.get('phone_code'):
+                country.phone_code = country_info['phone_code']
+                updated = True
+            if not country.flag_emoji and country_info.get('flag_emoji'):
+                country.flag_emoji = country_info['flag_emoji']
+                updated = True
+            if not country.region and country_info.get('region'):
+                country.region = country_info['region']
+                updated = True
+            if not country.iso2 and country_info.get('iso2'):
+                country.iso2 = country_info['iso2']
+                updated = True
+            if not country.iso3:
+                country.iso3 = code
+                updated = True
+
+            if updated:
+                country.save()
+                logger.info(
+                    f"Updated {name} with phone data: "
+                    f"{country.flag_emoji} {country.phone_code}"
+                )
+
         if created:
-            logger.info(f"Created country: {name}")
+            logger.info(
+                f"Created country: {name} ({code}) "
+                f"{country.flag_emoji if country.flag_emoji else ''} "
+                f"{country.phone_code if country.phone_code else ''}"
+            )
+
         return country
 
     def convert_to_multipolygon(self, geom):
