@@ -5,6 +5,7 @@ import PostActionBar from './PostActionBar';
 import PostCommentThread from './PostCommentThread';
 import PollDisplay from './PollDisplay';
 import InlineRepostComposer from './InlineRepostComposer';
+import ArticleDetailModal from '../modals/ArticleDetailModal';
 import usePostInteractions from './usePostInteractions';
 import { useAuth } from '../../contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
@@ -13,7 +14,7 @@ import ConfirmationModal from '../ui/ConfirmationModal';
 import ClickableAuthorName from '../ui/ClickableAuthorName';
 import socialAPI from '../../services/social-api';
 import PostViewTracker from '../analytics/PostViewTracker';
-import { XMarkIcon, MagnifyingGlassPlusIcon, MagnifyingGlassMinusIcon, ArrowsPointingOutIcon, XMarkIcon as XMini } from '@heroicons/react/24/outline';
+import { XMarkIcon, MagnifyingGlassPlusIcon, MagnifyingGlassMinusIcon, ArrowsPointingOutIcon, XMarkIcon as XMini, EllipsisVerticalIcon } from '@heroicons/react/24/outline';
 import { FaXTwitter, FaFacebookF, FaLinkedinIn, FaRedditAlien, FaWhatsapp, FaTelegram, FaEnvelope, FaLink } from 'react-icons/fa6';
 import { formatTimeAgo, formatFullDateTime } from '../../utils/timeUtils';
 import UserBadgeList from '../UserBadgeList';
@@ -73,9 +74,16 @@ const PostCard = ({
   const [shareAnchor, setShareAnchor] = useState(null);
   const [sharePos, setSharePos] = useState({ top: 0, left: 0 });
   const [shareTab, setShareTab] = useState('social'); // 'social' | 'direct'
+  const [showArticleDetail, setShowArticleDetail] = useState(false);
+  const [showOptionsMenu, setShowOptionsMenu] = useState(false); // Three-dot menu
 
   // Ref for auto-scrolling to repost composer
   const repostComposerRef = useRef(null);
+
+  // Ref to detect if text content is actually truncated
+  const textContentRef = useRef(null);
+  const [isContentTruncated, setIsContentTruncated] = useState(false);
+  const optionsMenuRef = useRef(null); // Ref for click outside detection
   const hasMedia = (post.attachments || []).length > 0;
   const hasPoll = !!(post.polls && post.polls.length > 0) || !!post.poll; // Support both new polls array and legacy poll
   const fileReplaceInputId = `replace-${post.id}`;
@@ -87,16 +95,21 @@ const PostCard = ({
   const isAuthor = currentUserProfileId && postAuthorProfileId && currentUserProfileId === postAuthorProfileId;
 
   // Debug logging for authorship detection
+  useEffect(() => {  }, [currentUserProfileId, postAuthorProfileId, post.id, isAuthor, user]);
+
+  // Close options menu when clicking outside
   useEffect(() => {
-    console.log('PostCard authorship check:', {
-      postId: post.id,
-      currentUserProfileId,
-      postAuthorProfileId,
-      postAuthor: post.author,
-      isAuthor,
-      userObject: user
-    });
-  }, [currentUserProfileId, postAuthorProfileId, post.id, isAuthor, user]);
+    const handleClickOutside = (event) => {
+      if (optionsMenuRef.current && !optionsMenuRef.current.contains(event.target)) {
+        setShowOptionsMenu(false);
+      }
+    };
+
+    if (showOptionsMenu) {
+      document.addEventListener('mousedown', handleClickOutside);
+      return () => document.removeEventListener('mousedown', handleClickOutside);
+    }
+  }, [showOptionsMenu]);
 
   // Sync local state with post prop changes
   useEffect(() => {
@@ -105,6 +118,28 @@ const PostCard = ({
     setEditPolls(post.polls || []);
     setEditVisibility(post.visibility || 'public');
   }, [post.text, post.content, post.attachments, post.polls, post.visibility]);
+
+  // Check if text content is actually truncated (overflowing)
+  useEffect(() => {
+    const checkTruncation = () => {
+      if (textContentRef.current && !expanded) {
+        const element = textContentRef.current;
+        // Check if element has scrollHeight greater than clientHeight (meaning it's truncated)
+        const isTruncated = element.scrollHeight > element.clientHeight;
+        setIsContentTruncated(isTruncated);
+      } else {
+        setIsContentTruncated(false);
+      }
+    };
+
+    // Check on mount and when dependencies change
+    checkTruncation();
+
+    // Recheck after a short delay to account for font loading
+    const timer = setTimeout(checkTruncation, 100);
+
+    return () => clearTimeout(timer);
+  }, [post.text, post.content, expanded]);
 
   const openPdf = (att) => { if(att.type==='file' && att.preview && att.name?.toLowerCase().endsWith('.pdf')) setPdfViewer({ url: att.preview, name: att.name, scale:1 }); };
   const closePdf = () => setPdfViewer(null);
@@ -267,9 +302,7 @@ const PostCard = ({
           await onUpdate(post.id, { polls: updatedPolls });
         }
       }
-    } catch (error) {
-      console.error(`Error deleting ${type}:`, error);
-      const errorMessage = error.response?.data?.detail || error.message || 'Unknown error occurred';
+    } catch (error) {      const errorMessage = error.response?.data?.detail || error.message || 'Unknown error occurred';
       alert(`Failed to delete ${type}: ${errorMessage}`);
     }
 
@@ -295,9 +328,7 @@ const PostCard = ({
     if (date && time) {
       try {
         expires_at = new Date(`${date}T${time}`).toISOString();
-      } catch (error) {
-        console.warn('Invalid date/time format:', error);
-        expires_at = null;
+      } catch (error) {        expires_at = null;
       }
     } else {
       // If no date/time specified, extend by 1 day from current expiration or now
@@ -358,9 +389,14 @@ const PostCard = ({
   const bodyText = post.text || post.content || '';
   const visibilityLabel = post.visibility === 'public' ? '🌍 Public' : post.visibility === 'followers' ? '👥 Followers' : post.visibility === 'custom' ? '🎯 Custom' : '';
   const attachmentCount = (post.attachments || []).length;
+
+  // Only show expand button when content is actually truncated
+  // - Text is actually truncated (detected via scrollHeight > clientHeight)
+  // - Multiple attachments (2, 3, 5+) that need expand/collapse
+  // - Don't show for 1 or 4 attachments (they display in fixed grids)
   const showExpandButton = (
-    ((bodyText && bodyText.length > 180) || attachmentCount > 0)
-    && !(attachmentCount === 1 || attachmentCount === 4)
+    isContentTruncated ||
+    (attachmentCount > 1 && attachmentCount !== 4)
   );
 
   const openShareMenu = (_post, anchorEl) => {
@@ -389,9 +425,7 @@ const PostCard = ({
       const recipientIds = [shareToUser.trim()]; // This should be profile IDs, not usernames
       await directShare(recipientIds, `Shared from ${user?.username || 'someone'}`);
       closeShareMenu();
-    } catch (error) {
-      console.error('Share to user failed:', error);
-      // Error is handled by usePostInteractions hook
+    } catch (error) {      // Error is handled by usePostInteractions hook
     }
   };
 
@@ -573,15 +607,90 @@ const PostCard = ({
                 </div>
               )}
             </div>
-            <div className="flex items-center gap-2">
-              {!editing && !readOnly && isAuthor && <button onClick={()=>setEditing(true)} className="text-[10px] px-2 py-0.5 rounded-md bg-gray-100 hover:bg-gray-200 text-gray-600">Edit</button>}
-              {!editing && !isRepost && isAuthor && <button onClick={handleDeletePost} className="text-[10px] px-2 py-0.5 rounded-md bg-red-50 hover:bg-red-100 text-red-600">Delete</button>}
-            </div>
+            {/* Three-dot menu for post actions */}
+            {!editing && !readOnly && isAuthor && (
+              <div className="relative" ref={optionsMenuRef}>
+                <button
+                  onClick={() => setShowOptionsMenu(!showOptionsMenu)}
+                  className="p-1.5 rounded-full hover:bg-gray-100 transition-colors"
+                  aria-label="Options du post"
+                >
+                  <EllipsisVerticalIcon className="h-5 w-5 text-gray-500" />
+                </button>
+
+                {showOptionsMenu && (
+                  <div className="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-lg border border-gray-200 py-1 z-50 animate-fade-in">
+                    <button
+                      onClick={() => {
+                        setEditing(true);
+                        setShowOptionsMenu(false);
+                      }}
+                      className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2"
+                    >
+                      <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                      </svg>
+                      Modifier
+                    </button>
+
+                    {!isRepost && (
+                      <button
+                        onClick={() => {
+                          handleDeletePost();
+                          setShowOptionsMenu(false);
+                        }}
+                        className="w-full px-4 py-2 text-left text-sm text-red-600 hover:bg-red-50 flex items-center gap-2"
+                      >
+                        <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                        </svg>
+                        Supprimer
+                      </button>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
           </div>
           {!editing && bodyText && (
-            <p className={`mt-1 text-sm text-gray-700 whitespace-pre-wrap ${!expanded && bodyText.length>180 ? 'line-clamp-4' : ''}`}>
-              <PostContentRenderer text={bodyText} mentions={post?.mentions || {}} />
-            </p>
+            <>
+              {/* Featured Image for Articles */}
+              {post.post_type === 'article' && post.featured_image && (
+                <div className="mt-3 -mx-1">
+                  <img
+                    src={post.featured_image}
+                    alt={post.content || 'Article'}
+                    className="w-full h-64 object-cover rounded-lg cursor-pointer hover:opacity-95 transition-opacity"
+                    onClick={() => setShowArticleDetail(true)}
+                  />
+                </div>
+              )}
+
+              <div
+                ref={textContentRef}
+                className={`mt-1 text-sm text-gray-700 whitespace-pre-wrap ${!expanded && bodyText.length>180 ? 'line-clamp-4' : ''}`}
+              >
+                {/* For articles, show excerpt if available, otherwise show truncated content */}
+                {post.post_type === 'article' && post.excerpt ? (
+                  <span className="italic text-gray-600">{post.excerpt}</span>
+                ) : (
+                  <PostContentRenderer text={bodyText} mentions={post?.mentions || {}} />
+                )}
+              </div>
+
+              {/* "Read More" button for articles */}
+              {post.post_type === 'article' && post.article_content && (
+                <button
+                  onClick={() => setShowArticleDetail(true)}
+                  className="mt-2 text-sm text-blue-600 hover:text-blue-700 font-medium flex items-center gap-1"
+                >
+                  Lire l'article complet
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                  </svg>
+                </button>
+              )}
+            </>
           )}
           {editing && (
             <div className="mt-3">
@@ -856,15 +965,22 @@ const PostCard = ({
         isOpen={deleteConfirmModal.isOpen}
         onClose={closeDeleteModal}
         onConfirm={executeDelete}
-        title={`Delete ${deleteConfirmModal.type === 'post' ? 'Post' : 'Poll'}`}
+        title={`Supprimer ${deleteConfirmModal.type === 'post' ? 'le post' : 'le sondage'}`}
         message={
           deleteConfirmModal.type === 'post'
-            ? 'Are you sure you want to delete this post? This action cannot be undone.'
-            : 'Are you sure you want to delete this poll? This will remove all votes and cannot be undone.'
+            ? 'Êtes-vous sûr de vouloir supprimer ce post ? Cette action est irréversible.'
+            : 'Êtes-vous sûr de vouloir supprimer ce sondage ? Cela supprimera tous les votes et ne peut pas être annulé.'
         }
-        confirmText="Delete"
-        cancelText="Cancel"
+        confirmText="Supprimer"
+        cancelText="Annuler"
         type="danger"
+      />
+
+      {/* Article Detail Modal */}
+      <ArticleDetailModal
+        isOpen={showArticleDetail}
+        onClose={() => setShowArticleDetail(false)}
+        post={post}
       />
     </div>
     </>

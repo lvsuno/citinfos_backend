@@ -1,7 +1,8 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
+import DOMPurify from 'dompurify';
 
-// Renders post text with mention (@user) and hashtag (#tag) highlighting
+// Renders post text with HTML rendering, mention (@user) and hashtag (#tag) highlighting
 export const PostContentRenderer = ({ text, mentions = {} }) => {
   const navigate = useNavigate();
 
@@ -13,13 +14,31 @@ export const PostContentRenderer = ({ text, mentions = {} }) => {
     if (userId) {
       // Use the same pattern as ClickableAuthorName - navigate to /users/:userId
       navigate(`/users/${userId}`);
-    } else {
-      console.warn(`No user ID found for mention: ${cleanUsername}`);
     }
   };
 
   if (!text) return null;
 
+  // Check if text contains HTML tags
+  const hasHTML = /<[a-z][\s\S]*>/i.test(text);
+
+  // If text contains HTML, sanitize and render it
+  if (hasHTML) {
+    // Sanitize HTML to prevent XSS attacks
+    const sanitizedHTML = DOMPurify.sanitize(text, {
+      ALLOWED_TAGS: ['p', 'br', 'strong', 'em', 'u', 'a', 'ul', 'ol', 'li', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'blockquote', 'code', 'pre'],
+      ALLOWED_ATTR: ['href', 'target', 'rel']
+    });
+
+    return (
+      <div
+        className="prose prose-sm max-w-none break-words leading-relaxed"
+        dangerouslySetInnerHTML={{ __html: sanitizedHTML }}
+      />
+    );
+  }
+
+  // Otherwise, use the original mention/hashtag highlighting
   return (
     <span className="break-words leading-relaxed">
       {text.split(/(\s+)/).map((part, i) => {
