@@ -5,6 +5,8 @@ from . import views
 router = DefaultRouter()
 
 router.register(r'communities', views.CommunityViewSet, basename='community')
+router.register(r'rubrique-templates', views.RubriqueTemplateViewSet, basename='rubrique-template')
+# router.register(r'sections', views.SectionViewSet, basename='section')  # Section model removed
 router.register(r'threads', views.ThreadViewSet, basename='thread')
 router.register(r'community-memberships', views.CommunityMembershipViewSet, basename='community-membership')
 router.register(r'community-roles', views.CommunityRoleViewSet, basename='community-role')

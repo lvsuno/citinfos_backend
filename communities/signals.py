@@ -137,3 +137,42 @@ def handle_community_role_change(sender, instance, created, **kwargs):
             logger.error("Failed to create role change notification: %s", str(e))
         except (ValueError, AttributeError) as e:
             logger.error("Unexpected error in role change notification: %s", str(e))
+
+
+@receiver(post_save, sender='communities.Community')
+def populate_enabled_rubriques(sender, instance, created, **kwargs):
+    """Auto-populate enabled_rubriques with ALL active rubriques for new communities.
+
+    All communities start with all rubriques enabled by default.
+    Customization happens later when communities disable specific rubriques.
+    """
+    # pylint: disable=unused-argument
+    if created:
+        try:
+            from .models import RubriqueTemplate
+
+            # Get ALL active templates (including parent and children)
+            all_templates = RubriqueTemplate.objects.filter(
+                is_active=True
+            ).order_by('path', 'default_order')
+
+            # Populate enabled_rubriques with ALL rubrique UUIDs
+            instance.enabled_rubriques = [
+                str(template.id) for template in all_templates
+            ]
+            instance.save(update_fields=['enabled_rubriques'])
+
+            logger.info(
+                "Populated ALL %d active rubriques for community: %s",
+                len(instance.enabled_rubriques),
+                instance.name
+            )
+
+        except Exception as e:
+            logger.error(
+                "Failed to populate rubriques for community %s: %s",
+                instance.name,
+                str(e)
+            )
+
+

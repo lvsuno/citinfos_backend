@@ -5,7 +5,7 @@ from accounts.models import UserProfile
 from core.timezone_utils import validate_timezone_restrictions
 
 from .models import (
-    Community, CommunityMembership, Thread,
+    Community, CommunityMembership, Thread, RubriqueTemplate,
     # CommunityInvitation, CommunityJoinRequest,  # Public communities only
     CommunityRole, CommunityModeration, CommunityAnnouncement
 )
@@ -48,12 +48,178 @@ class CommunityRoleSerializer(serializers.ModelSerializer):
         read_only_fields = ['id', 'created_at']
 
 
+class RubriqueTemplateSerializer(serializers.ModelSerializer):
+    """Serializer for rubrique templates with hierarchy support."""
+
+    template_type_display = serializers.CharField(
+        source='get_template_type_display',
+        read_only=True
+    )
+
+    # Hierarchy fields
+    parent_name = serializers.CharField(
+        source='parent.default_name',
+        read_only=True,
+        allow_null=True
+    )
+    parent_template_type = serializers.CharField(
+        source='parent.template_type',
+        read_only=True,
+        allow_null=True
+    )
+    hierarchy_path = serializers.SerializerMethodField()
+    children = serializers.SerializerMethodField()
+
+    class Meta:
+        model = RubriqueTemplate
+        fields = [
+            'id', 'template_type', 'template_type_display',
+            'default_name', 'default_name_en', 'default_description',
+            'default_icon', 'default_color',
+            'parent', 'parent_name', 'parent_template_type',
+            'depth', 'path', 'hierarchy_path',
+            'is_required',
+            'allow_threads', 'allow_direct_posts',
+            'default_order',
+            'is_active',
+            'children',
+            'created_at', 'updated_at'
+        ]
+        read_only_fields = [
+            'id', 'depth', 'path', 'hierarchy_path',
+            'parent_name', 'parent_template_type', 'children',
+            'created_at', 'updated_at'
+        ]
+
+    def get_hierarchy_path(self, obj):
+        """Return human-readable hierarchy path like 'Événements → Concerts'"""
+        return obj.get_hierarchy_path()
+
+    def get_children(self, obj):
+        """Return immediate children of this rubrique."""
+        # Check if we should include children (avoid infinite recursion)
+        request = self.context.get('request')
+        include_children = True
+
+        if request:
+            # Allow query param to disable children
+            include_children = request.query_params.get(
+                'include_children', 'true'
+            ).lower() == 'true'
+
+        if not include_children:
+            return []
+
+        children = RubriqueTemplate.objects.filter(
+            parent=obj, is_active=True
+        ).order_by('default_order', 'default_name')
+
+        # Use a simple serializer to avoid deep nesting
+        return [{
+            'id': str(child.id),
+            'template_type': child.template_type,
+            'default_name': child.default_name,
+            'default_icon': child.default_icon,
+            'default_color': child.default_color,
+            'depth': child.depth,
+            'path': child.path
+        } for child in children]
+
+
+
+# Section model removed - using RubriqueTemplate hierarchy instead
+# class SectionSerializer(serializers.ModelSerializer):
+#     """Serializer for hierarchical sections within communities."""
+#
+#     # Parent section info
+#     parent_section_name = serializers.CharField(
+#         source='parent_section.name',
+#         read_only=True,
+#         allow_null=True
+#     )
+#     parent_section_slug = serializers.CharField(
+#         source='parent_section.slug',
+#         read_only=True,
+#         allow_null=True
+#     )
+#
+#     # Community info
+#     community_name = serializers.CharField(
+#         source='community.name',
+#         read_only=True
+#     )
+#     community_slug = serializers.CharField(
+#         source='community.slug',
+#         read_only=True
+#     )
+#
+#     # Template info
+#     template_name = serializers.CharField(
+#         source='template.default_name',
+#         read_only=True,
+#         allow_null=True
+#     )
+#     template_type = serializers.CharField(
+#         source='template.template_type',
+#         read_only=True,
+#         allow_null=True
+#     )
+#     template_icon = serializers.CharField(
+#         source='template.default_icon',
+#         read_only=True,
+#         allow_null=True
+#     )
+#
+#     # Hierarchy info
+#     breadcrumbs = serializers.SerializerMethodField()
+#     has_subsections = serializers.SerializerMethodField()
+#     hierarchy_path = serializers.SerializerMethodField()
+#
+#     class Meta:
+#         model = Section
+#         fields = [
+#             'id', 'community', 'community_name', 'community_slug',
+#             'parent_section', 'parent_section_name', 'parent_section_slug',
+#             'template', 'template_name', 'template_type', 'template_icon',
+#             'is_template_based', 'is_customized',
+#             'name', 'slug', 'description', 'icon', 'color',
+#             'order', 'depth', 'path', 'hierarchy_path', 'breadcrumbs',
+#             'allow_threads', 'allow_direct_posts',
+#             'require_approval', 'is_locked', 'inherit_permissions',
+#             'threads_count', 'posts_count', 'subsections_count',
+#             'total_threads_count', 'total_posts_count',
+#             'has_subsections',
+#             'created_at', 'updated_at'
+#         ]
+#         read_only_fields = [
+#             'id', 'depth', 'path', 'hierarchy_path', 'breadcrumbs',
+#             'template_name', 'template_type', 'template_icon',
+#             'threads_count', 'posts_count', 'subsections_count',
+#             'total_threads_count', 'total_posts_count',
+#             'has_subsections', 'created_at', 'updated_at'
+#         ]
+#
+#     def get_breadcrumbs(self, obj):
+#         """Return breadcrumb navigation for this section."""
+#         return obj.breadcrumbs
+#
+#     def get_has_subsections(self, obj):
+#         """Check if section has any subsections."""
+#         return obj.subsections_count > 0
+#
+#     def get_hierarchy_path(self, obj):
+#         """Return human-readable hierarchy path like 'Events → Music → Jazz'"""
+#         return obj.get_hierarchy_path()
+
+
 class ThreadSerializer(serializers.ModelSerializer):
-    """Serializer for Thread (discussion topics) within communities."""
+    """Serializer for Thread model."""
     creator_username = serializers.CharField(
         source='creator.user.username',
         read_only=True
     )
+    creator_name = serializers.SerializerMethodField()
+
     community_name = serializers.CharField(
         source='community.name',
         read_only=True
@@ -61,6 +227,26 @@ class ThreadSerializer(serializers.ModelSerializer):
     community_slug = serializers.CharField(
         source='community.slug',
         read_only=True
+    )
+
+    # Section information (from rubrique_template)
+    section_name = serializers.CharField(
+        source='rubrique_template.default_name',
+        read_only=True,
+        allow_null=True
+    )
+    section_slug = serializers.CharField(
+        source='rubrique_template.template_type',
+        read_only=True,
+        allow_null=True
+    )
+    section_breadcrumbs = serializers.SerializerMethodField()
+
+    # Best post information
+    best_post_id = serializers.UUIDField(
+        source='best_post.id',
+        read_only=True,
+        allow_null=True
     )
 
     # Optional: Include first post when creating thread
@@ -79,18 +265,45 @@ class ThreadSerializer(serializers.ModelSerializer):
         help_text="Type of the first post"
     )
 
+    def get_creator_name(self, obj):
+        """Get creator's display name."""
+        if obj.creator:
+            return obj.creator.display_name
+        return "Unknown User"
+
+    def get_section_breadcrumbs(self, obj):
+        """Get breadcrumb navigation for thread's rubrique."""
+        if obj.rubrique_template:
+            # Build breadcrumbs from rubrique hierarchy
+            breadcrumbs = []
+            current = obj.rubrique_template
+
+            # Traverse up the parent chain
+            while current:
+                breadcrumbs.insert(0, {
+                    'name': current.default_name,
+                    'slug': current.template_type,
+                    'id': str(current.id)
+                })
+                current = current.parent
+
+            return breadcrumbs
+        return None
+
     class Meta:
         model = Thread
         fields = [
             'id', 'community', 'community_name', 'community_slug',
-            'title', 'slug', 'creator', 'creator_username', 'body',
+            'rubrique_template', 'section_name', 'section_slug', 'section_breadcrumbs',
+            'title', 'slug', 'creator', 'creator_username', 'creator_name',
+            'body', 'best_post', 'best_post_id',
             'is_closed', 'is_pinned', 'allow_comments', 'posts_count',
             'created_at', 'updated_at',
             # Write-only fields for first post
             'first_post_content', 'first_post_type'
         ]
         read_only_fields = [
-            'id', 'slug', 'creator', 'posts_count',
+            'id', 'slug', 'creator', 'posts_count', 'best_post',
             'created_at', 'updated_at'
         ]
 
@@ -134,6 +347,9 @@ class CommunitySerializer(serializers.ModelSerializer):
     # Division info (optional - can be null)
     division_info = serializers.SerializerMethodField()
 
+    # Rubrique info - return full rubrique objects instead of just UUIDs
+    enabled_rubriques_detail = serializers.SerializerMethodField()
+
     class Meta:
         model = Community
         fields = [
@@ -141,6 +357,7 @@ class CommunitySerializer(serializers.ModelSerializer):
             'cover_media', 'cover_media_type', 'avatar', 'creator', 'creator_username',
             'rules', 'tags', 'allow_posts', 'require_post_approval',
             'allow_external_links', 'division', 'division_info', 'posts_count', 'threads_count',
+            'enabled_rubriques', 'enabled_rubriques_detail',
             'user_is_member', 'user_can_post', 'user_role',
             'is_active', 'is_featured', 'created_at', 'updated_at'
         ]
@@ -156,6 +373,22 @@ class CommunitySerializer(serializers.ModelSerializer):
                 'admin_level': obj.division.admin_level,
             }
         return None
+
+    def get_enabled_rubriques_detail(self, obj):
+        """Get full rubrique objects for enabled rubriques."""
+        # Use the Community helper method to get rubriques
+        enabled_rubriques = obj.get_enabled_rubriques()
+
+        # Return simplified rubrique info
+        return [{
+            'id': str(rubrique.id),
+            'template_type': rubrique.template_type,
+            'name': rubrique.default_name,
+            'icon': rubrique.default_icon,
+            'color': rubrique.default_color,
+            'depth': rubrique.depth,
+            'parent_id': str(rubrique.parent_id) if rubrique.parent_id else None
+        } for rubrique in enabled_rubriques]
 
     def get_user_is_member(self, obj):
         """Check if the current user is a member of the community."""
