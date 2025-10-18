@@ -38,9 +38,7 @@ class AnalyticsAPI {
 
       const response = await baseAPI.post('/postsee/track-view/', data);
       return response;
-    } catch (error) {
-      console.error('Failed to track post view:', error);
-      // Don't throw error to avoid breaking user experience
+    } catch (error) {      // Don't throw error to avoid breaking user experience
       return null;
     }
   }
@@ -61,9 +59,7 @@ class AnalyticsAPI {
         params: { period }
       });
       return response;
-    } catch (error) {
-      console.error('Failed to get post view analytics:', error);
-      throw error;
+    } catch (error) {      throw error;
     }
   }
 
@@ -81,9 +77,7 @@ class AnalyticsAPI {
         }
       });
       return response;
-    } catch (error) {
-      console.error('Failed to get user view history:', error);
-      throw error;
+    } catch (error) {      throw error;
     }
   }
 
@@ -98,9 +92,7 @@ class AnalyticsAPI {
         params: { period }
       });
       return response;
-    } catch (error) {
-      console.error('Failed to get content analytics summary:', error);
-      throw error;
+    } catch (error) {      throw error;
     }
   }
 
@@ -112,9 +104,7 @@ class AnalyticsAPI {
     try {
       const response = await baseAPI.post('/postsee/sync/');
       return response;
-    } catch (error) {
-      console.error('Failed to sync analytics:', error);
-      throw error;
+    } catch (error) {      throw error;
     }
   }
 
@@ -149,9 +139,7 @@ class AnalyticsAPI {
 
       const response = await baseAPI.post(`${this.baseURL}/track-post-engagement/`, data);
       return response;
-    } catch (error) {
-      console.error('Failed to track post engagement:', error);
-      return null;
+    } catch (error) {      return null;
     }
   }
 
@@ -164,9 +152,7 @@ class AnalyticsAPI {
     try {
       const response = await baseAPI.get(`${this.baseURL}/post-analytics/${postId}/`);
       return response;
-    } catch (error) {
-      console.error('Failed to get post analytics:', error);
-      throw error;
+    } catch (error) {      throw error;
     }
   }
 
@@ -185,9 +171,7 @@ class AnalyticsAPI {
         }))
       });
       return response;
-    } catch (error) {
-      console.error('Failed to batch track post views:', error);
-      return null;
+    } catch (error) {      return null;
     }
   }
 
@@ -200,9 +184,7 @@ class AnalyticsAPI {
     try {
       const response = await baseAPI.get(`${this.baseURL}/post-view-history/${postId}/`);
       return response;
-    } catch (error) {
-      console.error('Failed to get post view history:', error);
-      throw error;
+    } catch (error) {      throw error;
     }
   }
 
@@ -218,9 +200,7 @@ class AnalyticsAPI {
         timestamp: new Date().toISOString()
       });
       return response;
-    } catch (error) {
-      console.error('Failed to mark post as read:', error);
-      return null;
+    } catch (error) {      return null;
     }
   }
 
@@ -232,9 +212,7 @@ class AnalyticsAPI {
     try {
       const response = await baseAPI.get(`${this.baseURL}/reading-stats/`);
       return response;
-    } catch (error) {
-      console.error('Failed to get reading stats:', error);
-      throw error;
+    } catch (error) {      throw error;
     }
   }
 
@@ -248,9 +226,7 @@ class AnalyticsAPI {
     try {
       const response = await baseAPI.get(`${this.baseURL}/admin/overview/`);
       return response;
-    } catch (error) {
-      console.error('Failed to get overview analytics:', error);
-      throw error;
+    } catch (error) {      throw error;
     }
   }
 
@@ -263,9 +239,7 @@ class AnalyticsAPI {
     try {
       const response = await baseAPI.get(`${this.baseURL}/admin/content/`, { params });
       return response;
-    } catch (error) {
-      console.error('Failed to get content analytics:', error);
-      throw error;
+    } catch (error) {      throw error;
     }
   }
 
@@ -278,9 +252,7 @@ class AnalyticsAPI {
     try {
       const response = await baseAPI.get(`${this.baseURL}/admin/equipment/`, { params });
       return response;
-    } catch (error) {
-      console.error('Failed to get equipment analytics:', error);
-      throw error;
+    } catch (error) {      throw error;
     }
   }
 
@@ -293,9 +265,7 @@ class AnalyticsAPI {
     try {
       const response = await baseAPI.get(`${this.baseURL}/admin/users/`, { params });
       return response;
-    } catch (error) {
-      console.error('Failed to get user analytics:', error);
-      throw error;
+    } catch (error) {      throw error;
     }
   }
 
@@ -308,9 +278,7 @@ class AnalyticsAPI {
     try {
       const response = await baseAPI.get(`${this.baseURL}/admin/search/`, { params });
       return response;
-    } catch (error) {
-      console.error('Failed to get search analytics:', error);
-      throw error;
+    } catch (error) {      throw error;
     }
   }
 
@@ -323,9 +291,7 @@ class AnalyticsAPI {
     try {
       const response = await baseAPI.get(`${this.baseURL}/admin/authentication/`, { params });
       return response;
-    } catch (error) {
-      console.error('Failed to get authentication analytics:', error);
-      throw error;
+    } catch (error) {      throw error;
     }
   }
 
@@ -343,9 +309,7 @@ class AnalyticsAPI {
         responseType: 'blob'
       });
       return response;
-    } catch (error) {
-      console.error('Failed to export analytics:', error);
-      throw error;
+    } catch (error) {      throw error;
     }
   }
 
@@ -357,9 +321,7 @@ class AnalyticsAPI {
     try {
       const response = await baseAPI.get(`${this.baseURL}/admin/realtime/`);
       return response;
-    } catch (error) {
-      console.error('Failed to get realtime analytics:', error);
-      throw error;
+    } catch (error) {      throw error;
     }
   }
 
@@ -375,9 +337,7 @@ class AnalyticsAPI {
         params: { limit, period }
       });
       return response;
-    } catch (error) {
-      console.error('Failed to get top content:', error);
-      throw error;
+    } catch (error) {      throw error;
     }
   }
 
@@ -394,9 +354,7 @@ class AnalyticsAPI {
 
       const response = await baseAPI.get(url);
       return response;
-    } catch (error) {
-      console.error('Failed to get equipment metrics:', error);
-      throw error;
+    } catch (error) {      throw error;
     }
   }
 
@@ -414,9 +372,7 @@ class AnalyticsAPI {
 
       const response = await baseAPI.get(url, { params: { period } });
       return response;
-    } catch (error) {
-      console.error('Failed to get user behavior:', error);
-      throw error;
+    } catch (error) {      throw error;
     }
   }
 
@@ -431,9 +387,7 @@ class AnalyticsAPI {
         params: { period }
       });
       return response;
-    } catch (error) {
-      console.error('Failed to get search trends:', error);
-      throw error;
+    } catch (error) {      throw error;
     }
   }
 
@@ -448,9 +402,7 @@ class AnalyticsAPI {
         params: { period }
       });
       return response;
-    } catch (error) {
-      console.error('Failed to get PostSee analytics:', error);
-      throw error;
+    } catch (error) {      throw error;
     }
   }
 
@@ -462,9 +414,7 @@ class AnalyticsAPI {
     try {
       const response = await baseAPI.get(`${this.baseURL}/admin/system-performance/`);
       return response;
-    } catch (error) {
-      console.error('Failed to get system performance:', error);
-      throw error;
+    } catch (error) {      throw error;
     }
   }
 

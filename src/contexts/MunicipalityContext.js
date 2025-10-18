@@ -47,7 +47,7 @@ export const MunicipalityProvider = ({ children }) => {
         }
     }, []); // Empty deps - function doesn't depend on any external values
 
-    const getMunicipalitySlug = (municipalityName) => {
+    const getMunicipalitySlug = useCallback((municipalityName) => {
         return municipalityName
             .toLowerCase()
             .normalize('NFD')
@@ -55,24 +55,20 @@ export const MunicipalityProvider = ({ children }) => {
             .replace(/[^a-z0-9]/g, '-') // Remplacer caractères spéciaux par tirets
             .replace(/-+/g, '-') // Remplacer tirets multiples par un seul
             .replace(/^-|-$/g, ''); // Enlever tirets en début/fin
-    };
+    }, []); // No dependencies - pure function
 
     // Clean up old localStorage keys on mount (migration cleanup)
     useEffect(() => {
         // Remove old keys that are no longer used
         const oldKeys = ['selectedMunicipality', 'selectedMunicipalityId'];
         oldKeys.forEach(key => {
-            if (localStorage.getItem(key)) {
-                console.log(`🧹 Cleaning up old localStorage key: ${key}`);
-                localStorage.removeItem(key);
+            if (localStorage.getItem(key)) {                localStorage.removeItem(key);
             }
         });
 
         // Load current division from localStorage on mount ONLY if no user
         const currentDivision = getCurrentDivision();
-        if (currentDivision && !user) {
-            console.log('📍 MunicipalityContext - Loading division from localStorage on mount:', currentDivision.name);
-            setActiveMunicipality({
+        if (currentDivision && !user) {            setActiveMunicipality({
                 id: currentDivision.id,
                 nom: currentDivision.name,
                 name: currentDivision.name,
@@ -83,17 +79,13 @@ export const MunicipalityProvider = ({ children }) => {
                 admin_level: currentDivision.admin_level,
                 fromStorage: true
             });
-        } else {
-            console.log('⚠️ MunicipalityContext - No division found in localStorage on mount or user logged in');
-        }
+        } else {        }
     }, []);
 
     // Update activeMunicipality when user logs in (PRIORITY over localStorage)
     useEffect(() => {
         if (user?.location) {
             const userLocation = user.location;
-            console.log('✅ MunicipalityContext - User logged in, updating activeMunicipality from user location:', userLocation);
-
             const municipality = {
                 id: userLocation.division_id,
                 nom: userLocation.city,
@@ -121,10 +113,7 @@ export const MunicipalityProvider = ({ children }) => {
                 boundary_type: userLocation.boundary_type,
                 admin_level: userLocation.admin_level,
                 level_1_id: userLocation.level_1_id
-            });
-
-            console.log('💾 MunicipalityContext - Saved user location to localStorage');
-        }
+            });        }
     }, [user, getMunicipalitySlug]);
 
     // Fonctions pour obtenir les informations de division administrative

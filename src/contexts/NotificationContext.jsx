@@ -62,9 +62,7 @@ function notificationReducer(state, action) {
 
       // Check if notification with same ID already exists
       const existingNotification = state.notifications.find(n => n.id === newNotification.id);
-      if (existingNotification) {
-        console.warn('Duplicate notification ID detected:', newNotification.id);
-        return state; // Don't add duplicate
+      if (existingNotification) {        return state; // Don't add duplicate
       }
 
       return {
@@ -175,8 +173,6 @@ export const NotificationProvider = ({ children }) => {
 
   // WebSocket message handler
   const handleWebSocketMessage = useCallback((message) => {
-    console.log('📨 Notification context received:', message);
-
     switch (message.type) {
       case 'connection_established':
         dispatch({
@@ -185,9 +181,7 @@ export const NotificationProvider = ({ children }) => {
         });
         break;
 
-      case 'token_renewed':
-        console.log('🔄 JWT token renewed via WebSocket - updating local storage');
-        // Token has been automatically updated by the WebSocket service
+      case 'token_renewed':        // Token has been automatically updated by the WebSocket service
         // Just log for debugging - no additional action needed
         break;
 
@@ -247,9 +241,7 @@ export const NotificationProvider = ({ children }) => {
         });
         break;
 
-      default:
-        console.log('Unknown notification message type:', message.type);
-    }
+      default:    }
   }, [state.settings.playSound]);
 
   // Play notification sound
@@ -271,16 +263,12 @@ export const NotificationProvider = ({ children }) => {
 
       oscillator.start(audioContext.currentTime);
       oscillator.stop(audioContext.currentTime + 0.5);
-    } catch (error) {
-      console.log('Could not play notification sound:', error);
-    }
+    } catch (error) {    }
   }, []);
 
   // Fetch existing notifications from API
   const fetchExistingNotifications = async () => {
-    try {
-      console.log('📥 Fetching existing notifications from API...');
-      const response = await apiService.get('/notifications/?limit=50'); // Get last 50 notifications
+    try {      const response = await apiService.get('/notifications/?limit=50'); // Get last 50 notifications
 
       if (response.data && response.data.results) {
         const notifications = response.data.results.map(notif => ({
@@ -298,34 +286,20 @@ export const NotificationProvider = ({ children }) => {
           } : null,
           extra_data: notif.extra_data || {}
         }));
-
-        console.log(`📥 Loaded ${notifications.length} existing notifications`);
-
         dispatch({
           type: ActionTypes.SET_NOTIFICATIONS,
           payload: notifications
         });
       }
-    } catch (error) {
-      console.error('❌ Failed to fetch existing notifications:', error);
-      // Don't show error to user for this background operation
+    } catch (error) {      // Don't show error to user for this background operation
     }
   };
 
   // Initialize WebSocket connection based on authentication status
   useEffect(() => {
-    console.log('🔌 NotificationContext: Auth state changed', {
-      isAuthenticated,
-      hasUser: !!user,
-      isConnected: state.isConnected,
-      isConnecting: state.isConnecting
-    });
-
     if (!isAuthenticated || !user) {
       // User is not authenticated, disconnect if connected
-      if (state.isConnected) {
-        console.log('🔌 Disconnecting WebSocket - user not authenticated');
-        notificationWebSocket.disconnect();
+      if (state.isConnected) {        notificationWebSocket.disconnect();
         dispatch({
           type: ActionTypes.SET_CONNECTION_STATUS,
           payload: { connected: false, connecting: false, failed: false }
@@ -339,8 +313,6 @@ export const NotificationProvider = ({ children }) => {
     const isTokenExpired = !token || notificationWebSocket.isTokenExpired(token);
 
     if (token && !isTokenExpired && !state.isConnected && !state.isConnecting) {
-      console.log('🔌 Establishing WebSocket connection for authenticated user:', user.username);
-
       // Timing client-side notification startup tasks
       console.time('fetchExistingNotifications');
       dispatch({
@@ -353,41 +325,27 @@ export const NotificationProvider = ({ children }) => {
 
       // Connect with universal authentication - WebSocket service handles token and session ID internally
       notificationWebSocket.connect(handleWebSocketMessage);
-    } else if (state.isConnected) {
-      console.log('✅ WebSocket already connected for user:', user.username);
-    } else if (state.isConnecting) {
-      console.log('🔄 WebSocket connection in progress for user:', user.username);
-    }
+    } else if (state.isConnected) {    } else if (state.isConnecting) {    }
 
     // Add WebSocket listener for connection status updates
     const unsubscribe = notificationWebSocket.addListener((message) => {
-      console.log('📡 WebSocket status update:', message);
-
       switch (message.type) {
-        case 'connection_opened':
-          console.log('✅ WebSocket connection established');
-          dispatch({
+        case 'connection_opened':          dispatch({
             type: ActionTypes.SET_CONNECTION_STATUS,
             payload: { connected: true, connecting: false, failed: false }
           });
           break;
-        case 'connection_closed':
-          console.log('🔌 WebSocket connection closed');
-          dispatch({
+        case 'connection_closed':          dispatch({
             type: ActionTypes.SET_CONNECTION_STATUS,
             payload: { connected: false, connecting: false, failed: false }
           });
           break;
-        case 'connection_error':
-          console.error('❌ WebSocket connection error');
-          dispatch({
+        case 'connection_error':          dispatch({
             type: ActionTypes.CONNECTION_FAILED,
             payload: {}
           });
           break;
-        case 'connection_failed':
-          console.error('❌ WebSocket connection failed');
-          dispatch({
+        case 'connection_failed':          dispatch({
             type: ActionTypes.CONNECTION_FAILED,
             payload: {}
           });
@@ -418,9 +376,7 @@ export const NotificationProvider = ({ children }) => {
           type: ActionTypes.MARK_AS_READ,
           payload: { id: notificationId }
         });
-      } catch (error) {
-        console.error('Failed to mark notification as read:', error);
-      }
+      } catch (error) {      }
     },
 
     markAllAsRead: async () => {
@@ -435,9 +391,7 @@ export const NotificationProvider = ({ children }) => {
           type: ActionTypes.MARK_ALL_AS_READ,
           payload: {}
         });
-      } catch (error) {
-        console.error('Failed to mark all notifications as read:', error);
-      }
+      } catch (error) {      }
     },
 
     removeNotification: (notificationId) => {
@@ -474,9 +428,7 @@ export const NotificationProvider = ({ children }) => {
             payload: notifications
           });
         }
-      } catch (error) {
-        console.error('Failed to fetch notification history:', error);
-      }
+      } catch (error) {      }
     },
 
     updateSettings: (newSettings) => {
@@ -510,9 +462,7 @@ export const NotificationProvider = ({ children }) => {
         });
         // Universal WebSocket authentication - service handles token and session ID
         notificationWebSocket.connect(handleWebSocketMessage);
-      } else {
-        console.warn('Cannot reconnect: No valid JWT token available');
-      }
+      } else {      }
     }
   };
 
@@ -526,9 +476,7 @@ export const NotificationProvider = ({ children }) => {
           type: ActionTypes.UPDATE_SETTINGS,
           payload: settings
         });
-      } catch (error) {
-        console.error('Failed to load notification settings:', error);
-      }
+      } catch (error) {      }
     }
   }, []);
 

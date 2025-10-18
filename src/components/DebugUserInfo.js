@@ -31,13 +31,6 @@ const DebugUserInfo = () => {
                         src={user.avatar}
                         alt="Test"
                         style={{ width: '50px', height: '50px', objectFit: 'cover' }}
-                        onError={() => console.log('ERREUR: Image avatar ne peut pas se charger')}
-                        onLoad={() => console.log('SUCCESS: Avatar chargé avec succès')}
-                    />
-                </div>
-            )}
-        </div>
-    );
-};
+                        onError={() =>};
 
 export default DebugUserInfo;

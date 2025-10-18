@@ -29,7 +29,6 @@ const EnhancedMunicipalitySelector = ({
   const [searchResults, setSearchResults] = useState([]);
   const [isSearching, setIsSearching] = useState(false);
 
-
   const selectorRef = useRef(null);
   const searchInputRef = useRef(null);
   const hasRunInitialDetection = useRef(false);
@@ -38,21 +37,14 @@ const EnhancedMunicipalitySelector = ({
 
   // Define detectUserLocation function
   const detectUserLocation = useCallback(async () => {
-    console.log('🔄 Making backend call: getUserLocationData()');
-
     try {
       const result = await geolocationService.getUserLocationData();
-      console.log('📍 Location result:', result);
-
       if (result.success && result.closestDivisions && result.closestDivisions.length > 0) {
         setLocationData(result);
 
         // Auto-select the closest division
         const closestDivision = result.closestDivisions[0];
         const divisionName = closestDivision.name;
-
-        console.log('✨ Auto-selecting closest division:', divisionName);
-
         // Set the selected municipality and update the form
         const municipalityObj = {
           id: closestDivision.id,
@@ -64,12 +56,8 @@ const EnhancedMunicipalitySelector = ({
         setSelectedMunicipality(municipalityObj);
         // Pass both the division name and the division data with ID
         onChange(divisionName, closestDivision);
-      } else {
-        console.log('⚠️ Location detection failed or no close divisions found');
-      }
-    } catch (error) {
-      console.error('❌ Location detection error:', error);
-    }
+      } else {      }
+    } catch (error) {    }
   }, [onChange]);
 
   // Auto-detect location on component mount if enabled
@@ -125,9 +113,7 @@ const EnhancedMunicipalitySelector = ({
 
         if (result.success) {
           setSearchResults(result.results);
-        } else {
-          console.error('Search failed:', result.error);
-          // Fallback to local search
+        } else {          // Fallback to local search
           const localResults = searchMunicipalities(searchTerm, 10);
           setSearchResults(localResults.map(m => ({
             id: m.id || m.nom,
@@ -138,9 +124,7 @@ const EnhancedMunicipalitySelector = ({
             admin_code: null
           })));
         }
-      } catch (error) {
-        console.error('Error searching divisions:', error);
-      } finally {
+      } catch (error) {      } finally {
         setIsSearching(false);
       }
     };
@@ -169,8 +153,6 @@ const EnhancedMunicipalitySelector = ({
     }
   }, [isOpen]);
 
-
-
   const handleSelectorClick = () => {
     setIsOpen(!isOpen);
     if (!isOpen) {
@@ -187,9 +169,7 @@ const EnhancedMunicipalitySelector = ({
   };
 
   const handleDivisionSelect = (division) => {
-    if (!division) {
-      console.error('Division is undefined in handleDivisionSelect');
-      return;
+    if (!division) {      return;
     }
 
     const divisionName = division.name || division.nom || 'Unknown';
@@ -219,9 +199,7 @@ const EnhancedMunicipalitySelector = ({
           if (slug && navigate) {
             navigate(`/municipality/${slug}`);
           }
-        } catch (error) {
-          console.error('Error getting municipality slug:', error);
-        }
+        } catch (error) {        }
       }
     }
 
@@ -253,8 +231,6 @@ const EnhancedMunicipalitySelector = ({
     const index = name.charCodeAt(0) % colors.length;
     return colors[index];
   };
-
-
 
   const renderDivisionOption = (division) => {
     const distance = geolocationService.formatDistance(division.distance_km);
@@ -302,8 +278,6 @@ const EnhancedMunicipalitySelector = ({
         <LocationOn className={styles.locationIcon} />
         <span className={styles.selectorTitle}>Municipalité</span>
       </div>
-
-
 
       {/* Main selector button with clear button positioned outside */}
       <div className={styles.selectorContainer}>

@@ -251,9 +251,7 @@ const InlineRepostComposer = ({
       });
       setCustomFollowers('');
 
-    } catch (error) {
-      console.error('Failed to create repost:', error);
-      toast.error(error.message || 'Failed to create repost');
+    } catch (error) {      toast.error(error.message || 'Failed to create repost');
     } finally {
       setIsSubmitting(false);
     }

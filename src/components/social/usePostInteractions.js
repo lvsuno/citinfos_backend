@@ -15,8 +15,7 @@ export const usePostInteractions = (initialPost) => {
     shares_count: initialPost.shares_count || 0,
     reposts_count: initialPost.reposts_count || 0,
     comments_count: (initialPost.comments || []).length || initialPost.comments_count || 0,
-    is_liked: !!initialPost.is_liked,
-    is_disliked: !!initialPost.is_disliked,
+    user_reaction: initialPost.user_reaction || null, // Now stores reaction_type (e.g., 'like', 'love', 'angry')
     is_reposted: !!initialPost.is_reposted,
     comments: initialPost.comments || []
   }));
@@ -29,7 +28,7 @@ export const usePostInteractions = (initialPost) => {
     setTimeout(() => setError(null), 5000);
   }, []);
 
-  const toggleReaction = useCallback(async (kind) => {
+  const toggleReaction = useCallback(async (reactionType) => {
     if (isLoading) return;
 
     setIsLoading(true);
@@ -38,31 +37,27 @@ export const usePostInteractions = (initialPost) => {
     try {
       let response;
 
-      // Make API call to new real-time endpoints
-      if (kind === 'like') {
-        response = await socialAPI.likes.likePost(postState.id);
-      } else if (kind === 'dislike') {
-        response = await socialAPI.dislikes.dislikePost(postState.id);
+      // Make API call to reaction endpoint
+      // If reactionType is null, we're unreacting (removing the reaction)
+      if (reactionType === null) {
+        response = await socialAPI.reactions.unreactPost(postState.id);
+      } else {
+        response = await socialAPI.reactions.reactPost(postState.id, reactionType);
       }
 
       // Update state with response data (real-time counters from backend)
       if (response && response.post) {
         setPostState(prevState => ({
           ...prevState,
-          ...response.post,
-          // Map API field names to our state field names
-          is_liked: response.post.user_has_liked,
-          is_disliked: response.post.user_has_disliked,
-          likes_count: response.post.likes_count,
-          dislikes_count: response.post.dislikes_count,
+          user_reaction: response.post.user_reaction || null,
+          likes_count: response.post.likes_count || 0,
+          dislikes_count: response.post.dislikes_count || 0,
           comments_count: response.post.comments_count || prevState.comments_count,
           shares_count: response.post.shares_count || prevState.shares_count
         }));
       }
 
-    } catch (err) {
-      console.error('Reaction toggle failed:', err);
-      setError(`Failed to ${kind} post: ${err.message}`);
+    } catch (err) {      setError(`Failed to react to post: ${err.message}`);
       clearError();
     } finally {
       setIsLoading(false);
@@ -137,9 +132,7 @@ export const usePostInteractions = (initialPost) => {
       const communityId = postState.community || null;
       await socialAPI.utils.processContentMentions(text, null, newComment.id, communityId);
 
-    } catch (err) {
-      console.error('Add comment failed:', err);
-      setError(`Failed to add comment: ${err.message}`);
+    } catch (err) {      setError(`Failed to add comment: ${err.message}`);
       clearError();
     } finally {
       setIsLoading(false);
@@ -184,9 +177,7 @@ export const usePostInteractions = (initialPost) => {
         };
       });
 
-    } catch (err) {
-      console.error('Edit comment failed:', err);
-      setError(`Failed to edit comment: ${err.message}`);
+    } catch (err) {      setError(`Failed to edit comment: ${err.message}`);
       clearError();
     } finally {
       setIsLoading(false);
@@ -237,16 +228,14 @@ export const usePostInteractions = (initialPost) => {
         };
       });
 
-    } catch (err) {
-      console.error('Delete comment failed:', err);
-      setError(`Failed to delete comment: ${err.message}`);
+    } catch (err) {      setError(`Failed to delete comment: ${err.message}`);
       clearError();
     } finally {
       setIsLoading(false);
     }
   }, [isLoading, clearError]);
 
-  const toggleCommentReaction = useCallback(async (commentId, kind) => {
+  const toggleCommentReaction = useCallback(async (commentId, reactionType) => {
     if (isLoading) return;
 
     setIsLoading(true);
@@ -289,81 +278,30 @@ export const usePostInteractions = (initialPost) => {
     };
 
     try {
-      // Calculate optimistic updates with mutual exclusivity
-      let { user_has_liked = false, user_has_disliked = false, likes_count = 0, dislikes_count = 0 } = comment;
+      let response;
 
-      if (kind === 'like') {
-        if (user_has_liked) {
-          // Unlike
-          user_has_liked = false;
-          likes_count = Math.max(0, likes_count - 1);
-        } else {
-          // Like
-          user_has_liked = true;
-          likes_count += 1;
-          // Remove dislike if present (mutual exclusivity)
-          if (user_has_disliked) {
-            user_has_disliked = false;
-            dislikes_count = Math.max(0, dislikes_count - 1);
-          }
-        }
-      } else if (kind === 'dislike') {
-        if (user_has_disliked) {
-          // Remove dislike
-          user_has_disliked = false;
-          dislikes_count = Math.max(0, dislikes_count - 1);
-        } else {
-          // Dislike
-          user_has_disliked = true;
-          dislikes_count += 1;
-          // Remove like if present (mutual exclusivity)
-          if (user_has_liked) {
-            user_has_liked = false;
-            likes_count = Math.max(0, likes_count - 1);
-          }
-        }
+      // Make API call to reaction endpoint
+      // If reactionType is null, we're unreacting
+      if (reactionType === null) {
+        response = await socialAPI.reactions.unreactComment(commentId);
+      } else {
+        response = await socialAPI.reactions.reactComment(commentId, reactionType);
       }
 
-      // Optimistic UI update
-      setPostState(p => ({
-        ...p,
-        comments: updateCommentReaction(p.comments || [], commentId, {
-          user_has_liked, user_has_disliked, likes_count, dislikes_count
-        })
-      }));
-
-      // Make API call - using v2 endpoints for both posts and comments
-      if (kind === 'like') {
-        if (comment.user_has_liked) {
-          await socialAPI.likes.unlikeComment(commentId);
-        } else {
-          await socialAPI.likes.likeComment(commentId);
-        }
-      } else if (kind === 'dislike') {
-        if (comment.user_has_disliked) {
-          await socialAPI.dislikes.undislikeComment(commentId);
-        } else {
-          await socialAPI.dislikes.dislikeComment(commentId);
-        }
+      // Update state with response data
+      if (response && response.comment) {
+        setPostState(p => ({
+          ...p,
+          comments: updateCommentReaction(p.comments || [], commentId, {
+            user_reaction: response.comment.user_reaction || null,
+            likes_count: response.comment.likes_count || 0,
+            dislikes_count: response.comment.dislikes_count || 0
+          })
+        }));
       }
 
-    } catch (err) {
-      console.error('Comment reaction toggle failed:', err);
-      setError(`Failed to ${kind} comment: ${err.message}`);
+    } catch (err) {      setError(`Failed to react to comment: ${err.message}`);
       clearError();
-
-      // Revert optimistic update on error - use original comment state
-      const revertUpdates = {
-        user_has_liked: comment.user_has_liked,
-        user_has_disliked: comment.user_has_disliked,
-        likes_count: comment.likes_count,
-        dislikes_count: comment.dislikes_count
-      };
-
-      setPostState(p => ({
-        ...p,
-        comments: updateCommentReaction(p.comments || [], commentId, revertUpdates)
-      }));
     } finally {
       setIsLoading(false);
     }
@@ -397,9 +335,7 @@ export const usePostInteractions = (initialPost) => {
         }));
       }
 
-    } catch (err) {
-      console.error('Repost failed:', err);
-      setError(`Failed to repost: ${err.message}`);
+    } catch (err) {      setError(`Failed to repost: ${err.message}`);
       clearError();
     } finally {
       setIsLoading(false);
@@ -422,9 +358,7 @@ export const usePostInteractions = (initialPost) => {
         shares_count: (p.shares_count || 0) + 1
       }));
 
-    } catch (err) {
-      console.error('Direct share failed:', err);
-      setError(`Failed to share post: ${err.message}`);
+    } catch (err) {      setError(`Failed to share post: ${err.message}`);
       clearError();
     } finally {
       setIsLoading(false);

@@ -3,22 +3,11 @@ import { MapContainer, TileLayer, Marker, Popup, Polygon, useMap } from 'react-l
 import { Icon } from 'leaflet';
 import { useNavigate } from 'react-router-dom';
 import { useMunicipality } from '../contexts/MunicipalityContext';
-import geolocationService from '../services/geolocationService';
 import { setCurrentDivision } from '../utils/divisionStorage';
 import styles from './MunicipalitiesMap.module.css';
 
 // Import CSS de Leaflet
 import 'leaflet/dist/leaflet.css';
-
-// Configuration des icônes Leaflet
-const defaultIcon = new Icon({
-    iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-blue.png',
-    shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png',
-    iconSize: [25, 41],
-    iconAnchor: [12, 41],
-    popupAnchor: [1, -34],
-    shadowSize: [41, 41]
-});
 
 const activeIcon = new Icon({
     iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-green.png',
@@ -55,6 +44,7 @@ const MunicipalitiesMap = ({
 }) => {
     const [divisionGeometry, setDivisionGeometry] = useState(null);
     const [divisionCentroid, setDivisionCentroid] = useState(null);
+    // eslint-disable-next-line no-unused-vars
     const [countryBoundary, setCountryBoundary] = useState(null); // NEW: Country boundary
     const [level1Boundary, setLevel1Boundary] = useState(null); // NEW: Level 1 boundary
     const [mapCenter, setMapCenter] = useState([46.8139, -71.2082]); // Default: Quebec center
@@ -62,7 +52,7 @@ const MunicipalitiesMap = ({
     const [mapBounds, setMapBounds] = useState(null); // NEW: For fitBounds instead of fixed zoom
     const [loading, setLoading] = useState(false);
     const navigate = useNavigate();
-    const { switchMunicipality, getMunicipalitySlug } = useMunicipality();
+    const { switchMunicipality } = useMunicipality();
 
     // Helper to calculate bounding box from coordinates
     const calculateBounds = (coordinates, geometryType) => {
@@ -160,9 +150,7 @@ const MunicipalitiesMap = ({
                     // Calculate bounding box for better zoom level
                     const bounds = calculateBounds(coordinates, geom.type);
                     if (bounds) {
-                        setMapBounds(bounds);
-                        console.log('✅ Division boundary loaded, fitting to bounds');
-                    } else if (data.centroid) {
+                        setMapBounds(bounds);                    } else if (data.centroid) {
                         // Fallback: use centroid + fixed zoom if bounds fail
                         const centroid = [data.centroid.coordinates[1], data.centroid.coordinates[0]];
                         setMapCenter(centroid);
@@ -176,9 +164,7 @@ const MunicipalitiesMap = ({
                         setDivisionCentroid(centroid);
                     }
                 }
-            } catch (error) {
-                console.error('Error fetching division geometry:', error);
-            } finally {
+            } catch (error) {            } finally {
                 setLoading(false);
             }
         };
@@ -197,9 +183,6 @@ const MunicipalitiesMap = ({
                 setCountryBoundary(null);
                 return;
             }
-
-            console.log('🌍 Fetching country boundary for:', selectedCountry.name);
-
             // For now, just zoom to country's general area based on iso3
             // You can expand this to fetch actual country geometry if available
             const countryZooms = {
@@ -215,7 +198,6 @@ const MunicipalitiesMap = ({
             setMapCenter(countryView.center);
             setMapZoom(countryView.zoom);
             setMapBounds(null); // Clear bounds - using center/zoom for countries
-            console.log('✅ Zoomed to country:', selectedCountry.name);
         };
 
         fetchCountryBoundary();
@@ -231,9 +213,6 @@ const MunicipalitiesMap = ({
                 setLevel1Boundary(null);
                 return;
             }
-
-            console.log('🗺️ Fetching level1 boundary for:', selectedLevel1.name);
-
             try {
                 // Fetch level1 division geometry
                 const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:8000/api';
@@ -266,9 +245,7 @@ const MunicipalitiesMap = ({
                     // Calculate and set bounding box for the region
                     const bounds = calculateBounds(coordinates, geom.type);
                     if (bounds) {
-                        setMapBounds(bounds);
-                        console.log('✅ Level1 boundary loaded, fitting to bounds:', selectedLevel1.name);
-                    } else {
+                        setMapBounds(bounds);                    } else {
                         // Fallback: use centroid if bounds calculation fails
                         if (data.centroid) {
                             const centroid = [data.centroid.coordinates[1], data.centroid.coordinates[0]];
@@ -276,13 +253,8 @@ const MunicipalitiesMap = ({
                             setMapZoom(8);
                             setMapBounds(null); // Clear bounds to use center/zoom
                         }
-                    }
-
-                    console.log('✅ Level1 boundary loaded for:', selectedLevel1.name);
-                }
-            } catch (error) {
-                console.error('Error fetching level1 boundary:', error);
-            }
+                    }                }
+            } catch (error) {            }
         };
 
         fetchLevel1Boundary();

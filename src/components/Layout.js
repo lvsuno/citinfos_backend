@@ -15,15 +15,40 @@ const Layout = ({
     children
 }) => {
     const { user } = useAuth();
+
+    // Mobile sidebar state (overlay on/off)
     const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+
+    // Desktop collapsed state (persisted)
+    const [isCollapsed, setIsCollapsed] = useState(() => {
+        try {
+            return localStorage.getItem('sidebarCollapsed') === 'true';
+        } catch {
+            return false;
+        }
+    });
+
     const [isChatOpen, setIsChatOpen] = useState(false);
     const [selectedConversation, setSelectedConversation] = useState(null);
     const [conversations, setConversations] = useState([]);
     const [onlineUsers, setOnlineUsers] = useState([]);
     const [messages, setMessages] = useState({});
 
+    // Persist collapsed state
+    useEffect(() => {
+        try {
+            localStorage.setItem('sidebarCollapsed', String(isCollapsed));
+        } catch (error) {
+            console.error('Failed to save sidebar collapsed state:', error);
+        }
+    }, [isCollapsed]);
+
     const toggleSidebar = () => {
         setIsSidebarOpen(!isSidebarOpen);
+    };
+
+    const toggleCollapsed = () => {
+        setIsCollapsed(!isCollapsed);
     };
 
     const closeSidebar = () => {
@@ -169,7 +194,10 @@ const Layout = ({
                 activeRubrique={activeRubrique}
                 onRubriqueChange={onRubriqueChange}
                 isOpen={isSidebarOpen}
+                isCollapsed={isCollapsed}
                 onClose={closeSidebar}
+                onToggle={toggleSidebar}
+                onToggleCollapse={toggleCollapsed}
                 municipalityName={municipalityName}
                 pageDivision={pageDivision}
             />

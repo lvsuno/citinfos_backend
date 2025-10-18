@@ -202,9 +202,7 @@ export const getUrlPathByISO3 = (iso3Code) => {
   };
 
   const iso2Code = iso3ToISO2[iso3Code];
-  if (!iso2Code) {
-    console.warn('Unknown ISO3 code:', iso3Code);
-    return 'municipality'; // Default fallback
+  if (!iso2Code) {    return 'municipality'; // Default fallback
   }
 
   const config = ADMIN_DIVISIONS[iso2Code];

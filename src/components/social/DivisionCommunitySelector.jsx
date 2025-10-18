@@ -42,9 +42,7 @@ const DivisionCommunitySelector = ({ onCommunitySelect, selectedCommunityId }) =
       // Fetch divisions from the auth/geolocation API
       const response = await socialAPI.get('/auth/divisions/');
       setDivisions(response.results || response || []);
-    } catch (err) {
-      console.error('Failed to fetch divisions:', err);
-      // Continue without divisions - communities can still be browsed
+    } catch (err) {      // Continue without divisions - communities can still be browsed
     }
   };
 
@@ -55,9 +53,7 @@ const DivisionCommunitySelector = ({ onCommunitySelect, selectedCommunityId }) =
 
       const response = await socialAPI.communities.list(selectedDivisionId);
       setCommunities(response || []);
-    } catch (err) {
-      console.error('Failed to fetch communities:', err);
-      setError('Impossible de charger les communautés');
+    } catch (err) {      setError('Impossible de charger les communautés');
     } finally {
       setLoading(false);
     }

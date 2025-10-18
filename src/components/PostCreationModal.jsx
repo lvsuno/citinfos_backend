@@ -98,9 +98,7 @@ const PostCreationModal = ({
       if ((response.results || response).length > 0 && !selectedCommunity) {
         setSelectedCommunity((response.results || response)[0]);
       }
-    } catch (error) {
-      console.error('Failed to load communities:', error);
-    } finally {
+    } catch (error) {    } finally {
       setLoadingCommunities(false);
     }
   };
@@ -110,9 +108,7 @@ const PostCreationModal = ({
     try {
       const response = await socialAPI.threads.list(communityId);
       setThreads(response.results || response);
-    } catch (error) {
-      console.error('Failed to load threads:', error);
-      setThreads([]);
+    } catch (error) {      setThreads([]);
     } finally {
       setLoadingThreads(false);
     }
@@ -316,9 +312,7 @@ const PostCreationModal = ({
               null, // commentId
               selectedCommunity.id
             );
-          } catch (mentionError) {
-            console.error('Failed to process mentions/hashtags in thread first post:', mentionError);
-          }
+          } catch (mentionError) {          }
         }
 
         handleClose();
@@ -374,9 +368,7 @@ const PostCreationModal = ({
           // Phase 3: Update post with final content (real media URLs)
           if (createdPost && createdPost.id && processedContent !== articleContent) {
             const updateData = transformArticleUpdateForAPI(processedContent);
-            await contentAPI.updatePost(createdPost.id, updateData);
-            console.log('✅ Article updated with final media URLs. Post ID:', createdPost.id);
-          }
+            await contentAPI.updatePost(createdPost.id, updateData);          }
 
           // Process mentions and hashtags for article posts with embedded media
           if (createdPost?.id && processedContent) {
@@ -387,9 +379,7 @@ const PostCreationModal = ({
                 null, // commentId (not applicable for posts)
                 selectedCommunity?.id
               );
-            } catch (mentionError) {
-              console.error('Failed to process mentions/hashtags:', mentionError);
-              // Don't fail the entire submission if mention processing fails
+            } catch (mentionError) {              // Don't fail the entire submission if mention processing fails
             }
           }
 
@@ -411,17 +401,13 @@ const PostCreationModal = ({
             null, // commentId (not applicable for posts)
             selectedCommunity?.id
           );
-        } catch (mentionError) {
-          console.error('Failed to process mentions/hashtags:', mentionError);
-          // Don't fail the entire submission if mention processing fails
+        } catch (mentionError) {          // Don't fail the entire submission if mention processing fails
         }
       }
 
       handleClose();
 
-    } catch (error) {
-      console.error('Post creation error:', error);
-      setErrors({ submit: error.message || 'Échec de la création de la publication' });
+    } catch (error) {      setErrors({ submit: error.message || 'Échec de la création de la publication' });
     } finally {
       setIsSubmitting(false);
     }

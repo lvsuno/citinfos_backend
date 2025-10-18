@@ -13,13 +13,9 @@ export const getCurrentDivision = () => {
     try {
         const data = localStorage.getItem(CURRENT_DIVISION_KEY);
         if (data) {
-            const division = JSON.parse(data);
-            console.log('📍 Retrieved current division:', division.name);
-            return division;
+            const division = JSON.parse(data);            return division;
         }
-    } catch (error) {
-        console.error('❌ Error reading current division:', error);
-        localStorage.removeItem(CURRENT_DIVISION_KEY);
+    } catch (error) {        localStorage.removeItem(CURRENT_DIVISION_KEY);
     }
     return null;
 };
@@ -46,12 +42,8 @@ export const setCurrentDivision = (division) => {
             timestamp: Date.now()
         };
 
-        localStorage.setItem(CURRENT_DIVISION_KEY, JSON.stringify(divisionData));
-        console.log('✅ Set current division:', divisionData.name);
-        return divisionData;
-    } catch (error) {
-        console.error('❌ Error setting current division:', error);
-        return null;
+        localStorage.setItem(CURRENT_DIVISION_KEY, JSON.stringify(divisionData));        return divisionData;
+    } catch (error) {        return null;
     }
 };
 
@@ -59,9 +51,7 @@ export const setCurrentDivision = (division) => {
  * Clear the current active division from localStorage
  */
 export const clearCurrentDivision = () => {
-    localStorage.removeItem(CURRENT_DIVISION_KEY);
-    console.log('🧹 Cleared current division');
-};
+    localStorage.removeItem(CURRENT_DIVISION_KEY);};
 
 /**
  * Get the slug for the current division to use in URLs
@@ -98,8 +88,6 @@ export const cleanupOldDivisionKeys = () => {
 
     [...oldKeys, ...pageDivisionKeys].forEach(key => {
         if (localStorage.getItem(key)) {
-            localStorage.removeItem(key);
-            console.log('🧹 Cleaned up old key:', key);
-        }
+            localStorage.removeItem(key);        }
     });
 };

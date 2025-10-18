@@ -1,0 +1,277 @@
+/* Enhanced Country Phone Input Styles */
+
+.phoneInputContainer {
+  display: flex;
+  gap: 0;
+  width: 100%;
+  position: relative;
+}
+
+.countrySelector {
+  position: relative;
+  z-index: 10;
+}
+
+.countrySelectorButton {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.75rem 1rem;
+  background: #f8f9fa;
+  border: 1px solid #dee2e6;
+  border-right: none;
+  border-radius: 0.375rem 0 0 0.375rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  min-width: 120px;
+  height: 100%;
+}
+
+.countrySelectorButton:hover {
+  background: #e9ecef;
+}
+
+.countrySelectorButton:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.countrySelectorButton.error {
+  border-color: #dc3545;
+}
+
+.flag {
+  font-size: 1.25rem;
+  line-height: 1;
+}
+
+.dialCode {
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: #495057;
+}
+
+.chevron {
+  margin-left: auto;
+  width: 20px;
+  height: 20px;
+  color: #6c757d;
+  transition: transform 0.2s ease;
+}
+
+.countrySelectorButton:hover .chevron {
+  transform: translateY(2px);
+}
+
+.placeholder {
+  font-size: 0.875rem;
+  color: #6c757d;
+}
+
+.loading {
+  font-size: 0.875rem;
+  color: #6c757d;
+  animation: pulse 1.5s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
+/* Dropdown */
+.dropdown {
+  position: absolute;
+  top: calc(100% + 0.25rem);
+  left: 0;
+  width: 320px;
+  max-height: 400px;
+  background: white;
+  border: 1px solid #dee2e6;
+  border-radius: 0.375rem;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  overflow: hidden;
+  z-index: 1000;
+}
+
+/* Search Container */
+.searchContainer {
+  position: relative;
+  padding: 0.75rem;
+  border-bottom: 1px solid #dee2e6;
+  background: #f8f9fa;
+}
+
+.searchIcon {
+  position: absolute;
+  left: 1.25rem;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 18px;
+  height: 18px;
+  color: #6c757d;
+}
+
+.searchInput {
+  width: 100%;
+  padding: 0.5rem 0.75rem 0.5rem 2.25rem;
+  border: 1px solid #dee2e6;
+  border-radius: 0.25rem;
+  font-size: 0.875rem;
+  transition: all 0.2s ease;
+}
+
+.searchInput:focus {
+  outline: none;
+  border-color: #0d6efd;
+  box-shadow: 0 0 0 0.2rem rgba(13, 110, 253, 0.1);
+}
+
+/* Country List */
+.countryList {
+  max-height: 320px;
+  overflow-y: auto;
+}
+
+.sectionLabel {
+  padding: 0.5rem 1rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #6c757d;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  background: #f8f9fa;
+  border-bottom: 1px solid #e9ecef;
+  position: sticky;
+  top: 0;
+  z-index: 1;
+}
+
+.countryItem {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  width: 100%;
+  padding: 0.75rem 1rem;
+  border: none;
+  background: white;
+  text-align: left;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.countryItem:hover {
+  background: #f8f9fa;
+}
+
+.countryItem.selected {
+  background: #e7f1ff;
+  color: #0d6efd;
+  font-weight: 500;
+}
+
+.countryName {
+  flex: 1;
+  font-size: 0.875rem;
+}
+
+.region {
+  font-size: 0.75rem;
+  color: #6c757d;
+  display: none;
+}
+
+@media (min-width: 768px) {
+  .region {
+    display: block;
+  }
+}
+
+.noResults {
+  padding: 2rem 1rem;
+  text-align: center;
+  font-size: 0.875rem;
+  color: #6c757d;
+}
+
+/* Phone Input Wrapper */
+.phoneInputWrapper {
+  flex: 1;
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.phoneInput {
+  flex: 1;
+  padding: 0.75rem 2.5rem 0.75rem 1rem;
+  border: 1px solid #dee2e6;
+  border-radius: 0 0.375rem 0.375rem 0;
+  font-size: 0.875rem;
+  transition: all 0.2s ease;
+  height: 100%;
+}
+
+.phoneInput:focus {
+  outline: none;
+  border-color: #0d6efd;
+  box-shadow: 0 0 0 0.2rem rgba(13, 110, 253, 0.1);
+}
+
+.phoneInput.error {
+  border-color: #dc3545;
+}
+
+.phoneIcon {
+  position: absolute;
+  right: 0.75rem;
+  width: 18px;
+  height: 18px;
+  color: #6c757d;
+  pointer-events: none;
+}
+
+/* Helper Text */
+.helperText {
+  position: absolute;
+  top: calc(100% + 0.25rem);
+  left: 0;
+  font-size: 0.75rem;
+  color: #6c757d;
+  white-space: nowrap;
+}
+
+/* Responsive */
+@media (max-width: 576px) {
+  .dropdown {
+    width: calc(100vw - 2rem);
+    max-width: 320px;
+  }
+
+  .countrySelectorButton {
+    min-width: 100px;
+    padding: 0.75rem 0.75rem;
+  }
+
+  .dialCode {
+    font-size: 0.8125rem;
+  }
+}
+
+/* Scrollbar Styling */
+.countryList::-webkit-scrollbar {
+  width: 8px;
+}
+
+.countryList::-webkit-scrollbar-track {
+  background: #f8f9fa;
+}
+
+.countryList::-webkit-scrollbar-thumb {
+  background: #dee2e6;
+  border-radius: 4px;
+}
+
+.countryList::-webkit-scrollbar-thumb:hover {
+  background: #adb5bd;
+}

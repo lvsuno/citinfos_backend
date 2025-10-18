@@ -203,9 +203,7 @@ const NotificationsPage = () => {
       case 'security_alert':
       case 'welcome':
       default:
-        // For system notifications or unknown types, just mark as read and stay on page
-        console.log('System notification or unknown type:', notificationType);
-        break;
+        // For system notifications or unknown types, just mark as read and stay on page        break;
     }
   };
 
@@ -214,9 +212,7 @@ const NotificationsPage = () => {
     try {
       setIsLoading(true);
       await actions.markAsRead(notificationId);
-    } catch (error) {
-      console.error('Failed to mark notification as read:', error);
-    } finally {
+    } catch (error) {    } finally {
       setIsLoading(false);
     }
   };
@@ -226,9 +222,7 @@ const NotificationsPage = () => {
     try {
       setIsLoading(true);
       await actions.markAllAsRead();
-    } catch (error) {
-      console.error('Failed to mark all notifications as read:', error);
-    } finally {
+    } catch (error) {    } finally {
       setIsLoading(false);
     }
   };
@@ -244,9 +238,7 @@ const NotificationsPage = () => {
         selectedNotifications.map(id => actions.markAsRead(id))
       );
       setSelectedNotifications([]);
-    } catch (error) {
-      console.error('Failed to mark selected notifications as read:', error);
-    } finally {
+    } catch (error) {    } finally {
       setIsLoading(false);
     }
   };

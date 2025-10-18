@@ -160,9 +160,7 @@ export const usePostViewTracker = (postId, options = {}) => {
 
         return true;
       }
-    } catch (error) {
-      console.error('Failed to track post view:', error);
-    }
+    } catch (error) {    }
 
     return false;
   }, [postId, trackReadTime, onViewTracked]);
@@ -190,9 +188,7 @@ export const usePostViewTracker = (postId, options = {}) => {
 
         return true;
       }
-    } catch (error) {
-      console.error('Failed to track engagement:', error);
-    }
+    } catch (error) {    }
 
     return false;
   }, [postId, trackReadTime, onEngagement]);
@@ -204,9 +200,7 @@ export const usePostViewTracker = (postId, options = {}) => {
     try {
       const result = await analyticsAPI.markPostAsRead(postId);
       return !!result;
-    } catch (error) {
-      console.error('Failed to mark post as read:', error);
-      return false;
+    } catch (error) {      return false;
     }
   }, [postId]);
 

@@ -60,7 +60,6 @@ class FingerprintService {
             localStorage.setItem(this.storageKey, fingerprint);
         } catch (e) {
             // localStorage may be disabled
-            console.warn('Cannot save fingerprint to localStorage:', e);
         }
     }
 
@@ -102,9 +101,7 @@ class FingerprintService {
     saveSessionId(sessionId) {
         try {
             localStorage.setItem(this.sessionKey, sessionId);
-        } catch (e) {
-            console.warn('Cannot save session ID to localStorage:', e);
-        }
+        } catch (e) {        }
     }
 
     /**
@@ -122,4 +119,5 @@ class FingerprintService {
 }
 
 // Export singleton instance
-export default new FingerprintService();
+const fingerprintService = new FingerprintService();
+export default fingerprintService;

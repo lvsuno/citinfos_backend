@@ -19,48 +19,30 @@ const MentionAutocomplete = ({
   // Check if cursor is after an @ symbol and extract mention query
   useEffect(() => {
     const checkForMention = () => {
-      console.log('🔍 MentionAutocomplete: Check for mention', {
-        cursorPosition,
-        textLength: text.length,
-        text: text.substring(0, 50) // First 50 chars
-      });
-
-      if (cursorPosition === null || cursorPosition === undefined) {
-        console.log('❌ No cursor position');
-        setIsVisible(false);
+      if (cursorPosition === null || cursorPosition === undefined) {        setIsVisible(false);
         return;
       }
 
       const textBeforeCursor = text.slice(0, cursorPosition);
       const lastAtIndex = textBeforeCursor.lastIndexOf('@');
 
-      if (lastAtIndex === -1) {
-        console.log('❌ No @ symbol found');
-        setIsVisible(false);
+      if (lastAtIndex === -1) {        setIsVisible(false);
         return;
       }
 
       // Check if there's a space between @ and cursor (invalid mention)
       const textAfterAt = textBeforeCursor.slice(lastAtIndex + 1);
-      console.log('📝 Text after @:', `"${textAfterAt}"`);
-
-      if (textAfterAt.includes(' ') || textAfterAt.includes('\n')) {
-        console.log('❌ Space/newline in mention');
-        setIsVisible(false);
+      if (textAfterAt.includes(' ') || textAfterAt.includes('\n')) {        setIsVisible(false);
         return;
       }
 
       // Check if @ is at start or preceded by whitespace
       const charBeforeAt = lastAtIndex > 0 ? textBeforeCursor[lastAtIndex - 1] : ' ';
-      if (charBeforeAt !== ' ' && charBeforeAt !== '\n' && lastAtIndex !== 0) {
-        console.log('❌ No space before @, char:', charBeforeAt);
-        setIsVisible(false);
+      if (charBeforeAt !== ' ' && charBeforeAt !== '\n' && lastAtIndex !== 0) {        setIsVisible(false);
         return;
       }
 
-      // Valid mention context
-      console.log('✅ Valid mention detected:', `"${textAfterAt}"`);
-      setMentionQuery(textAfterAt);
+      // Valid mention context      setMentionQuery(textAfterAt);
       setMentionStartPos(lastAtIndex);
       setIsVisible(true);
       setSelectedIndex(0);
@@ -72,24 +54,15 @@ const MentionAutocomplete = ({
   // Search for users when mention query changes
   useEffect(() => {
     const searchUsers = async () => {
-      if (!isVisible || mentionQuery.length < 1) {
-        console.log('⏭️ Skipping search:', { isVisible, queryLength: mentionQuery.length });
-        setSuggestions([]);
+      if (!isVisible || mentionQuery.length < 1) {        setSuggestions([]);
         return;
-      }
-
-      console.log('🔎 Searching for users:', mentionQuery);
-      try {
+      }      try {
         const results = await socialAPI.searchMentionableUsers(
           mentionQuery,
           communityId,
           postId
-        );
-        console.log('✅ Search results:', results);
-        setSuggestions(results);
-      } catch (error) {
-        console.error('❌ Failed to search mentionable users:', error);
-        setSuggestions([]);
+        );        setSuggestions(results);
+      } catch (error) {        setSuggestions([]);
       }
     };
 

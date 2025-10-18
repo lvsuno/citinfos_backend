@@ -51,9 +51,7 @@ const LoginPage = () => {
         const inputValue = type === 'checkbox' ? checked : value;
 
         // Debug log for checkbox changes
-        if (type === 'checkbox') {
-            console.log(`Checkbox ${name} changed to:`, inputValue);
-        }
+        if (type === 'checkbox') {        }
 
         setFormData(prev => ({
             ...prev,
@@ -93,22 +91,11 @@ const LoginPage = () => {
 
         setIsLoading(true);
 
-        try {
-            console.log('Login attempt with rememberMe:', formData.rememberMe);
-            const result = await login(formData.usernameOrEmail, formData.password, formData.rememberMe);
+        try {            const result = await login(formData.usernameOrEmail, formData.password, formData.rememberMe);
             if (result.success) {
                 // Always redirect to success page first (session is created)
-                console.log('🔍 DEBUG: User data received from server:', result.user);
-                console.log('🔍 DEBUG: user.location:', result.user?.location);
-                console.log('🔍 DEBUG: user.municipality:', result.user?.municipality);
-                console.log('🔍 DEBUG: user.profile:', result.user?.profile);
-                console.log('🔍 DEBUG: Full user object keys:', Object.keys(result.user || {}));
-                console.log('🔍 DEBUG: Session data:', result.session);
-
                 // Get user's home division URL (fallback/default)
                 const userHomeUrl = getUserRedirectUrl(result.user);
-                console.log('🔍 DEBUG: User home URL:', userHomeUrl);
-
                 // Check if backend provided last visited URL from previous session
                 let redirectUrl;
                 let reason;
@@ -122,37 +109,22 @@ const LoginPage = () => {
                     // If session was recent (< 30 min), use last visited URL
                     if (timeSinceVisit !== null && timeSinceVisit < 30) {
                         redirectUrl = result.session.last_visited_url;
-                        reason = `Backend session: last visit ${timeSinceVisit.toFixed(1)} min ago`;
-                        console.log('✅ Using last visited URL from backend session:', redirectUrl);
-                    } else {
+                        reason = `Backend session: last visit ${timeSinceVisit.toFixed(1)} min ago`;                    } else {
                         redirectUrl = userHomeUrl;
-                        reason = `Backend session: old visit (${timeSinceVisit?.toFixed(1) || 'unknown'} min ago)`;
-                        console.log('⏰ Session too old, going to home division');
-                    }
+                        reason = `Backend session: old visit (${timeSinceVisit?.toFixed(1) || 'unknown'} min ago)`;                    }
                 } else {
                     // Fallback to localStorage-based smart redirect if no backend data
                     const smartRedirect = getSmartRedirectUrl(userHomeUrl);
                     redirectUrl = smartRedirect.url;
-                    reason = `LocalStorage fallback: ${smartRedirect.reason}`;
-                    console.log('📦 No backend session data, using localStorage');
-                }
-
-                console.log('🎯 Smart redirect decision:', { redirectUrl, reason });
-
+                    reason = `LocalStorage fallback: ${smartRedirect.reason}`;                }
                 // Validate that the municipality route exists before redirecting
                 if (redirectUrl !== '/dashboard') {
                     const urlParts = redirectUrl.split('/');
                     if (urlParts.length >= 3) {
                         const municipalitySlug = urlParts[2];
-                        console.log('🔍 DEBUG: Municipality slug to validate:', municipalitySlug);
-
                         // Check if this municipality exists in our data
                         const municipalityExists = getMunicipalityBySlug(municipalitySlug);
-                        console.log('🔍 DEBUG: Municipality exists:', !!municipalityExists);
-
-                        if (!municipalityExists) {
-                            console.warn('⚠️ Municipality not found in data, falling back to default division');
-                            const defaultUrl = await getDefaultDivisionUrl(result.user, null);
+                        if (!municipalityExists) {                            const defaultUrl = await getDefaultDivisionUrl(result.user, null);
                             navigate(defaultUrl);
                             return;
                         }

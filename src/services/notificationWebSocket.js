@@ -22,9 +22,7 @@ class NotificationWebSocket {
   /**
    * Reconnect WebSocket with new JWT token (called when token is refreshed)
    */
-  reconnectWithNewToken() {
-    console.log('🔄 Reconnecting WebSocket with new JWT token...');
-    this.authFailureCount = 0; // Reset failure count
+  reconnectWithNewToken() {    this.authFailureCount = 0; // Reset failure count
 
     // Disconnect current connection if exists
     if (this.ws) {
@@ -43,15 +41,11 @@ class NotificationWebSocket {
     const token = apiService.getAccessToken();
 
     // Check if we have a token
-    if (!token) {
-      console.log('No authentication token found');
-      return false;
+    if (!token) {      return false;
     }
 
     // Check if token is expired (basic check)
-    if (this.isTokenExpired(token)) {
-      console.log('Authentication token is expired');
-      return false;
+    if (this.isTokenExpired(token)) {      return false;
     }
 
     return true;
@@ -69,9 +63,7 @@ class NotificationWebSocket {
       const payload = JSON.parse(atob(token.split('.')[1]));
       const expirationTime = payload.exp * 1000; // Convert to milliseconds
       return Date.now() >= expirationTime;
-    } catch (error) {
-      console.error('Error checking token expiration:', error);
-      return true;
+    } catch (error) {      return true;
     }
   }
 
@@ -79,8 +71,6 @@ class NotificationWebSocket {
    * Redirect user to login page when authentication fails
    */
   redirectToLogin() {
-    console.log('Redirecting to login due to authentication failure');
-
     // Clear any stored tokens
     apiService.clearTokens();
 
@@ -101,15 +91,11 @@ class NotificationWebSocket {
    * @param {Function} onNotification - Callback for notifications
    */
   connect(onNotification) {
-    if (this.isConnected) {
-      console.warn('WebSocket already connected');
-      return;
+    if (this.isConnected) {      return;
     }
 
     // Check authentication before attempting connection
-    if (!this.hasValidAuthentication()) {
-      console.error('Cannot connect WebSocket: Invalid or missing authentication');
-      this.redirectToLogin();
+    if (!this.hasValidAuthentication()) {      this.redirectToLogin();
       return;
     }
 
@@ -127,14 +113,9 @@ class NotificationWebSocket {
     } else if (token) {
       wsUrl += `?token=${token}`;
     }
-
-    console.log('Connecting to notifications WebSocket with universal authentication...');
-
     // Set connection timeout
     this.connectionTimeoutId = setTimeout(() => {
-      if (this.isConnecting) {
-        console.error('WebSocket connection timeout');
-        this.isConnecting = false;
+      if (this.isConnecting) {        this.isConnecting = false;
         if (this.ws) {
           this.ws.close();
         }
@@ -145,9 +126,7 @@ class NotificationWebSocket {
     this.ws = new WebSocket(wsUrl);
 
     // WebSocket event handlers
-    this.ws.onopen = (event) => {
-      console.log('WebSocket connected:', event);
-      this.isConnected = true;
+    this.ws.onopen = (event) => {      this.isConnected = true;
       this.isConnecting = false;
       this.reconnectAttempts = 0;
       this.authFailureCount = 0; // Reset auth failure count on successful connection
@@ -172,24 +151,16 @@ class NotificationWebSocket {
       // Store notification callback
       if (onNotification && typeof onNotification === 'function') {
         this.addListener(onNotification);
-      } else if (onNotification) {
-        console.error('connect() expects a function callback, got:', typeof onNotification);
-      }
+      } else if (onNotification) {      }
     };
 
     this.ws.onmessage = (event) => {
       try {
         const data = JSON.parse(event.data);
-        console.log('WebSocket message received:', data);
-
         // Handle different message types
         if (data.type === 'notification') {
           this.notifyListeners(data);
-        } else if (data.type === 'pong') {
-          console.log('Pong received');
-        } else if (data.type === 'error') {
-          console.error('WebSocket error message:', data.message);
-
+        } else if (data.type === 'pong') {        } else if (data.type === 'error') {
           // Check if it's an authentication error
           if (data.message && data.message.includes('authentication')) {
             this.handleAuthenticationFailure();
@@ -198,14 +169,10 @@ class NotificationWebSocket {
           // Forward all other message types to listeners
           this.notifyListeners(data);
         }
-      } catch (error) {
-        console.error('Error parsing WebSocket message:', error);
-      }
+      } catch (error) {      }
     };
 
-    this.ws.onclose = (event) => {
-      console.log('WebSocket closed:', event.code, event.reason);
-      this.isConnected = false;
+    this.ws.onclose = (event) => {      this.isConnected = false;
       this.isConnecting = false;
       this.stopPingInterval();
 
@@ -227,17 +194,13 @@ class NotificationWebSocket {
         // Authentication failed
         this.handleAuthenticationFailure();
       } else if (event.code === 4002) {
-        // Token expired
-        console.log('WebSocket closed: Token expired');
-        this.handleTokenExpiration();
+        // Token expired        this.handleTokenExpiration();
       } else if (this.shouldAttemptReconnect(event.code)) {
         this.scheduleReconnect();
       }
     };
 
-    this.ws.onerror = (error) => {
-      console.error('WebSocket error:', error);
-      this.isConnecting = false;
+    this.ws.onerror = (error) => {      this.isConnecting = false;
 
       // Clear connection timeout
       if (this.connectionTimeoutId) {
@@ -271,11 +234,7 @@ class NotificationWebSocket {
    */
   handleAuthenticationFailure() {
     this.authFailureCount++;
-    console.error(`WebSocket authentication failure #${this.authFailureCount}`);
-
-    if (this.authFailureCount >= this.maxAuthFailures) {
-      console.log('Max authentication failures reached, waiting for JWT renewal from HTTP requests');
-      this.stopReconnectionAttempts();
+    if (this.authFailureCount >= this.maxAuthFailures) {      this.stopReconnectionAttempts();
       // Don't redirect to login - just wait for JWT renewal from HTTP middleware
       // When new JWT is set, reconnectWithNewToken() will be called automatically
       return;
@@ -288,9 +247,7 @@ class NotificationWebSocket {
   /**
    * Handle token expiration
    */
-  handleTokenExpiration() {
-    console.log('Handling token expiration...');
-    this.attemptTokenRefreshAndReconnect();
+  handleTokenExpiration() {    this.attemptTokenRefreshAndReconnect();
   }
 
   /**
@@ -300,19 +257,11 @@ class NotificationWebSocket {
    */
   async attemptTokenRefreshAndReconnect() {
     try {
-      console.log('Checking for token refresh...');
-
       // Check if we have a valid token after automatic refresh
-      if (this.hasValidAuthentication()) {
-        console.log('Token is valid, reconnecting...');
-        this.scheduleReconnect();
-      } else {
-        console.error('No valid token available, redirecting to login');
-        this.redirectToLogin();
+      if (this.hasValidAuthentication()) {        this.scheduleReconnect();
+      } else {        this.redirectToLogin();
       }
-    } catch (error) {
-      console.error('Error checking token:', error);
-      this.redirectToLogin();
+    } catch (error) {      this.redirectToLogin();
     }
   }
 
@@ -346,9 +295,7 @@ class NotificationWebSocket {
    * Schedule automatic reconnection with token validation
    */
   scheduleReconnect() {
-    if (this.reconnectAttempts >= this.maxReconnectAttempts) {
-      console.log('Max reconnection attempts reached');
-      this.notifyListeners({
+    if (this.reconnectAttempts >= this.maxReconnectAttempts) {      this.notifyListeners({
         type: 'connection_failed',
         message: 'Max reconnection attempts reached'
       });
@@ -356,9 +303,7 @@ class NotificationWebSocket {
     }
 
     // Check authentication before scheduling reconnect
-    if (!this.hasValidAuthentication()) {
-      console.log('Cannot schedule reconnect: Invalid authentication');
-      this.redirectToLogin();
+    if (!this.hasValidAuthentication()) {      this.redirectToLogin();
       return;
     }
 
@@ -367,9 +312,6 @@ class NotificationWebSocket {
       this.reconnectBaseDelay * Math.pow(2, this.reconnectAttempts - 1),
       30000 // Max 30 seconds
     );
-
-    console.log(`Scheduling WebSocket reconnection attempt ${this.reconnectAttempts}/${this.maxReconnectAttempts} in ${delay}ms`);
-
     this.notifyListeners({
       type: 'reconnection_scheduled',
       attempt: this.reconnectAttempts,
@@ -379,21 +321,14 @@ class NotificationWebSocket {
 
     this.reconnectTimeoutId = setTimeout(() => {
       // Validate authentication again before reconnecting
-      if (!this.hasValidAuthentication()) {
-        console.log('Authentication invalid during reconnection attempt');
-        this.redirectToLogin();
+      if (!this.hasValidAuthentication()) {        this.redirectToLogin();
         return;
       }
-
-      console.log(`Reconnecting WebSocket (attempt ${this.reconnectAttempts}/${this.maxReconnectAttempts})...`);
-
       // Get fresh token for reconnection
       this.token = apiService.getAccessToken();
       if (this.token) {
         this.connect();
-      } else {
-        console.log('Token no longer available during reconnection attempt');
-        this.redirectToLogin();
+      } else {        this.redirectToLogin();
       }
     }, delay);
   }
@@ -404,9 +339,7 @@ class NotificationWebSocket {
    * @returns {Function} Unsubscribe function
    */
   addListener(callback) {
-    if (typeof callback !== 'function') {
-      console.error('addListener expects a function, got:', typeof callback);
-      return () => {}; // Return empty unsubscribe function
+    if (typeof callback !== 'function') {      return () => {}; // Return empty unsubscribe function
     }
 
     this.listeners.add(callback);
@@ -430,17 +363,13 @@ class NotificationWebSocket {
    */
   notifyListeners(data) {
     this.listeners.forEach(callback => {
-      if (typeof callback !== 'function') {
-        console.error('Invalid listener detected (not a function):', typeof callback);
-        this.listeners.delete(callback); // Remove invalid listener
+      if (typeof callback !== 'function') {        this.listeners.delete(callback); // Remove invalid listener
         return;
       }
 
       try {
         callback(data);
-      } catch (error) {
-        console.error('Error in notification listener:', error);
-      }
+      } catch (error) {      }
     });
   }
 
@@ -450,9 +379,7 @@ class NotificationWebSocket {
   startPingInterval() {
     this.pingInterval = setInterval(() => {
       if (this.isConnected && this.ws && this.ws.readyState === WebSocket.OPEN) {
-        this.ws.send(JSON.stringify({ type: 'ping' }));
-        console.log('Ping sent');
-      }
+        this.ws.send(JSON.stringify({ type: 'ping' }));      }
     }, this.pingIntervalTime);
   }
 
@@ -472,8 +399,6 @@ class NotificationWebSocket {
    * @param {number} limit - Number of notifications per page (default: 20)
    */
   requestHistory(page = 1, limit = 20) {
-    console.log(`Requesting notification history - page: ${page}, limit: ${limit}`);
-
     // Queue the message if not connected, it will be sent when connection is established
     this.send({
       type: 'get_notification_history',
@@ -490,21 +415,15 @@ class NotificationWebSocket {
   send(message, queueIfDisconnected = false) {
     if (this.isConnected && this.ws && this.ws.readyState === WebSocket.OPEN) {
       this.ws.send(JSON.stringify(message));
-    } else if (queueIfDisconnected) {
-      console.log('Queueing message until WebSocket connects:', message.type);
-      this.messageQueue.push(message);
-    } else {
-      console.warn('Cannot send message: WebSocket not connected');
-    }
+    } else if (queueIfDisconnected) {      this.messageQueue.push(message);
+    } else {    }
   }
 
   /**
    * Process queued messages when connection is established
    */
   processMessageQueue() {
-    if (this.messageQueue.length > 0) {
-      console.log(`Processing ${this.messageQueue.length} queued messages`);
-      while (this.messageQueue.length > 0) {
+    if (this.messageQueue.length > 0) {      while (this.messageQueue.length > 0) {
         const message = this.messageQueue.shift();
         this.send(message);
       }
@@ -552,9 +471,7 @@ class NotificationWebSocket {
     try {
       const payload = JSON.parse(atob(token.split('.')[1]));
       return payload.sid || payload.session_id || null; // Check both 'sid' and 'session_id'
-    } catch (error) {
-      console.error('Error extracting session ID from token:', error);
-      return null;
+    } catch (error) {      return null;
     }
   }
 

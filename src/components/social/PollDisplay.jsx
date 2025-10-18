@@ -12,26 +12,31 @@ import React, { useState, useMemo, useEffect } from 'react';
 */
 
 const PollDisplay = ({ poll, onVote = () => {}, readonly = false }) => {
-  if (!poll) return null;
   const [localPoll, setLocalPoll] = useState(poll);
-  const [selected, setSelected] = useState(poll.user_vote || []);
+  const [selected, setSelected] = useState(poll?.user_vote || []);
   const [submitting, setSubmitting] = useState(false);
 
   // Sync local state when poll prop changes
   useEffect(() => {
-    setLocalPoll(poll);
-    setSelected(poll.user_vote || []);
-  }, [poll, poll.options?.length, poll.question]);
-  const alreadyVoted = localPoll.user_voted || localPoll.is_expired || readonly;
-  const multiple = localPoll.allows_multiple_votes;
+    if (poll) {
+      setLocalPoll(poll);
+      setSelected(poll.user_vote || []);
+    }
+  }, [poll, poll?.options?.length, poll?.question]);
 
   const computedOptions = useMemo(() => {
+    if (!localPoll?.options) return [];
     const total = localPoll.options.reduce((acc,o)=>acc + (o.vote_count||0),0) || 0;
     return localPoll.options.map(o => ({
       ...o,
       percentage: total ? Math.round((o.vote_count||0)*100/total) : 0
     }));
-  }, [localPoll.options]);
+  }, [localPoll?.options]);
+
+  if (!poll) return null;
+
+  const alreadyVoted = localPoll.user_voted || localPoll.is_expired || readonly;
+  const multiple = localPoll.allows_multiple_votes;
   const maxPct = Math.max(0, ...computedOptions.map(o=>o.percentage));
 
   const toggle = (id) => {

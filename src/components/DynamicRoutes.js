@@ -2,6 +2,8 @@ import React from 'react';
 import { Route } from 'react-router-dom';
 import { getAvailableUrlPaths } from '../config/adminDivisions';
 import MunicipalityDashboard from '../pages/MunicipalityDashboard';
+import ThreadsPage from '../pages/ThreadsPage';
+import ThreadDetail from './social/ThreadDetail';
 
 /**
  * Generate dynamic routes based on available administrative division data.
@@ -18,28 +20,36 @@ export const generateDynamicRoutes = () => {
   // Get all unique URL paths from countries that have data
   const availableUrlPaths = getAvailableUrlPaths();
 
-  // Log the dynamically generated routes for debugging
-  console.log('🚀 Dynamic Routes Generated for:', availableUrlPaths);
-  console.log('📍 Route patterns created:');
-  availableUrlPaths.forEach(path => {
-    console.log(`   • /${path}/:municipalitySlug`);
-    console.log(`   • /${path}/:municipalitySlug/:section`);
-  });
+  // Log the dynamically generated routes for debugging  availableUrlPaths.forEach(path => {  });
 
   const routes = [];
 
   // Dynamically generated routes based on available data
   availableUrlPaths.forEach((urlPath) => {
     routes.push(
+      // Main dashboard route
       <Route
         key={`${urlPath}-base`}
         path={`/${urlPath}/:municipalitySlug`}
         element={<MunicipalityDashboard />}
       />,
+      // Section route
       <Route
         key={`${urlPath}-section`}
         path={`/${urlPath}/:municipalitySlug/:section`}
         element={<MunicipalityDashboard />}
+      />,
+      // Threads list route
+      <Route
+        key={`${urlPath}-threads`}
+        path={`/${urlPath}/:municipalitySlug/threads`}
+        element={<ThreadsPage />}
+      />,
+      // Thread detail route
+      <Route
+        key={`${urlPath}-thread-detail`}
+        path={`/${urlPath}/:municipalitySlug/thread/:threadId`}
+        element={<ThreadDetail />}
       />
     );
   });

@@ -65,9 +65,7 @@ const VisitorAnalyticsDashboard = ({ communityId = null }) => {
             setTrends(trendsData);
             setDivisions(divisionsData);
             setConversions(conversionsData);
-        } catch (err) {
-            console.error('Error loading analytics:', err);
-            setError(err.message || 'Failed to load analytics data');
+        } catch (err) {            setError(err.message || 'Failed to load analytics data');
         } finally {
             setLoading(false);
         }
@@ -138,9 +136,7 @@ const VisitorAnalyticsDashboard = ({ communityId = null }) => {
             a.click();
             window.URL.revokeObjectURL(url);
             document.body.removeChild(a);
-        } catch (err) {
-            console.error('Error exporting data:', err);
-        }
+        } catch (err) {        }
     };
 
     if (error) {

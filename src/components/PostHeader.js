@@ -1,5 +1,5 @@
 import React from 'react';
-import { formatTimeAgo } from '../data/sherbrookePosts';
+import { formatTimeAgo } from '../utils/timeUtils';
 import styles from './PostHeader.module.css';
 
 const PostHeader = ({ author, timestamp, section }) => {

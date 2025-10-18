@@ -27,13 +27,6 @@ import styles from './MapPage.module.css';
 const MapPage = () => {
     const [searchParams] = useSearchParams();
     const divisionIdFromUrl = searchParams.get('division'); // Read ?division={id} from URL
-
-    console.log('🔗 MapPage mounted - URL params:', {
-        divisionIdFromUrl,
-        fullUrl: window.location.href,
-        searchParams: searchParams.toString()
-    });
-
     const { activeMunicipality, getMunicipalitySlug, switchMunicipality, getAdminLabels } = useMunicipality();
     const [selectedMunicipality, setSelectedMunicipality] = useState(activeMunicipality);
     const [searchQuery, setSearchQuery] = useState('');
@@ -66,46 +59,33 @@ const MapPage = () => {
 
     // Helper to get effective location (priority: activeMunicipality > current division > user > anonymous)
     const getEffectiveLocation = () => {
-        console.log('🔍 MapPage - Getting effective location...');
-        console.log('🔍 MapPage - Selected country:', selectedCountry?.iso3);
-
         // PRIORITY 1: Use activeMunicipality from context (the division chosen in left menu)
         // But validate it matches the selected country
         if (activeMunicipality?.id) {
             const municipalityCountry = activeMunicipality.country?.iso3 || activeMunicipality.country;
 
             // If no country selected yet, or if municipality matches selected country, use it
-            if (!selectedCountry || municipalityCountry === selectedCountry.iso3) {
-                console.log('📍 MapPage - Using activeMunicipality from context:', activeMunicipality.name);
-                return {
+            if (!selectedCountry || municipalityCountry === selectedCountry.iso3) {                return {
                     country: municipalityCountry || selectedCountry?.iso3,
                     division_id: activeMunicipality.id,
                     level_1_id: activeMunicipality.level_1_id || user?.location?.level_1_id,
                     city: activeMunicipality.name || activeMunicipality.nom
                 };
-            } else {
-                console.log('⚠️ MapPage - activeMunicipality country mismatch:', municipalityCountry, 'vs', selectedCountry.iso3);
-            }
+            } else {            }
         }
 
         // PRIORITY 2: Use current active division from single storage
         // But validate it matches the selected country
         const currentDivision = getCurrentDivision();
-        console.log('📍 MapPage - localStorage check:', currentDivision ? currentDivision.name : 'NOT FOUND');
-
         if (currentDivision) {
             // If no country selected yet, or if division matches selected country, use it
-            if (!selectedCountry || currentDivision.country === selectedCountry.iso3) {
-                console.log('✅ MapPage - Using current division from localStorage:', currentDivision.name);
-                return {
+            if (!selectedCountry || currentDivision.country === selectedCountry.iso3) {                return {
                     country: currentDivision.country,
                     division_id: currentDivision.id,
                     level_1_id: currentDivision.level_1_id,
                     city: currentDivision.name
                 };
-            } else {
-                console.log('⚠️ MapPage - localStorage division country mismatch:', currentDivision.country, 'vs', selectedCountry.iso3);
-                // Don't use stored division if it's from a different country
+            } else {                // Don't use stored division if it's from a different country
             }
         }
 
@@ -113,9 +93,7 @@ const MapPage = () => {
         if (user?.location || user?.profile?.administrative_division) {
             const userCountry = user.location?.country;
 
-            if (!selectedCountry || userCountry === selectedCountry.iso3 || userCountry === selectedCountry.name) {
-                console.log('📍 MapPage - Using user profile location');
-                return {
+            if (!selectedCountry || userCountry === selectedCountry.iso3 || userCountry === selectedCountry.name) {                return {
                     country: user.location?.country,
                     division_id: user.location?.division_id || user.profile?.administrative_division?.division_id,
                     level_1_id: user.location?.level_1_id,
@@ -128,19 +106,14 @@ const MapPage = () => {
         if (anonymousLocation?.location) {
             const anonCountry = anonymousLocation.country?.name;
 
-            if (!selectedCountry || anonCountry === selectedCountry.iso3 || anonCountry === selectedCountry.name) {
-                console.log('📍 MapPage - Using anonymous location');
-                return {
+            if (!selectedCountry || anonCountry === selectedCountry.iso3 || anonCountry === selectedCountry.name) {                return {
                     country: anonymousLocation.country?.name,
                     division_id: anonymousLocation.location?.administrative_division_id,
                     level_1_id: null,
                     city: anonymousLocation.location?.division_name
                 };
             }
-        }
-
-        console.log('⚠️ MapPage - No location found matching selected country');
-        return null;
+        }        return null;
     };    // Animation d'apparition et suivi de la souris
     useEffect(() => {
         setIsVisible(true);
@@ -158,9 +131,7 @@ const MapPage = () => {
 
     // Update selectedMunicipality when activeMunicipality changes (from left menu dropdown)
     useEffect(() => {
-        if (activeMunicipality) {
-            console.log('📍 MapPage: activeMunicipality changed, updating map selection:', activeMunicipality);
-            setSelectedMunicipality(activeMunicipality);
+        if (activeMunicipality) {            setSelectedMunicipality(activeMunicipality);
         }
     }, [activeMunicipality]);
 
@@ -183,14 +154,10 @@ const MapPage = () => {
     useEffect(() => {
         const handleCountryPreferenceChange = (event) => {
             const newCountryISO3 = event.detail;
-            console.log('🔄 MapPage - Country preference changed from another component:', newCountryISO3);
-
             // Find the new country in our countries list and select it
             if (countries && countries.length > 0) {
                 const newCountry = countries.find(c => c.iso3 === newCountryISO3);
-                if (newCountry && newCountry.id !== selectedCountry?.id) {
-                    console.log('✅ MapPage - Syncing to new country:', newCountry.name);
-                    setSelectedCountry(newCountry);
+                if (newCountry && newCountry.id !== selectedCountry?.id) {                    setSelectedCountry(newCountry);
                     // Clear related state when country changes from external source
                     setSelectedLevel1(null);
                     setDefaultLevelDivisions([]);
@@ -219,63 +186,36 @@ const MapPage = () => {
             // PRIORITY 0: Use division ID from URL query param (?division={id})
             if (divisionIdFromUrl) {
                 // Don't reload if we already have this division loaded
-                if (divisionHierarchy?.id === divisionIdFromUrl) {
-                    console.log('⏭️ MapPage - Division already loaded from URL, skipping reload');
-                    return;
+                if (divisionHierarchy?.id === divisionIdFromUrl) {                    return;
                 }
-                divisionId = divisionIdFromUrl;
-                console.log('🔗 MapPage - Using division ID from URL:', divisionId);
-            }
+                divisionId = divisionIdFromUrl;            }
             // PRIORITY 1: Use activeMunicipality ID
             else if (activeMunicipality?.id) {
                 // Don't reload if we already have this division loaded
-                if (divisionHierarchy?.id === activeMunicipality.id) {
-                    console.log('⏭️ MapPage - Division already loaded from context, skipping reload');
-                    return;
+                if (divisionHierarchy?.id === activeMunicipality.id) {                    return;
                 }
-                divisionId = activeMunicipality.id;
-                console.log('🔍 MapPage - Using activeMunicipality ID:', divisionId);
-            }
+                divisionId = activeMunicipality.id;            }
             // PRIORITY 2: Use current division from localStorage
             else {
                 const currentDivision = getCurrentDivision();
                 if (currentDivision?.id) {
                     // Don't reload if we already have this division loaded
-                    if (divisionHierarchy?.id === currentDivision.id) {
-                        console.log('⏭️ MapPage - Division already loaded from storage, skipping reload');
-                        return;
+                    if (divisionHierarchy?.id === currentDivision.id) {                        return;
                     }
-                    divisionId = currentDivision.id;
-                    console.log('🔍 MapPage - Using localStorage division ID:', divisionId);
-                }
+                    divisionId = currentDivision.id;                }
             }
 
             // If we have a division ID, fetch its full hierarchy via neighbors endpoint
-            if (divisionId) {
-                console.log('📡 MapPage - Fetching division hierarchy from API...', { divisionId });
-                setLoadingDivisionHierarchy(true);
+            if (divisionId) {                setLoadingDivisionHierarchy(true);
                 const result = await geolocationService.getDivisionNeighbors(divisionId, 0);
-
-                console.log('📡 MapPage - API response:', result);
-
                 if (result.success && result.division) {
                     const division = result.division;
-                    console.log('✅ MapPage - Division hierarchy loaded:', division);
-
                     // Extract country from division response
                     if (division.country) {
                         const countryToSelect = countries.find(c => c.iso3 === division.country.iso3);
                         if (countryToSelect) {
-                            console.log('✅ MapPage - Country detected from API:', countryToSelect.name);
-
                             // CRITICAL: Batch all state updates together using React 18 automatic batching
                             // This prevents multiple re-renders and zoom animations
-                            console.log('📍 MapPage - Batching state updates for division:', {
-                                id: division.id,
-                                name: division.name,
-                                country: division.country?.iso3
-                            });
-
                             // Set all states in sequence - React 18 will batch them automatically
                             setDivisionHierarchy(division);
                             setSelectedCountry(countryToSelect);
@@ -283,62 +223,42 @@ const MapPage = () => {
                             setSelectedMunicipality(division);
                             setLoadingDivisionHierarchy(false);
                             return; // Done!
-                        } else {
-                            console.error('❌ MapPage - Country not found in countries list:', division.country.iso3);
-                        }
-                    } else {
-                        console.error('❌ MapPage - No country in division response');
-                    }
-                } else {
-                    console.error('❌ MapPage - API call failed or no division:', result);
-                }
+                        } else {                        }
+                    } else {                    }
+                } else {                }
                 setLoadingDivisionHierarchy(false);
-            } else {
-                console.log('⚠️ MapPage - No division ID to load');
-            }
+            } else {            }
 
             // FALLBACK: Try other detection methods if API call failed
             let countryToSelect = null;
 
             // PRIORITY 1: Check country preference from localStorage (set by left menu)
             const preferredCountryISO3 = getPreferredCountry(user);
-            if (preferredCountryISO3) {
-                console.log('🌍 MapPage - Checking country preference from localStorage:', preferredCountryISO3);
-                countryToSelect = countries.find(c => c.iso3 === preferredCountryISO3);
-                if (countryToSelect) {
-                    console.log('✅ MapPage - Using preferred country:', countryToSelect.name);
-                }
+            if (preferredCountryISO3) {                countryToSelect = countries.find(c => c.iso3 === preferredCountryISO3);
+                if (countryToSelect) {                }
             }
 
             // PRIORITY 2: Try activeMunicipality country property
             if (!countryToSelect && activeMunicipality?.country) {
-                const municipalityCountry = activeMunicipality.country?.iso3 || activeMunicipality.country;
-                console.log('🌍 MapPage - Detecting country from activeMunicipality property:', municipalityCountry);
-                countryToSelect = countries.find(c => c.iso3 === municipalityCountry);
+                const municipalityCountry = activeMunicipality.country?.iso3 || activeMunicipality.country;                countryToSelect = countries.find(c => c.iso3 === municipalityCountry);
             }
 
             // PRIORITY 3: Try localStorage division country
             if (!countryToSelect) {
                 const currentDivision = getCurrentDivision();
-                if (currentDivision?.country) {
-                    console.log('🌍 MapPage - Detecting country from localStorage:', currentDivision.country);
-                    countryToSelect = countries.find(c => c.iso3 === currentDivision.country);
+                if (currentDivision?.country) {                    countryToSelect = countries.find(c => c.iso3 === currentDivision.country);
                 }
             }
 
             // PRIORITY 4: Try user location
             if (!countryToSelect) {
                 const effectiveLocation = getEffectiveLocation();
-                if (effectiveLocation?.country) {
-                    console.log('🌍 MapPage - Detecting country from user location:', effectiveLocation.country);
-                    countryToSelect = countries.find(c =>
+                if (effectiveLocation?.country) {                    countryToSelect = countries.find(c =>
                         c.name === effectiveLocation.country ||
                         c.iso2 === effectiveLocation.country ||
                         c.iso3 === effectiveLocation.country
                     );
-                } else if (anonymousLocation?.country) {
-                    console.log('🌍 MapPage - Detecting country from anonymous location');
-                    countryToSelect = countries.find(c =>
+                } else if (anonymousLocation?.country) {                    countryToSelect = countries.find(c =>
                         c.name === anonymousLocation.country.name ||
                         c.iso3 === anonymousLocation.country.iso3
                     );
@@ -346,14 +266,10 @@ const MapPage = () => {
             }
 
             // FALLBACK: Default to Canada only if no country detected at all
-            if (!countryToSelect) {
-                console.log('🌍 MapPage - No country detected, defaulting to Canada');
-                countryToSelect = countries.find(c => c.iso3 === 'CAN');
+            if (!countryToSelect) {                countryToSelect = countries.find(c => c.iso3 === 'CAN');
             }
 
-            if (countryToSelect) {
-                console.log('✅ MapPage - Selected country:', countryToSelect.name, countryToSelect.iso3);
-                setSelectedCountry(countryToSelect);
+            if (countryToSelect) {                setSelectedCountry(countryToSelect);
             }
         };
 
@@ -372,9 +288,7 @@ const MapPage = () => {
             }
 
             // CRITICAL: Clear level1 divisions immediately when country changes
-            // This prevents showing old country's data while loading
-            console.log('🔄 MapPage - Loading level 1 divisions for:', selectedCountry.name);
-            setLevel1Divisions([]); // Clear first
+            // This prevents showing old country's data while loading            setLevel1Divisions([]); // Clear first
             setSelectedLevel1(null); // Clear selection
 
             setLoadingLevel1(true);
@@ -393,9 +307,7 @@ const MapPage = () => {
                 let level1ToSelect = null;
 
                 // PRIORITY 1: Use level_1_parent from division hierarchy API (only if country matches)
-                if (divisionHierarchy?.level_1_parent && divisionHierarchy?.country?.iso3 === selectedCountry.iso3) {
-                    console.log('📍 MapPage - Auto-selecting level 1 from hierarchy:', divisionHierarchy.level_1_parent.name);
-                    level1ToSelect = result.divisions.find(d => d.id === divisionHierarchy.level_1_parent.id);
+                if (divisionHierarchy?.level_1_parent && divisionHierarchy?.country?.iso3 === selectedCountry.iso3) {                    level1ToSelect = result.divisions.find(d => d.id === divisionHierarchy.level_1_parent.id);
                 }
 
                 // PRIORITY 2: Try effectiveLocation level_1_id (only if country matches)
@@ -415,16 +327,12 @@ const MapPage = () => {
                 // Don't auto-select first division when exploring
                 // Only auto-select if we have a valid reason (hierarchy or user location match)
                 // Fallback to first division ONLY if hierarchy exists and matches
-                if (!level1ToSelect && divisionHierarchy?.country?.iso3 === selectedCountry.iso3 && result.divisions.length > 0) {
-                    console.log('📍 MapPage - Auto-selecting first level 1 division from hierarchy context');
-                    level1ToSelect = result.divisions[0];
+                if (!level1ToSelect && divisionHierarchy?.country?.iso3 === selectedCountry.iso3 && result.divisions.length > 0) {                    level1ToSelect = result.divisions[0];
                 }
 
                 if (level1ToSelect) {
                     setSelectedLevel1(level1ToSelect);
-                } else {
-                    console.log('🗺️ MapPage - No auto-selection, user should manually select level 1');
-                }
+                } else {                }
             }
             setLoadingLevel1(false);
         };
@@ -443,12 +351,7 @@ const MapPage = () => {
 
             // CRITICAL: If hierarchy exists but country doesn't match, clear and return
             // This prevents loading old country data when switching countries
-            if (divisionHierarchy && divisionHierarchy.country?.iso3 !== selectedCountry.iso3) {
-                console.log('⚠️ MapPage - Country mismatch detected, clearing divisions:', {
-                    hierarchyCountry: divisionHierarchy.country?.iso3,
-                    selectedCountry: selectedCountry.iso3
-                });
-                setDefaultLevelDivisions([]);
+            if (divisionHierarchy && divisionHierarchy.country?.iso3 !== selectedCountry.iso3) {                setDefaultLevelDivisions([]);
                 setSelectedDefaultDivision(null);
                 return; // Don't load - wait for hierarchy to be cleared
             }
@@ -562,10 +465,7 @@ const MapPage = () => {
             const countryISO3 = selectedMunicipality.country?.iso3 ||
                                selectedCountry?.iso3 ||
                                getPreferredCountry();
-            const urlPath = getUrlPathByISO3(countryISO3);
-
-            console.log('🔗 MapPage navigation:', { slug, countryISO3, urlPath });
-            navigate(`/${urlPath}/${slug}/accueil`);
+            const urlPath = getUrlPathByISO3(countryISO3);            navigate(`/${urlPath}/${slug}/accueil`);
         }
     };
 
@@ -622,9 +522,7 @@ const MapPage = () => {
                                 onChange={(e) => {
                                     const country = countries.find(c => c.id === e.target.value);
                                     setSelectedCountry(country);
-                                    // Map is for exploration - don't save preference to avoid disrupting left menu context
-                                    console.log('�️ MapPage - Exploring country:', country?.name);
-                                    setSelectedLevel1(null);
+                                    // Map is for exploration - don't save preference to avoid disrupting left menu context                                    setSelectedLevel1(null);
                                     setDefaultLevelDivisions([]);
                                     setSelectedDefaultDivision(null); // Clear selected division when country changes
                                     setDivisionHierarchy(null); // Clear hierarchy - we're browsing a different country now

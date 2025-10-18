@@ -13,31 +13,7 @@ import { getAvailableUrlPaths, getAvailableCountries } from './adminDivisions';
 /**
  * Demo function - shows before and after adding new countries
  */
-export const runDemo = () => {
-  console.log('🎬 DYNAMIC ROUTING SYSTEM DEMO');
-  console.log('================================\n');
-
-  console.log('📊 BEFORE - Current available routes:');
-  logCurrentRoutes();
-  console.log('\n' + '='.repeat(50) + '\n');
-
-  console.log('➕ ADDING: Senegal with communes...');
-  addCountryWithCommonType('SN', 'Senegal', 'commune', 'communes_senegal.json');
-
-  console.log('\n➕ ADDING: Germany with gemeinden...');
-  addCountryWithCommonType('DE', 'Germany', 'gemeinde', 'gemeinden_germany.json');
-
-  console.log('\n📊 AFTER - New routes automatically generated:');
-  logCurrentRoutes();
-
-  console.log('\n🎯 EXAMPLES OF AUTOMATICALLY GENERATED URLS:');
-  console.log('  • Canada: /municipality/sherbrooke/accueil');
-  console.log('  • Benin: /commune/cotonou/accueil');
-  console.log('  • Senegal: /commune/dakar/accueil (NEW!)');
-  console.log('  • Germany: /gemeinde/berlin/accueil (NEW!)');
-
-  console.log('\n' + SETUP_INSTRUCTIONS);
-};
+export const runDemo = () => {  logCurrentRoutes();  addCountryWithCommonType('SN', 'Senegal', 'commune', 'communes_senegal.json');  addCountryWithCommonType('DE', 'Germany', 'gemeinde', 'gemeinden_germany.json');  logCurrentRoutes();};
 
 /**
  * Test URL generation for different countries
@@ -45,19 +21,10 @@ export const runDemo = () => {
 export const testUrlGeneration = () => {
   const { getMunicipalityUrl } = require('../data/municipalitiesUtils');
   const { setCurrentCountry } = require('./adminDivisions');
-
-  console.log('🧪 TESTING URL GENERATION:\n');
-
   // Test Canada (default)
   setCurrentCountry('CA');
-  console.log('🇨🇦 Canada:', getMunicipalityUrl('Sherbrooke'));
-
   // Test Benin
   setCurrentCountry('BJ');
-  console.log('🇧🇯 Benin:', getMunicipalityUrl('Cotonou'));
-
-  // Future countries would work the same way
-  console.log('\n✨ Future countries will work automatically!');
-};
+  // Future countries would work the same way};
 
 export default { runDemo, testUrlGeneration };

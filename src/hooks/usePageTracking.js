@@ -40,12 +40,8 @@ export const usePageTracking = (divisionData = null) => {
         apiService.updateLastVisitedUrl(currentUrl)
             .then(() => {
                 lastUpdateRef.current = now;
-                lastUrlRef.current = currentUrl;
-                console.log('📍 Page visit tracked:', currentUrl);
-            })
-            .catch(error => {
-                console.warn('Failed to track page visit:', error);
-            });
+                lastUrlRef.current = currentUrl;            })
+            .catch(error => {            });
 
     }, [location.pathname, divisionData]);
 };

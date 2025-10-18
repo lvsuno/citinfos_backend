@@ -19,13 +19,8 @@ const Dashboard = () => {
     useEffect(() => {
         const redirectToDivision = async () => {
             if (loading) return; // Wait for auth to load
-
-            console.log('🔄 Dashboard: Redirecting to division page...');
-
             try {
                 const divisionUrl = await getDefaultDivisionUrl(user, anonymousLocation);
-                console.log('✅ Redirecting to:', divisionUrl);
-
                 // Preserve verification modal state if present
                 if (location.state?.showVerificationModal) {
                     navigate(divisionUrl, {
@@ -38,9 +33,7 @@ const Dashboard = () => {
                 } else {
                     navigate(divisionUrl, { replace: true });
                 }
-            } catch (error) {
-                console.error('❌ Error getting division URL:', error);
-                // Fallback to Sherbrooke if error
+            } catch (error) {                // Fallback to Sherbrooke if error
                 navigate('/municipality/sherbrooke/accueil', { replace: true });
             }
         };
@@ -49,9 +42,7 @@ const Dashboard = () => {
     }, [user, loading, anonymousLocation, navigate, location.state]);
 
     const handleRubriqueChange = (rubrique) => {
-        setActiveRubrique(rubrique);
-        console.log('Rubrique sélectionnée:', rubrique);
-    };
+        setActiveRubrique(rubrique);    };
 
     // Show loading spinner while redirecting
     if (loading || redirecting) {

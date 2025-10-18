@@ -13,12 +13,12 @@ const PollExpirationPicker = ({
   const [customTime, setCustomTime] = useState(initialTime);
 
   const presets = [
-    { id: '1h', label: '1 Hour', hours: 1 },
-    { id: '4h', label: '4 Hours', hours: 4 },
-    { id: '12h', label: '12 Hours', hours: 12 },
-    { id: '1d', label: '1 Day', hours: 24 },
-    { id: '3d', label: '3 Days', hours: 72 },
-    { id: '1w', label: '1 Week', hours: 168 }
+    { id: '1h', label: '1 Heure', hours: 1 },
+    { id: '4h', label: '4 Heures', hours: 4 },
+    { id: '12h', label: '12 Heures', hours: 12 },
+    { id: '1d', label: '1 Jour', hours: 24 },
+    { id: '3d', label: '3 Jours', hours: 72 },
+    { id: '1w', label: '1 Semaine', hours: 168 }
   ];
 
   const handlePresetSelect = (preset) => {
@@ -50,7 +50,7 @@ const PollExpirationPicker = ({
     <div className="space-y-3">
       <label className={`block font-medium text-gray-700 ${sizeClasses.label}`}>
         <ClockIcon className="inline h-4 w-4 mr-1" />
-        Poll Expiration
+        Expiration du sondage
       </label>
 
       {/* Preset Duration Buttons */}
@@ -81,7 +81,7 @@ const PollExpirationPicker = ({
           }}
           className={`${sizeClasses.button} text-gray-600 hover:text-gray-800 underline`}
         >
-          {showCustom ? 'Use quick presets' : 'Set custom date & time'}
+          {showCustom ? 'Utiliser les options rapides' : 'Définir une date et heure personnalisées'}
         </button>
       </div>
 
@@ -100,7 +100,7 @@ const PollExpirationPicker = ({
               />
             </div>
             <div>
-              <label className={`block ${sizeClasses.label} text-gray-600 mb-1`}>Time</label>
+              <label className={`block ${sizeClasses.label} text-gray-600 mb-1`}>Heure</label>
               <input
                 type="time"
                 value={customTime}
@@ -116,7 +116,7 @@ const PollExpirationPicker = ({
       {(customDate && customTime) || selectedPreset ? (
         <div className={`text-center p-2 bg-indigo-50 rounded-md`}>
           <p className={`text-indigo-700 font-medium ${size === "small" ? "text-[10px]" : "text-sm"}`}>
-            📅 Expires: {customDate && customTime
+            📅 Expire le: {customDate && customTime
               ? new Date(`${customDate}T${customTime}`).toLocaleString()
               : selectedPreset
                 ? (() => {
@@ -131,7 +131,7 @@ const PollExpirationPicker = ({
       ) : (
         <div className={`text-center p-2 bg-yellow-50 rounded-md`}>
           <p className={`text-yellow-700 ${size === "small" ? "text-[10px]" : "text-sm"}`}>
-            ⚡ Default: 1 day from now
+            ⚡ Par défaut: dans 1 jour
           </p>
         </div>
       )}

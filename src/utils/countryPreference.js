@@ -20,9 +20,7 @@ const STORAGE_KEY = 'currentBrowsingCountry';
 export const getPreferredCountry = (user = null) => {
     // Priority 1: Check localStorage for manual selection
     const savedCountry = localStorage.getItem(STORAGE_KEY);
-    if (savedCountry) {
-        console.log('🌍 Using saved country preference:', savedCountry);
-        return savedCountry;
+    if (savedCountry) {        return savedCountry;
     }
 
     // Priority 2: Get from user profile location
@@ -43,9 +41,7 @@ export const getPreferredCountry = (user = null) => {
         }
     }
 
-    // Priority 3: Default to Canada
-    console.log('🌍 No preference found, defaulting to Canada');
-    return 'CAN';
+    // Priority 3: Default to Canada    return 'CAN';
 };
 
 /**
@@ -53,14 +49,10 @@ export const getPreferredCountry = (user = null) => {
  * @param {string} countryCode - Country ISO3 code
  */
 export const setPreferredCountry = (countryCode) => {
-    if (!countryCode) {
-        console.warn('⚠️ Attempted to set empty country code');
-        return;
+    if (!countryCode) {        return;
     }
 
     localStorage.setItem(STORAGE_KEY, countryCode);
-    console.log('✅ Country preference updated:', countryCode);
-
     // Dispatch custom event so other components can react
     window.dispatchEvent(new CustomEvent('countryPreferenceChanged', {
         detail: { countryCode }
@@ -72,8 +64,6 @@ export const setPreferredCountry = (countryCode) => {
  */
 export const clearPreferredCountry = () => {
     localStorage.removeItem(STORAGE_KEY);
-    console.log('🧹 Country preference cleared');
-
     window.dispatchEvent(new CustomEvent('countryPreferenceChanged', {
         detail: { countryCode: null }
     }));

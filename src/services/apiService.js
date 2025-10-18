@@ -70,13 +70,25 @@ class ApiService {
           // Ignore errors
         }
 
+        // Check for verification required header on ALL responses
+        const verificationRequired = response.headers['x-verification-required'];
+        const verificationMessage = response.headers['x-verification-message'];
+
+        if (verificationRequired === 'true') {
+          // Dispatch custom event for verification modal
+          window.dispatchEvent(new CustomEvent('verificationRequired', {
+            detail: {
+              message: verificationMessage || 'Your account verification has expired.',
+              errorCode: 'VERIFICATION_EXPIRED'
+            }
+          }));
+        }
+
         // Check for new tokens in response headers (from middleware auto-renewal)
         const newAccessToken = response.headers['x-new-access-token'];
         const newRefreshToken = response.headers['x-new-refresh-token'];
 
-        if (newAccessToken) {
-          console.log('🔄 Middleware renewed tokens automatically');
-          this.setTokens(newAccessToken, newRefreshToken);
+        if (newAccessToken) {          this.setTokens(newAccessToken, newRefreshToken);
         }
 
         // Extract session ID if provided (for session recovery)
@@ -89,6 +101,22 @@ class ApiService {
       },
       async (error) => {
         const originalRequest = error.config;
+
+        // Check for verification required (403 with VERIFICATION_EXPIRED)
+        if (error.response?.status === 403) {
+          const errorData = error.response?.data || {};
+
+          if (errorData.error_code === 'VERIFICATION_EXPIRED' || errorData.requires_verification) {
+            // Dispatch custom event for verification modal
+            window.dispatchEvent(new CustomEvent('verificationRequired', {
+              detail: {
+                message: errorData.message || 'Your account verification has expired.',
+                errorCode: errorData.error_code
+              }
+            }));
+            return Promise.reject(error);
+          }
+        }
 
         if (error.response?.status === 401 && !originalRequest._retry) {
           const errorData = error.response?.data || {};
@@ -105,9 +133,7 @@ class ApiService {
 
           // Check if middleware already renewed tokens in headers
           const newAccessToken = error.response.headers?.['x-new-access-token'];
-          if (newAccessToken) {
-            console.log('🔄 Middleware renewed token during error response');
-            const newRefreshToken = error.response.headers?.['x-new-refresh-token'];
+          if (newAccessToken) {            const newRefreshToken = error.response.headers?.['x-new-refresh-token'];
             this.setTokens(newAccessToken, newRefreshToken);
 
             // Retry original request with new token
@@ -202,9 +228,7 @@ class ApiService {
         success: false,
         error: 'Invalid login response format'
       };
-    } catch (error) {
-      console.error('Login error:', error);
-      throw this.handleError(error);
+    } catch (error) {      throw this.handleError(error);
     }
   }
 
@@ -218,9 +242,7 @@ class ApiService {
         user: response.data.user,
         email: userData.email
       };
-    } catch (error) {
-      console.error('Registration error:', error);
-      throw this.handleError(error);
+    } catch (error) {      throw this.handleError(error);
     }
   }
 
@@ -244,9 +266,7 @@ class ApiService {
         user,
         tokens: access ? { access, refresh } : null
       };
-    } catch (error) {
-      console.error('Email verification error:', error);
-      throw this.handleError(error);
+    } catch (error) {      throw this.handleError(error);
     }
   }
 
@@ -260,9 +280,7 @@ class ApiService {
         success: true,
         message: response.data.message || 'Verification code sent!'
       };
-    } catch (error) {
-      console.error('Resend verification error:', error);
-      throw this.handleError(error);
+    } catch (error) {      throw this.handleError(error);
     }
   }
 
@@ -274,9 +292,7 @@ class ApiService {
           refresh: refreshToken,
         });
       }
-    } catch (error) {
-      console.error('Logout error:', error);
-    } finally {
+    } catch (error) {    } finally {
       this.clearTokens();
     }
   }
@@ -285,9 +301,7 @@ class ApiService {
     try {
       const response = await this.api.get('/auth/user-info/');
       return response.data;
-    } catch (error) {
-      console.error('Get current user error:', error);
-      throw this.handleError(error);
+    } catch (error) {      throw this.handleError(error);
     }
   }
 
@@ -295,9 +309,7 @@ class ApiService {
     try {
       const response = await this.api.post('/auth/update-last-visited/', { url });
       return response.data;
-    } catch (error) {
-      console.error('Update last visited URL error:', error);
-      // Don't throw - this is not critical
+    } catch (error) {      // Don't throw - this is not critical
       return null;
     }
   }

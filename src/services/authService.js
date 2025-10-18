@@ -342,9 +342,7 @@ class AuthService {
       return { success: true };
     } catch (error) {
       // Even if logout fails, clear local tokens
-      clearTokens();
-      console.error('Logout error:', error);
-      return { success: true }; // Don't throw on logout failure
+      clearTokens();      return { success: true }; // Don't throw on logout failure
     }
   }
 
@@ -413,9 +411,7 @@ class AuthService {
   async validateSession() {
     try {
       // If no token, try session-based authentication recovery
-      if (!this.isAuthenticated()) {
-        console.log('No JWT token found, attempting session recovery...');
-        return await this.attemptSessionRecovery();
+      if (!this.isAuthenticated()) {        return await this.attemptSessionRecovery();
       }
 
       // Try to validate existing token
@@ -428,13 +424,9 @@ class AuthService {
       };
     } catch (error) {
       // If token validation fails, try session recovery before giving up
-      if (error?.response && (error.response.status === 401 || error.response.status === 403)) {
-        console.log('JWT validation failed, attempting session recovery...');
-        clearTokens(); // Clear invalid tokens
+      if (error?.response && (error.response.status === 401 || error.response.status === 403)) {        clearTokens(); // Clear invalid tokens
         return await this.attemptSessionRecovery();
-      }
-      console.warn('Session validation warning:', error?.message || error);
-      return { isValid: false, user: null };
+      }      return { isValid: false, user: null };
     }
   }
 
@@ -444,8 +436,6 @@ class AuthService {
    */
   async attemptSessionRecovery() {
     try {
-      console.log('Attempting session-based authentication recovery...');
-
       // Make a request without Authorization header
       // This will trigger the server-side fingerprint fallback
       const response = await api.get('auth/user-info/');
@@ -454,9 +444,7 @@ class AuthService {
       const newAccessToken = response.headers['x-renewed-access'];
       const newRefreshToken = response.headers['x-renewed-refresh'];
 
-      if (newAccessToken) {
-        console.log('✅ Session recovery successful - new tokens received');
-        setTokens(newAccessToken, newRefreshToken);
+      if (newAccessToken) {        setTokens(newAccessToken, newRefreshToken);
 
         return {
           isValid: true,
@@ -466,9 +454,7 @@ class AuthService {
       }
 
       // If we get user data but no new tokens, session is valid
-      if (response.data) {
-        console.log('✅ Session recovery successful - existing session valid');
-        return {
+      if (response.data) {        return {
           isValid: true,
           user: response.data,
           recovered: true
@@ -477,9 +463,7 @@ class AuthService {
 
       return { isValid: false, user: null };
 
-    } catch (error) {
-      console.log('❌ Session recovery failed:', error?.response?.status || error.message);
-      return { isValid: false, user: null };
+    } catch (error) {      return { isValid: false, user: null };
     }
   }
 

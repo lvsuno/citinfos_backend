@@ -15,8 +15,13 @@ import {
 import { useAuth } from '../contexts/AuthContext';
 import { useMunicipality } from '../contexts/MunicipalityContext';
 import EnhancedMunicipalitySelector from '../components/EnhancedMunicipalitySelector';
+import EnhancedCountryPhoneInput from '../components/EnhancedCountryPhoneInput';
 import PasswordGenerator from '../components/PasswordGenerator';
 import VerifyAccount from '../components/VerifyAccount';
+import {
+  validatePhoneNumber,
+  formatAsYouType
+} from '../utils/phoneValidation';
 import styles from './SignUpPage.module.css';
 
 const SignUpPage = () => {
@@ -26,6 +31,8 @@ const SignUpPage = () => {
     username: '',
     email: '',
     phoneNumber: '',
+    phoneCountry: 'CA', // Default to Canada (will be updated by auto-detect)
+    phoneCountryData: null, // Full country object with phone_code, flag_emoji, etc.
     password: '',
     confirmPassword: '',
     municipality: '',
@@ -52,6 +59,7 @@ const SignUpPage = () => {
   useEffect(() => {
     setIsVisible(true);
     initializeParticles();
+    // Country auto-detection is now handled by EnhancedCountryPhoneInput component
 
     return () => {
       // Cleanup des particules si nécessaire
@@ -87,16 +95,58 @@ const SignUpPage = () => {
 
   const handleInputChange = (e) => {
     const { name, value, type, checked } = e.target;
-    setFormData(prev => ({
-      ...prev,
-      [name]: type === 'checkbox' ? checked : value
-    }));
+
+    // Special handling for phone number - format as user types
+    if (name === 'phoneNumber') {
+      const formatted = formatAsYouType(value, formData.phoneCountry);
+      setFormData(prev => ({
+        ...prev,
+        [name]: formatted
+      }));
+    } else {
+      setFormData(prev => ({
+        ...prev,
+        [name]: type === 'checkbox' ? checked : value
+      }));
+    }
 
     // Clear error when user starts typing
     if (errors[name]) {
       setErrors(prev => ({
         ...prev,
         [name]: ''
+      }));
+    }
+  };
+
+  const handleCountryChange = (country) => {    setFormData(prev => ({
+      ...prev,
+      phoneCountry: country.iso2,
+      phoneCountryData: country,
+      phoneNumber: '' // Clear phone number when country changes
+    }));
+
+    // Clear phone error
+    if (errors.phoneNumber) {
+      setErrors(prev => ({
+        ...prev,
+        phoneNumber: ''
+      }));
+    }
+  };
+
+  const handlePhoneChange = (phoneNumber, country) => {    setFormData(prev => ({
+      ...prev,
+      phoneNumber,
+      phoneCountry: country?.iso2 || prev.phoneCountry,
+      phoneCountryData: country || prev.phoneCountryData
+    }));
+
+    // Clear phone error
+    if (errors.phoneNumber) {
+      setErrors(prev => ({
+        ...prev,
+        phoneNumber: ''
       }));
     }
   };
@@ -134,8 +184,16 @@ const SignUpPage = () => {
 
     if (!formData.phoneNumber.trim()) {
       newErrors.phoneNumber = 'Le numéro de téléphone est requis';
-    } else if (!/^[+]?[0-9\s\-\(\)]{8,}$/.test(formData.phoneNumber.replace(/\s/g, ''))) {
-      newErrors.phoneNumber = 'Format de numéro de téléphone invalide';
+    } else {
+      // Validate phone number with country-specific rules
+      const phoneValidation = validatePhoneNumber(
+        formData.phoneNumber,
+        formData.phoneCountry
+      );
+
+      if (!phoneValidation.valid) {
+        newErrors.phoneNumber = phoneValidation.error;
+      }
     }
 
     if (!formData.birthDate) {
@@ -167,12 +225,7 @@ const SignUpPage = () => {
       newErrors.confirmPassword = 'Les mots de passe ne correspondent pas';
     }
 
-    if (!formData.municipality || !formData.divisionId) {
-      console.log('Validation failed for municipality:', {
-        municipality: formData.municipality,
-        divisionId: formData.divisionId
-      });
-      newErrors.municipality = 'Veuillez sélectionner votre municipalité';
+    if (!formData.municipality || !formData.divisionId) {      newErrors.municipality = 'Veuillez sélectionner votre municipalité';
     }
 
     if (!formData.acceptTerms) {
@@ -194,7 +247,29 @@ const SignUpPage = () => {
     setErrors({});
 
     try {
-      const result = await signUp(formData);
+      // Get formatted international phone number for backend
+      const phoneValidation = validatePhoneNumber(
+        formData.phoneNumber,
+        formData.phoneCountry
+      );
+
+      // Enforce validation - don't proceed if phone number is invalid
+      if (!phoneValidation.valid) {
+        setErrors(prev => ({
+          ...prev,
+          phoneNumber: phoneValidation.error || 'Numéro de téléphone invalide'
+        }));
+        setIsLoading(false);
+        return;
+      }
+
+      // Prepare data with formatted phone number
+      const submitData = {
+        ...formData,
+        phoneNumber: phoneValidation.international
+      };
+
+      const result = await signUp(submitData);
 
       if (result.success && result.requiresVerification) {
         // Registration successful, show verification modal
@@ -208,6 +283,7 @@ const SignUpPage = () => {
           username: '',
           email: '',
           phoneNumber: '',
+          phoneCountry: 'CA',
           password: '',
           confirmPassword: '',
           municipality: '',
@@ -221,9 +297,7 @@ const SignUpPage = () => {
         const municipalitySlug = getMunicipalitySlug(formData.municipality);
         navigate(`/municipality/${municipalitySlug}`, { replace: true });
       }
-    } catch (error) {
-      console.error('Registration error:', error);
-      setErrors({ general: error.message || 'Erreur lors de l\'inscription' });
+    } catch (error) {      setErrors({ general: error.message || 'Erreur lors de l\'inscription' });
     } finally {
       setIsLoading(false);
     }
@@ -383,19 +457,15 @@ const SignUpPage = () => {
                   </div>
 
                   <div className={styles.inputGroup}>
-                    <div className={styles.inputWrapper}>
-                      <Form.Control
-                        type="tel"
-                        name="phoneNumber"
-                        placeholder="Numéro de téléphone"
-                        value={formData.phoneNumber}
-                        onChange={handleInputChange}
-                        className={`${styles.formInput} ${errors.phoneNumber ? styles.error : ''}`}
-                        autoComplete="tel"
-                        required
-                      />
-                      <PhoneIcon className={styles.inputIcon} />
-                    </div>
+                    <EnhancedCountryPhoneInput
+                      value={formData.phoneNumber}
+                      selectedCountry={formData.phoneCountryData}
+                      onChange={handlePhoneChange}
+                      onCountryChange={handleCountryChange}
+                      error={errors.phoneNumber}
+                      required
+                      autoDetect={true}
+                    />
                     {errors.phoneNumber && <div className={styles.errorText}>{errors.phoneNumber}</div>}
                     <div className={styles.inputHint}>
                       📱 Utilisé pour la vérification de compte et récupération en cas d'oubli
@@ -425,9 +495,7 @@ const SignUpPage = () => {
                   <div className={styles.inputGroup}>
                     <EnhancedMunicipalitySelector
                       value={formData.municipality}
-                      onChange={(municipality, divisionData = null) => {
-                        console.log('Municipality onChange:', { municipality, divisionData });
-                        setFormData(prev => ({
+                      onChange={(municipality, divisionData = null) => {                        setFormData(prev => ({
                           ...prev,
                           municipality,
                           divisionId: divisionData?.id || '',

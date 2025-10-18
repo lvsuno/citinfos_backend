@@ -11,23 +11,13 @@ class GeolocationService {
    * @returns {Promise<Object>} Location data with country info and closest divisions
    */
   async getUserLocationData(ipAddress = null) {
-    console.log('🌍 Detecting user location...', { ipAddress });
-
     try {
       const response = await apiService.post('/auth/location-data/', {
         ip_address: ipAddress
       });
 
       const data = response.data;
-      console.log('🌍 Location data received:', data);
-
       if (data.success) {
-        console.log('✅ Location detection successful:', {
-          country: data.country?.name,
-          city: data.user_location?.city,
-          divisionsFound: data.closest_divisions?.length
-        });
-
         return {
           success: true,
           country: data.country,
@@ -44,9 +34,7 @@ class GeolocationService {
           message: data.message
         };
       }
-    } catch (error) {
-      console.error('Error fetching user location data:', error);
-      return {
+    } catch (error) {      return {
         success: false,
         error: 'Failed to get location data',
         message: 'Unable to detect your location. Please select manually.'
@@ -68,9 +56,6 @@ class GeolocationService {
         q: query,
         limit: Math.min(limit, 50)
       };
-
-      console.log('🔍 Searching divisions...', { countryCode, query, limit });
-
       const response = await apiService.get('/auth/search-divisions/', { params });
       const data = response.data;
 
@@ -82,9 +67,7 @@ class GeolocationService {
         country: data.country,
         divisionType: data.division_type
       };
-    } catch (error) {
-      console.error('Error searching divisions:', error);
-      return {
+    } catch (error) {      return {
         success: false,
         error: 'Failed to search divisions',
         results: []
@@ -100,17 +83,13 @@ class GeolocationService {
    */
   async getDivisionNeighbors(divisionId, limit = 4) {
     try {
-      console.log('🔍 Fetching neighbors for division:', divisionId);
-
       const response = await apiService.get(`/auth/division-neighbors/${divisionId}/`, {
         params: { limit: Math.min(limit, 10) }
       });
 
       const data = response.data;
 
-      if (data.success) {
-        console.log('✅ Neighbors found:', data.neighbors?.length);
-        return {
+      if (data.success) {        return {
           success: true,
           division: data.division,
           neighbors: data.neighbors
@@ -122,9 +101,7 @@ class GeolocationService {
           neighbors: []
         };
       }
-    } catch (error) {
-      console.error('Error fetching division neighbors:', error);
-      return {
+    } catch (error) {      return {
         success: false,
         error: 'Failed to get division neighbors',
         neighbors: []
@@ -203,24 +180,18 @@ class GeolocationService {
           const cacheAge = Date.now() - (parsed.timestamp || 0);
 
           // Use cache if less than 24 hours old (86400000 ms)
-          if (cacheAge < 86400000) {
-            console.log('✅ Countries loaded from localStorage cache');
-            return {
+          if (cacheAge < 86400000) {            return {
               success: true,
               countries: parsed.countries,
               count: parsed.count,
               fromCache: true
             };
           }
-        } catch (e) {
-          console.error('Error parsing cached countries:', e);
-          localStorage.removeItem(cacheKey);
+        } catch (e) {          localStorage.removeItem(cacheKey);
         }
       }
 
       // Cache miss or expired - fetch from API
-      console.log('🌍 Fetching countries from API...');
-
       const response = await apiService.get('/auth/countries/');
       const data = response.data;
 
@@ -233,8 +204,6 @@ class GeolocationService {
         };
 
         localStorage.setItem(cacheKey, JSON.stringify(cacheData));
-        console.log(`✅ Cached ${data.count} countries in localStorage`);
-
         return {
           success: true,
           countries: data.countries,
@@ -248,9 +217,7 @@ class GeolocationService {
           countries: []
         };
       }
-    } catch (error) {
-      console.error('Error fetching countries:', error);
-      return {
+    } catch (error) {      return {
         success: false,
         error: 'Failed to get countries',
         countries: []
@@ -282,15 +249,10 @@ class GeolocationService {
       if (closestTo) {
         params.closest_to = closestTo;
       }
-
-      console.log('🔍 Fetching divisions...', { countryId, adminLevel, parentId, limit, closestTo });
-
       const response = await apiService.get('/auth/divisions/', { params });
       const data = response.data;
 
-      if (data.success) {
-        console.log('✅ Divisions found:', data.count);
-        return {
+      if (data.success) {        return {
           success: true,
           divisions: data.divisions,
           count: data.count
@@ -302,9 +264,7 @@ class GeolocationService {
           divisions: []
         };
       }
-    } catch (error) {
-      console.error('Error fetching divisions:', error);
-      return {
+    } catch (error) {      return {
         success: false,
         error: 'Failed to get divisions',
         divisions: []
@@ -331,25 +291,16 @@ class GeolocationService {
       if (boundaryType) {
         params.boundary_type = boundaryType;
       }
-
-      console.log('🔍 Fetching division by slug...', { slug, countryISO3, boundaryType });
-
       const response = await apiService.get('/auth/divisions/by-slug/', { params });
       const data = response.data;
 
       if (data.success && data.division) {
-        console.log('✅ Division found:', {
-          name: data.division.name,
-          adminLevel: data.division.admin_level,
-          boundaryType: data.division.boundary_type
-        });
-
+        // community_id is now included in the division data from backend
         return {
           success: true,
           division: data.division
         };
       } else {
-        console.warn('⚠️ Division not found:', { slug, countryISO3 });
         return {
           success: false,
           error: data.error || 'Division not found',
@@ -357,7 +308,6 @@ class GeolocationService {
         };
       }
     } catch (error) {
-      console.error('Error fetching division by slug:', error);
       return {
         success: false,
         error: error.response?.data?.error || 'Failed to get division',
@@ -381,9 +331,7 @@ class GeolocationService {
    */
   clearCountriesCache() {
     const cacheKey = 'cached_countries_v1';
-    localStorage.removeItem(cacheKey);
-    console.log('🗑️ Countries cache cleared');
-  }
+    localStorage.removeItem(cacheKey);  }
 
   /**
    * Clear all cached division data
@@ -409,9 +357,7 @@ class GeolocationService {
       cleared++;
     });
 
-    if (cleared > 0) {
-      console.log(`🗑️ Cleared ${cleared} division cache entries`);
-    }
+    if (cleared > 0) {    }
 
     return cleared;
   }
@@ -427,9 +373,7 @@ class GeolocationService {
     const existed = localStorage.getItem(cacheKey) !== null;
 
     if (existed) {
-      localStorage.removeItem(cacheKey);
-      console.log(`🗑️ Cleared cache for: ${cacheKey}`);
-    }
+      localStorage.removeItem(cacheKey);    }
 
     return existed;
   }

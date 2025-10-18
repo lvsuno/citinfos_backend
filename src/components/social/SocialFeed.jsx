@@ -69,9 +69,7 @@ const SocialFeed = ({
 
       setHasMore(response.has_next || response.next);
       setError(null);
-    } catch (err) {
-      console.error('Failed to fetch feed:', err);
-      setError('Failed to load feed');
+    } catch (err) {      setError('Failed to load feed');
     } finally {
       setLoading(false);
     }

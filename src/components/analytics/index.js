@@ -1,11 +1,11 @@
 /**
- * Visitor Analytics Components
- *
- * Export all visitor analytics components for easy importing
+ * Analytics Components Index
+ * Exports all analytics components for easy importing
  */
 
-export { default as VisitorAnalyticsDashboard } from './VisitorAnalyticsDashboard';
-export { default as VisitorStatsCard } from './VisitorStatsCard';
-export { default as VisitorTrendsChart } from './VisitorTrendsChart';
-export { default as DivisionBreakdown } from './DivisionBreakdown';
-export { default as RealtimeVisitorCounter } from './RealtimeVisitorCounter';
+export { default as PostViewTracker } from './PostViewTracker';
+export { default as withPostViewTracking } from './withPostViewTracking';
+export { default as AnalyticsDashboard } from './AnalyticsDashboard';
+
+// CSS import for styling
+import './analytics.css';

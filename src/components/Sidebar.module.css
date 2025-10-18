@@ -58,9 +58,62 @@
     background: rgba(0, 0, 0, 0.1);
 }
 
+/* Close button for mobile */
+.closeButton {
+    position: absolute;
+    top: 16px;
+    right: 16px;
+    width: 36px;
+    height: 36px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(255, 255, 255, 0.1);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    border-radius: 8px;
+    color: white;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    z-index: 10;
+}
+
 .closeButton:hover {
     background: rgba(239, 68, 68, 0.2);
     color: #ef4444;
+}
+
+/* Collapse button for desktop */
+.collapseButton {
+    position: absolute;
+    top: 16px;
+    right: 16px;
+    width: 36px;
+    height: 36px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(132, 204, 22, 0.1);
+    border: 1px solid rgba(132, 204, 22, 0.3);
+    border-radius: 8px;
+    color: #84cc16;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    z-index: 10;
+}
+
+.collapseButton:hover {
+    background: rgba(132, 204, 22, 0.2);
+    border-color: rgba(132, 204, 22, 0.5);
+    transform: scale(1.05);
+}
+
+/* Visibility controls */
+.mobileOnly {
+    display: flex !important;
+}
+
+.desktopOnly {
+    display: none !important;
 }
 
 .logoContainer {
@@ -247,6 +300,25 @@
     flex: 1;
 }
 
+.expandIcon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-left: auto;
+    color: rgba(148, 163, 184, 0.8);
+    transition: all 0.3s ease;
+    font-size: 20px !important;
+}
+
+.rubriqueButton:hover .expandIcon {
+    color: rgba(255, 255, 255, 0.9);
+    transform: scale(1.1);
+}
+
+.rubriqueButton.active .expandIcon {
+    color: #84cc16;
+}
+
 .rubriqueCount {
     background: rgba(71, 85, 105, 0.5);
     color: #94a3b8;
@@ -328,20 +400,54 @@
     background: rgba(132, 204, 22, 0.7);
 }
 
-/* Version desktop */
+/* Version desktop - Now collapsible */
 @media (min-width: 1024px) {
     .sidebar {
-        position: relative;
-        transform: translateX(0);
-        transition: none;
+        position: fixed;
+        transform: translateX(0); /* Always visible on desktop */
+        transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1), transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+
+    /* Collapsed state on desktop - reduce width */
+    .sidebar.collapsed {
+        width: 80px;
+    }
+
+    /* Hide text content when collapsed */
+    .sidebar.collapsed .rubriqueName,
+    .sidebar.collapsed .rubriqueCount,
+    .sidebar.collapsed .titleContainer,
+    .sidebar.collapsed .municipalitySection,
+    .sidebar.collapsed .navTitle,
+    .sidebar.collapsed .sidebarFooter {
+        display: none;
+    }
+
+    /* Center icons when collapsed */
+    .sidebar.collapsed .rubriqueButton {
+        justify-content: center;
+        padding: 14px;
+    }
+
+    /* Adjust logo when collapsed */
+    .sidebar.collapsed .logoContainer {
+        justify-content: center;
+    }
+
+    .sidebar.collapsed .logo {
+        margin: 0 auto;
     }
 
     .overlay {
+        display: none !important; /* No overlay on desktop */
+    }
+
+    .mobileOnly {
         display: none !important;
     }
 
-    .closeButton {
-        display: none !important;
+    .desktopOnly {
+        display: flex !important;
     }
 }
 
@@ -456,4 +562,52 @@
     .rubriqueButton:hover {
         background: rgba(51, 65, 85, 0.4);
     }
+}
+
+/* Loading state */
+.loadingContainer {
+    padding: 1.5rem;
+    text-align: center;
+}
+
+.loadingText {
+    color: rgba(226, 232, 240, 0.6);
+    font-size: 0.875rem;
+    margin: 0;
+    animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+@keyframes pulse {
+    0%, 100% {
+        opacity: 1;
+    }
+    50% {
+        opacity: 0.5;
+    }
+}
+
+/* Sub-rubriques styling */
+.subRubrique {
+    padding-left: 2.5rem !important;
+    font-size: 0.875rem;
+    background: rgba(15, 23, 42, 0.3);
+}
+
+.subRubrique .rubriqueName {
+    font-size: 0.875rem;
+}
+
+.subRubrique:hover {
+    background: linear-gradient(90deg, rgba(71, 85, 105, 0.3) 0%, rgba(71, 85, 105, 0.05) 100%);
+}
+
+.subRubrique.active {
+    background: linear-gradient(90deg, rgba(132, 204, 22, 0.15) 0%, rgba(132, 204, 22, 0.05) 100%);
+    border-left: 3px solid #84cc16;
+}
+
+.subRubriquesList {
+    list-style: none;
+    margin: 0;
+    padding: 0;
 }

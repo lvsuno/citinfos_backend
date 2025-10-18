@@ -79,9 +79,7 @@ const PostCreator = ({ onPostCreated, sectionName, municipalityName }) => {
             setContent('');
             setAttachments([]);
             setIsExpanded(false);
-        } catch (error) {
-            console.error('Erreur lors de la création du post:', error);
-        } finally {
+        } catch (error) {        } finally {
             setIsSubmitting(false);
         }
     };

@@ -48,13 +48,9 @@ const BasicPost = ({ title, content, author, timestamp, postId }) => {
 const PostWithManualTracking = ({ postId, source = 'feed', ...props }) => {
   const postRef = React.useRef(null);
 
-  const handleViewTracked = (result) => {
-    console.log('Post view tracked:', result);
-  };
+  const handleViewTracked = (result) => {  };
 
-  const handleEngagement = (type, data) => {
-    console.log('Engagement tracked:', type, data);
-  };
+  const handleEngagement = (type, data) => {  };
 
   return (
     <div ref={postRef} className="post-container">

@@ -1,39 +1,65 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate, useParams, useLocation } from 'react-router-dom';
 import {
     Home as HomeIcon,
-    Palette as ArtIcon,
-    MenuBook as LitteratureIcon,
-    Create as PoesieIcon,
-    PhotoCamera as PhotoIcon,
-    History as HistoireIcon,
-    Sports as SportIcon,
+    Newspaper as NouvellesIcon,
+    RoomService as ServicesIcon,
     TheaterComedy as CultureIcon,
-    EmojiEvents as ReconnaissanceIcon,
-    Timeline as ChronologieIcon,
-    Event as EventIcon,
-    DirectionsBus as TransportIcon,
-    Business as CommerceIcon,
-    LocationCity as CentreVilleIcon,
+    Business as EconomieIcon,
+    Palette as ArtIcon,
+    Sports as SportsIcon,
+    EmojiEvents as DistinctionIcon,
+    PhotoCamera as PhotosVideosIcon,
+    HowToVote as ParticipationIcon,
     Map as MapIcon,
-    MyLocation as MyLocationIcon,
     Close as CloseIcon,
+    ExpandMore as ExpandMoreIcon,
+    ExpandLess as ExpandLessIcon,
+    ChevronLeft as ChevronLeftIcon,
+    ChevronRight as ChevronRightIcon,
+    // Child rubrique icons
+    FiberNew,
+    Campaign,
+    AccountBalance,
+    DirectionsBus,
+    Storefront,
+    Event,
+    MenuBook,
+    AutoStories,
+    HistoryEdu,
+    WorkOutline,
+    Brush,
+    Museum,
+    DirectionsRun,
+    CardGiftcard,
+    MilitaryTech,
+    PhotoLibrary,
+    VideoLibrary,
+    QuestionAnswer,
+    Lightbulb,
+    CalendarToday,
 } from '@mui/icons-material';
 import { useAuth } from '../contexts/AuthContext';
 import { useMunicipality } from '../contexts/MunicipalityContext';
 import { getCurrentDivision } from '../utils/divisionStorage';
 import { getAdminDivisionUrlPath, isValidUrlPath } from '../config/adminDivisions';
 import { getDefaultDivisionUrl } from '../utils/defaultDivisionRedirect';
+import communityAPI from '../services/communityAPI';
 import MunicipalitySelector from './MunicipalitySelector';
 import styles from './Sidebar.module.css';
 import logo from '../assets/logo.png';
 
-const Sidebar = ({ activeRubrique, onRubriqueChange, isOpen, onClose, municipalityName, pageDivision }) => {
+const Sidebar = ({ activeRubrique, onRubriqueChange, isOpen, isCollapsed, onClose, onToggle, onToggleCollapse, municipalityName, pageDivision }) => {
     const { user } = useAuth();
     const { activeMunicipality, getMunicipalitySlug, getAdminLabels } = useMunicipality();
     const navigate = useNavigate();
     const location = useLocation();
     const { municipalitySlug } = useParams();
+
+    // State for dynamic rubriques
+    const [rubriques, setRubriques] = useState([]);
+    const [loadingRubriques, setLoadingRubriques] = useState(true);
+    const [expandedRubriques, setExpandedRubriques] = useState(new Set());
 
     // Detect current URL path (municipality, commune, city, etc.)
     const currentUrlPath = location.pathname.split('/')[1];
@@ -54,33 +80,118 @@ const Sidebar = ({ activeRubrique, onRubriqueChange, isOpen, onClose, municipali
         displayName = currentDivision?.name || adminLabels.singular;
     }
 
-    console.log('📋 Sidebar displayName sources:', {
-        pageDivision: pageDivision?.name,
-        pageDivisionId: pageDivision?.id,
-        municipalityName,
-        activeMunicipalityNom: activeMunicipality?.nom,
-        activeMunicipalityName: activeMunicipality?.name,
-        activeMunicipalityId: activeMunicipality?.id,
-        final: displayName
-    });
+    // Material-UI icon mapping - maps backend icon names to actual icon components
+    const muiIconMap = {
+        // Parent section icons
+        'Home': HomeIcon,
+        'Newspaper': NouvellesIcon,
+        'RoomService': ServicesIcon,
+        'TheaterComedy': CultureIcon,
+        'Business': EconomieIcon,
+        'Palette': ArtIcon,
+        'Sports': SportsIcon,
+        'EmojiEvents': DistinctionIcon,
+        'PhotoCamera': PhotosVideosIcon,
+        'HowToVote': ParticipationIcon,
+        // Child rubrique icons
+        'FiberNew': FiberNew,
+        'Campaign': Campaign,
+        'AccountBalance': AccountBalance,
+        'DirectionsBus': DirectionsBus,
+        'Storefront': Storefront,
+        'Event': Event,
+        'MenuBook': MenuBook,
+        'AutoStories': AutoStories,
+        'HistoryEdu': HistoryEdu,
+        'WorkOutline': WorkOutline,
+        'Brush': Brush,
+        'Museum': Museum,
+        'DirectionsRun': DirectionsRun,
+        'CardGiftcard': CardGiftcard,
+        'MilitaryTech': MilitaryTech,
+        'PhotoLibrary': PhotoLibrary,
+        'VideoLibrary': VideoLibrary,
+        'QuestionAnswer': QuestionAnswer,
+        'Lightbulb': Lightbulb,
+        'CalendarToday': CalendarToday,
+    };
 
-    // Rubriques pour la communauté - mix culturel et pratique
-    const rubriques = [
-        { name: 'Accueil', icon: HomeIcon, count: null, path: 'accueil', description: 'Tableau de bord principal' },
-        { name: 'Actualités', icon: CentreVilleIcon, count: null, path: 'actualites', description: 'Actualités locales' },
-        { name: 'Événements', icon: EventIcon, count: null, path: 'evenements', description: 'Événements et festivités' },
-        { name: 'Transport', icon: TransportIcon, count: null, path: 'transport', description: 'Transport et circulation' },
-        { name: 'Commerces', icon: CommerceIcon, count: null, path: 'commerces', description: 'Commerce local' },
-        { name: 'Art', icon: ArtIcon, count: null, path: 'art', description: 'Créations artistiques' },
-        { name: 'Littérature', icon: LitteratureIcon, count: null, path: 'litterature', description: 'Œuvres littéraires' },
-        { name: 'Poésie', icon: PoesieIcon, count: null, path: 'poesie', description: 'Poèmes et vers' },
-        { name: 'Photographie', icon: PhotoIcon, count: null, path: 'photographie', description: 'Images et captures' },
-        { name: 'Histoire', icon: HistoireIcon, count: null, path: 'histoire', description: 'Patrimoine local' },
-        { name: 'Sport', icon: SportIcon, count: null, path: 'sport', description: 'Activités sportives' },
-        { name: 'Culture', icon: CultureIcon, count: null, path: 'culture', description: 'Événements culturels' },
-        { name: 'Reconnaissance', icon: ReconnaissanceIcon, count: null, path: 'reconnaissance', description: 'Valorisation communautaire' },
-        { name: 'Chronologie', icon: ChronologieIcon, count: null, path: 'chronologie', description: 'Timeline des événements' },
-    ];
+    // Fetch enabled rubriques for the current community
+    useEffect(() => {
+        const fetchRubriques = async () => {
+            // Get the current community slug
+            const currentSlug = municipalitySlug || (activeMunicipality ? getMunicipalitySlug(activeMunicipality.nom) : null);
+
+            if (!currentSlug) {
+                // No community selected, use default rubriques
+                setRubriques(getDefaultRubriques());
+                setLoadingRubriques(false);
+                return;
+            }
+
+            setLoadingRubriques(true);
+            try {
+                const data = await communityAPI.getEnabledRubriques(currentSlug);
+
+                // Transform API data to component format - all rubriques come from backend now
+                const formattedRubriques = transformRubriquesToFormat(data.rubriques || []);
+
+                console.log('📊 Formatted Rubriques:', formattedRubriques);
+                console.log('🔍 First rubrique details:', formattedRubriques[0]);
+
+                setRubriques(formattedRubriques);
+            } catch (error) {
+                console.error('Error loading rubriques:', error);
+                // Fallback to default rubriques on error
+                setRubriques(getDefaultRubriques());
+            } finally {
+                setLoadingRubriques(false);
+            }
+        };
+
+        fetchRubriques();
+    }, [municipalitySlug, activeMunicipality, getMunicipalitySlug]);
+
+    // Transform API rubrique data to component format
+    const transformRubriquesToFormat = (apiRubriques) => {
+        console.log('🔄 Transforming rubriques:', apiRubriques);
+
+        return apiRubriques.map(rubrique => {
+            // Use the icon name from backend to get the actual MUI icon component
+            const IconComponent = muiIconMap[rubrique.icon] || HomeIcon;
+
+            const transformed = {
+                id: rubrique.id,
+                name: rubrique.name,
+                icon: IconComponent,
+                path: rubrique.template_type,
+                description: rubrique.description || rubrique.name,
+                depth: rubrique.depth || 0,
+                required: rubrique.required || false,
+                isExpandable: rubrique.isExpandable || false,
+                children: rubrique.children ? transformRubriquesToFormat(rubrique.children) : []
+            };
+
+            console.log('📦 Transformed rubrique:', {
+                name: transformed.name,
+                isExpandable: transformed.isExpandable,
+                childrenCount: transformed.children.length,
+                children: transformed.children.map(c => c.name)
+            });
+
+            return transformed;
+        });
+    };
+
+    // Get default rubriques (fallback)
+    const getDefaultRubriques = () => {
+        return [
+            { name: 'Accueil', icon: HomeIcon, count: null, path: 'accueil', description: 'Tableau de bord principal', depth: 0, isExpandable: false, children: [] },
+            { name: 'Actualités', icon: FiberNew, count: null, path: 'actualites', description: 'Actualités locales', depth: 0, isExpandable: false, children: [] },
+            { name: 'Événements', icon: Event, count: null, path: 'evenements', description: 'Événements et festivités', depth: 0, isExpandable: false, children: [] },
+            { name: 'Commerces', icon: Storefront, count: null, path: 'commerces', description: 'Commerce local', depth: 0, isExpandable: false, children: [] },
+        ];
+    };
 
     // Navigation spéciale pour la carte (au niveau global)
     const handleMapClick = () => {
@@ -112,17 +223,39 @@ const Sidebar = ({ activeRubrique, onRubriqueChange, isOpen, onClose, municipali
         }
     };
 
+    // Toggle expand/collapse for a rubrique
+    const toggleRubrique = (rubriqueId) => {
+        setExpandedRubriques(prev => {
+            const next = new Set(prev);
+            if (next.has(rubriqueId)) {
+                next.delete(rubriqueId);
+            } else {
+                next.add(rubriqueId);
+            }
+            return next;
+        });
+    };
+
     return (
         <>
             {/* Overlay pour mobile */}
             {isOpen && <div className={styles.overlay} onClick={onClose} />}
 
             {/* Sidebar */}
-            <aside className={`${styles.sidebar} ${isOpen ? styles.open : ''}`}>
+            <aside className={`${styles.sidebar} ${isOpen ? styles.open : ''} ${isCollapsed ? styles.collapsed : ''}`}>
                 <div className={styles.sidebarHeader}>
-                    {/* Bouton fermer (mobile) */}
-                    <button className={styles.closeButton} onClick={onClose}>
+                    {/* Mobile close button */}
+                    <button className={`${styles.closeButton} ${styles.mobileOnly}`} onClick={onClose}>
                         <CloseIcon />
+                    </button>
+
+                    {/* Desktop collapse/expand button */}
+                    <button
+                        className={`${styles.collapseButton} ${styles.desktopOnly}`}
+                        onClick={onToggleCollapse}
+                        title={isCollapsed ? "Expand sidebar" : "Collapse sidebar"}
+                    >
+                        {isCollapsed ? <ChevronRightIcon /> : <ChevronLeftIcon />}
                     </button>
 
                     {/* Logo et titre */}
@@ -153,31 +286,89 @@ const Sidebar = ({ activeRubrique, onRubriqueChange, isOpen, onClose, municipali
                 {/* Navigation des rubriques */}
                 <nav className={styles.navigation}>
                     <h3 className={styles.navTitle}>Rubriques</h3>
-                    <ul className={styles.rubriquesList}>
-                        {rubriques.map((rubrique, index) => {
-                            const Icon = rubrique.icon;
-                            // Logique améliorée pour comparer les rubriques actives
-                            const currentPath = activeRubrique?.toLowerCase();
-                            const rubriquerPath = rubrique.path.toLowerCase();
-                            const isActive = currentPath === rubriquerPath;
+                    {loadingRubriques ? (
+                        <div className={styles.loadingContainer}>
+                            <p className={styles.loadingText}>Chargement...</p>
+                        </div>
+                    ) : (
+                        <ul className={styles.rubriquesList}>
+                            {rubriques.map((rubrique, index) => {
+                                const Icon = rubrique.icon;
+                                const currentPath = activeRubrique?.toLowerCase();
+                                const rubriquerPath = rubrique.path.toLowerCase();
+                                const isActive = currentPath === rubriquerPath;
+                                const isExpanded = expandedRubriques.has(rubrique.id);
 
-                            return (
-                                <li key={index} className={styles.rubriqueItem}>
-                                    <button
-                                        className={`${styles.rubriqueButton} ${isActive ? styles.active : ''}`}
-                                        onClick={() => handleRubriqueClick(rubrique)}
-                                        title={rubrique.description}
-                                    >
-                                        <Icon className={styles.rubriqueIcon} />
-                                        <span className={styles.rubriqueName}>{rubrique.name}</span>
-                                        {rubrique.count && (
-                                            <span className={styles.rubriqueCount}>{rubrique.count}</span>
+                                // Debug log for first rubrique
+                                if (index === 0) {
+                                    console.log('🎯 First rubrique render:', {
+                                        name: rubrique.name,
+                                        isExpandable: rubrique.isExpandable,
+                                        hasChildren: rubrique.children?.length > 0,
+                                        childrenCount: rubrique.children?.length,
+                                        isExpanded,
+                                        expandedSet: Array.from(expandedRubriques)
+                                    });
+                                }
+
+                                return (
+                                    <li key={rubrique.id || index} className={styles.rubriqueItem}>
+                                        <button
+                                            className={`${styles.rubriqueButton} ${isActive ? styles.active : ''} ${rubrique.depth > 0 ? styles.subRubrique : ''}`}
+                                            onClick={() => {
+                                                if (rubrique.isExpandable) {
+                                                    toggleRubrique(rubrique.id);
+                                                } else {
+                                                    handleRubriqueClick(rubrique);
+                                                }
+                                            }}
+                                            title={rubrique.description}
+                                        >
+                                            <Icon className={styles.rubriqueIcon} />
+                                            <span className={styles.rubriqueName}>
+                                                {rubrique.depth > 0 && '└ '}
+                                                {rubrique.name}
+                                            </span>
+                                            {rubrique.count && (
+                                                <span className={styles.rubriqueCount}>{rubrique.count}</span>
+                                            )}
+                                            {rubrique.isExpandable && (
+                                                <span className={styles.expandIcon}>
+                                                    {isExpanded ? <ExpandLessIcon /> : <ExpandMoreIcon />}
+                                                </span>
+                                            )}
+                                        </button>
+
+                                        {/* Render children only if expandable and expanded */}
+                                        {rubrique.isExpandable && isExpanded && rubrique.children && rubrique.children.length > 0 && (
+                                            <ul className={styles.subRubriquesList}>
+                                                {rubrique.children.map((child, childIndex) => {
+                                                    const ChildIcon = child.icon;
+                                                    const childPath = child.path.toLowerCase();
+                                                    const isChildActive = currentPath === childPath;
+
+                                                    return (
+                                                        <li key={child.id || childIndex} className={styles.rubriqueItem}>
+                                                            <button
+                                                                className={`${styles.rubriqueButton} ${styles.subRubrique} ${isChildActive ? styles.active : ''}`}
+                                                                onClick={() => handleRubriqueClick(child)}
+                                                                title={child.description}
+                                                            >
+                                                                <ChildIcon className={styles.rubriqueIcon} />
+                                                                <span className={styles.rubriqueName}>
+                                                                    └ {child.name}
+                                                                </span>
+                                                            </button>
+                                                        </li>
+                                                    );
+                                                })}
+                                            </ul>
                                         )}
-                                    </button>
-                                </li>
-                            );
-                        })}
-                    </ul>
+                                    </li>
+                                );
+                            })}
+                        </ul>
+                    )}
                 </nav>
 
                 {/* Footer de la sidebar */}

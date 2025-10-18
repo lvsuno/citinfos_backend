@@ -21,9 +21,7 @@ const PasswordGenerator = ({ onPasswordSelect }) => {
       if (response.data && response.data.suggestions) {
         setSuggestions(response.data.suggestions);
       }
-    } catch (error) {
-      console.error('Error generating passwords:', error);
-      // Generate fallback passwords client-side if backend fails
+    } catch (error) {      // Generate fallback passwords client-side if backend fails
       const fallbackPasswords = generateFallbackPasswords(3);
       setSuggestions(fallbackPasswords);
     } finally {
@@ -69,9 +67,7 @@ const PasswordGenerator = ({ onPasswordSelect }) => {
       await navigator.clipboard.writeText(password);
       setCopied(index);
       setTimeout(() => setCopied(null), 2000);
-    } catch (error) {
-      console.error('Failed to copy password:', error);
-    }
+    } catch (error) {    }
   };
 
   const selectPassword = (password) => {

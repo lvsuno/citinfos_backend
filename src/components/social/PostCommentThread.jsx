@@ -1,7 +1,8 @@
 import React, { useState, useRef } from 'react';
 import PostContentRenderer from './PostContentRenderer';
-import { HandThumbUpIcon as HandThumbUpSolid, HandThumbDownIcon as HandThumbDownSolid } from '@heroicons/react/24/solid';
-import { HandThumbUpIcon as HandThumbUpOutline, HandThumbDownIcon as HandThumbDownOutline } from '@heroicons/react/24/outline';
+import { HandThumbUpIcon as HandThumbUpSolid } from '@heroicons/react/24/solid';
+import { HandThumbUpIcon as HandThumbUpOutline } from '@heroicons/react/24/outline';
+import ReactionPicker, { getReactionEmoji } from './ReactionPicker';
 import MentionAutocomplete from '../ui/MentionAutocomplete';
 import ClickableAuthorName from '../ui/ClickableAuthorName';
 import TinyBadgeList from '../TinyBadgeList';
@@ -10,12 +11,17 @@ import { formatTimeAgo } from '../../utils/timeUtils';
 
 /*
   PostCommentThread
-  Simplified reusable comment thread with reply + like/dislike for comments.
+  Simplified reusable comment thread with reply + emoji reactions for comments.
+
+  Like button behavior:
+  - Click: Shows quick reaction bar (5 reactions + "more" button)
+  - Selected reaction shows as emoji instead of thumbs up
+
   Props:
     postId
-    comments: [{ id, author:{username}, content, created_at, parent, user_has_liked, user_has_disliked, likes_count, dislikes_count, is_edited }]
+    comments: [{ id, author:{username}, content, created_at, parent, user_reaction, likes_count, dislikes_count, is_edited }]
     onAddComment(postId, parentId, text)
-    onToggleCommentReaction(postId, commentId, kind)
+    onToggleCommentReaction(postId, commentId, reactionType)
     onDeleteComment(postId, commentId)
     onEditComment(postId, commentId, newText)
 */
@@ -40,6 +46,10 @@ export const PostCommentThread = ({ postId, comments, onAddComment, onToggleComm
   const [replyTarget, setReplyTarget] = useState(null); // commentId
   const [editing, setEditing] = useState(null); // commentId
   const [editValue, setEditValue] = useState('');
+  const [showReactionPicker, setShowReactionPicker] = useState(null); // commentId
+  const [pickerMode, setPickerMode] = useState('quick'); // 'quick' or 'full'
+  const [reactionPickerPosition, setReactionPickerPosition] = useState({ top: 0, left: 0 });
+  const reactionButtonRefs = useRef({});
 
   // Main comment input mention functionality
   const mainCommentMention = useMentionInput('');
@@ -82,6 +92,27 @@ export const PostCommentThread = ({ postId, comments, onAddComment, onToggleComm
     }, 0);
   };
 
+  // Handle opening reaction picker for a comment (quick mode first)
+  const handleReactionClick = (commentId, event) => {
+    const rect = event.currentTarget.getBoundingClientRect();
+    setReactionPickerPosition({
+      top: rect.top - 60 + window.scrollY, // Show above the button
+      left: rect.left + window.scrollX
+    });
+    setPickerMode('quick');
+    setShowReactionPicker(commentId);
+  };
+
+  // Handle "more" button click (switch to full grid)
+  const handleShowMore = () => {
+    setPickerMode('full');
+  };
+
+  // Handle reaction selection for a comment
+  const handleReactionSelect = (commentId, reactionType) => {
+    onToggleCommentReaction(postId, commentId, reactionType);
+  };
+
   const submit = (parentId=null) => {
     if (parentId) {
       // For replies
@@ -103,11 +134,9 @@ export const PostCommentThread = ({ postId, comments, onAddComment, onToggleComm
   const saveEdit = (c) => { const v = editValue.trim(); if(!v) return; onEditComment(postId, c.id, v); setEditing(null); setEditValue(''); };
   const cancelEdit = () => { setEditing(null); setEditValue(''); };
 
-  const reactionBtnCls = (active, baseSize='h-3.5 w-3.5') => `${active ? 'text-blue-600' : 'text-gray-500'} hover:text-blue-600 transition ${baseSize}`;
-  const reactionBtnDisCls = (active, baseSize='h-3.5 w-3.5') => `${active ? 'text-red-600' : 'text-gray-500'} hover:text-red-600 transition ${baseSize}`;
-
   return (
-    <div className="space-y-3 pt-2 border-t border-gray-100">
+    <>
+      <div className="space-y-3 pt-2 border-t border-gray-100">
       <div className="space-y-2 max-h-60 overflow-y-auto pr-1">
         {thread.map(c => (
           <div key={c.id} className="space-y-1">
@@ -154,13 +183,21 @@ export const PostCommentThread = ({ postId, comments, onAddComment, onToggleComm
                 <button onClick={()=>setReplyTarget(c.id)} className="text-[10px] text-gray-500 hover:text-blue-600">Reply</button>
               )}
               <div className="flex items-center gap-3 text-[10px] ml-2">
-                <button onClick={()=>onToggleCommentReaction(postId,c.id,'like')} className="flex items-center gap-1">
-                  {c.user_has_liked ? <HandThumbUpSolid className={reactionBtnCls(true)} /> : <HandThumbUpOutline className={reactionBtnCls(false)} />}
-                  <span className={c.user_has_liked? 'text-blue-600':'text-gray-500'}>{c.likes_count||0}</span>
-                </button>
-                <button onClick={()=>onToggleCommentReaction(postId,c.id,'dislike')} className="flex items-center gap-1">
-                  {c.user_has_disliked ? <HandThumbDownSolid className={reactionBtnDisCls(true)} /> : <HandThumbDownOutline className={reactionBtnDisCls(false)} />}
-                  <span className={c.user_has_disliked? 'text-red-600':'text-gray-500'}>{c.dislikes_count||0}</span>
+                <button
+                  ref={(el) => { reactionButtonRefs.current[c.id] = el; }}
+                  onClick={(e)=>handleReactionClick(c.id, e)}
+                  className="flex items-center gap-1 hover:text-blue-600"
+                >
+                  {c.user_reaction ? (
+                    c.user_reaction === 'like' ? (
+                      <HandThumbUpSolid className="h-4 w-4 text-blue-600" />
+                    ) : (
+                      <span className="text-base leading-none">{getReactionEmoji(c.user_reaction)}</span>
+                    )
+                  ) : (
+                    <HandThumbUpOutline className="h-4 w-4" />
+                  )}
+                  <span className={c.user_reaction ? 'text-blue-600':'text-gray-500'}>{c.likes_count||0}</span>
                 </button>
               </div>
             </div>
@@ -204,13 +241,21 @@ export const PostCommentThread = ({ postId, comments, onAddComment, onToggleComm
                     <button onClick={()=>setReplyTarget(r.id)} className="text-[9px] text-gray-500 hover:text-blue-600">Reply</button>
                   )}
                   <div className="flex items-center gap-2 text-[9px] ml-1">
-                    <button onClick={()=>onToggleCommentReaction(postId,r.id,'like')} className="flex items-center gap-1">
-                      {r.user_has_liked ? <HandThumbUpSolid className={reactionBtnCls(true,'h-3 w-3')} /> : <HandThumbUpOutline className={reactionBtnCls(false,'h-3 w-3')} />}
-                      <span className={r.user_has_liked? 'text-blue-600':'text-gray-500'}>{r.likes_count||0}</span>
-                    </button>
-                    <button onClick={()=>onToggleCommentReaction(postId,r.id,'dislike')} className="flex items-center gap-1">
-                      {r.user_has_disliked ? <HandThumbDownSolid className={reactionBtnDisCls(true,'h-3 w-3')} /> : <HandThumbDownOutline className={reactionBtnDisCls(false,'h-3 w-3')} />}
-                      <span className={r.user_has_disliked? 'text-red-600':'text-gray-500'}>{r.dislikes_count||0}</span>
+                    <button
+                      ref={(el) => { reactionButtonRefs.current[r.id] = el; }}
+                      onClick={(e)=>handleReactionClick(r.id, e)}
+                      className="flex items-center gap-1 hover:text-blue-600"
+                    >
+                      {r.user_reaction ? (
+                        r.user_reaction === 'like' ? (
+                          <HandThumbUpSolid className="h-3 w-3 text-blue-600" />
+                        ) : (
+                          <span className="text-sm leading-none">{getReactionEmoji(r.user_reaction)}</span>
+                        )
+                      ) : (
+                        <HandThumbUpOutline className="h-3 w-3" />
+                      )}
+                      <span className={r.user_reaction ? 'text-blue-600':'text-gray-500'}>{r.likes_count||0}</span>
                     </button>
                   </div>
                 </div>
@@ -300,6 +345,22 @@ export const PostCommentThread = ({ postId, comments, onAddComment, onToggleComm
       </div>
       <p className="text-[11px] text-gray-500">Use @username to mention someone or #hashtag for topics.</p>
     </div>
+
+    {/* Reaction Picker for Comments */}
+    {showReactionPicker && (
+      <ReactionPicker
+        mode={pickerMode}
+        onShowMore={handleShowMore}
+        onReact={(reactionType) => handleReactionSelect(showReactionPicker, reactionType)}
+        onClose={() => setShowReactionPicker(null)}
+        currentReaction={
+          thread.flatMap(c => [c, ...(c.replies || [])])
+            .find(c => c.id === showReactionPicker)?.user_reaction || null
+        }
+        position={reactionPickerPosition}
+      />
+    )}
+  </>
   );
 };
 export default PostCommentThread;

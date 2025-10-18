@@ -210,9 +210,7 @@ const PostComposer = ({ onSubmit, community = null, placeholder = "Quoi de neuf 
             alert(`Les fichiers ${kind === 'video' ? 'vidéo' : 'audio'} doivent durer 5 minutes maximum. Durée actuelle : ${minutes}:${seconds.toString().padStart(2, '0')}`);
             continue; // Skip this file
           }
-        } catch (error) {
-          console.warn(`Could not validate ${kind} duration:`, error);
-          // Continue with the file if we can't validate duration
+        } catch (error) {          // Continue with the file if we can't validate duration
         }
       }
 
@@ -362,8 +360,6 @@ const PostComposer = ({ onSubmit, community = null, placeholder = "Quoi de neuf 
         comments: []
       };
 
-
-
       // Call parent callback if provided
       if (onSubmit) {
         onSubmit(localPost);
@@ -372,9 +368,7 @@ const PostComposer = ({ onSubmit, community = null, placeholder = "Quoi de neuf 
       // Reset form
       reset();
 
-    } catch (err) {
-      console.error('Failed to submit post:', err);
-      // You might want to show an error message to the user here
+    } catch (err) {      // You might want to show an error message to the user here
       alert('Échec de la publication. Veuillez réessayer.');
     } finally {
       setIsSubmitting(false);
@@ -407,9 +401,7 @@ const PostComposer = ({ onSubmit, community = null, placeholder = "Quoi de neuf 
       try {
         const datetime = new Date(`${pollExpirationDate}T${pollExpirationTime}`);
         return datetime.toISOString();
-      } catch (error) {
-        console.warn('Invalid date/time format:', error);
-        return null;
+      } catch (error) {        return null;
       }
     }
 

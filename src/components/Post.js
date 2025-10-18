@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
-import { getTotalReactions, getTopReactionIcons, formatTimeAgo } from '../data/sherbrookePosts';
+import { getTotalReactions, getTopReactionIcons } from '../data/sherbrookePosts';
+import { formatTimeAgo } from '../utils/timeUtils';
 import ThumbUpIcon from '@mui/icons-material/ThumbUp';
 import ChatBubbleOutlineIcon from '@mui/icons-material/ChatBubbleOutline';
 import ShareIcon from '@mui/icons-material/Share';

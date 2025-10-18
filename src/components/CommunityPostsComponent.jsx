@@ -44,9 +44,7 @@ const CommunityPostsComponent = ({
       
       setPosts(mockPosts);
       setError(null);
-    } catch (err) {
-      console.error('Failed to fetch posts:', err);
-      setError('Failed to load posts');
+    } catch (err) {      setError('Failed to load posts');
     } finally {
       setLoading(false);
     }

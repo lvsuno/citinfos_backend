@@ -25,6 +25,8 @@ import Focus from '@tiptap/extension-focus';
 import { Dropcursor } from '@tiptap/extension-dropcursor';
 import { Mention } from '@tiptap/extension-mention';
 import { socialAPI } from '../../services/social-api';
+import { InteractiveAudioResize } from './tiptap-extensions/InteractiveAudioResize';
+import { InteractiveVideoResize } from './tiptap-extensions/InteractiveVideoResize';
 
 // Heroicons (outline) used in toolbar
 import {
@@ -646,9 +648,12 @@ const RichTextEditor = forwardRef(({
   content = '',
   onChange,
   placeholder = 'Start typing...',
-  maxLength = 1000,
+  maxLength = 50000, // Default 50k for articles, can be overridden
   className = '',
   height = 'h-32',
+  minHeight = '80px',
+  maxHeight = '300px',
+  mode = 'full', // 'full' or 'inline'
   showToolbar = true,
   editable = true,
   enableAdvancedFeatures = true,
@@ -749,9 +754,7 @@ const RichTextEditor = forwardRef(({
       try {
         const results = await socialAPI.searchMentionableUsers(mentionQuery);
         setMentionSuggestions(results || []);
-      } catch (error) {
-        console.error('Failed to search mentionable users:', error);
-        setMentionSuggestions([]);
+      } catch (error) {        setMentionSuggestions([]);
       }
     };
 
@@ -770,9 +773,7 @@ const RichTextEditor = forwardRef(({
       try {
         const results = await socialAPI.searchHashtags(hashtagQuery, 20);
         setHashtagSuggestions(results || []);
-      } catch (error) {
-        console.error('Failed to search hashtags:', error);
-        setHashtagSuggestions([]);
+      } catch (error) {        setHashtagSuggestions([]);
       }
     };
 
@@ -894,105 +895,112 @@ const RichTextEditor = forwardRef(({
   }, [showEmojiPicker, activeEmojiTab]);
 
   // Memoize extensions to prevent recreation on every render
-  const extensions = useMemo(() => [
-    StarterKit.configure({
-      heading: {
-        levels: [1, 2, 3, 4, 5, 6]
-      },
-      // Disable some extensions to use our enhanced versions
-      link: false,
-      codeBlock: false,
-      horizontalRule: false, // We'll add our own
-      underline: false, // Disable StarterKit's underline to use our custom one
-      image: false, // Disable default image to use our InteractiveImageResize
-      // Configure history with enhanced settings
-      history: {
-        depth: 100,
-        newGroupDelay: 500,
-      },
-      // Ensure other extensions don't conflict
-      bold: true,
-      italic: true,
-      strike: true,
-      code: true,
-      paragraph: true,
-      text: true,
-      document: true,
-      // dropcursor: true,
-      gapcursor: true,
-      hardBreak: true,
-      listItem: true,
-      orderedList: true,
-      bulletList: true,
-      blockquote: true,
-    }),
-    Placeholder.configure({
-      placeholder: placeholder,
-    }),
-    Link.configure({
-      openOnClick: false,
-      HTMLAttributes: {
-        class: 'text-blue-600 hover:text-blue-800 underline',
-      },
-    }),
-    CharacterCount.configure({
-      limit: maxLength,
-    }),
-    TextStyle,
-    Color.configure({
-      types: ['textStyle'],
-    }),
-    Underline,
-    // Enhanced extensions
-    Highlight.configure({
-      multicolor: true,
-    }),
-    TextAlign.configure({
-      types: ['heading', 'paragraph'],
-    }),
-    Subscript,
-    Superscript,
-    ...(enableAdvancedFeatures ? [
-      Table.configure({
-        resizable: true,
+  const extensions = useMemo(() => {
+    // Base extensions for all modes
+    const baseExtensions = [
+      StarterKit.configure({
+        heading: mode === 'inline' ? false : {
+          levels: [1, 2, 3, 4, 5, 6]
+        },
+        // Disable some extensions to use our enhanced versions
+        link: false,
+        codeBlock: mode === 'inline' ? false : false,
+        horizontalRule: mode === 'inline' ? false : false,
+        underline: false,
+        image: mode === 'inline' ? false : false,
+        // Configure history with enhanced settings
+        history: {
+          depth: 100,
+          newGroupDelay: 500,
+        },
+        // Basic text formatting
+        bold: true,
+        italic: true,
+        strike: mode === 'inline' ? false : true,
+        code: mode === 'inline' ? false : true,
+        paragraph: true,
+        text: true,
+        document: true,
+        gapcursor: true,
+        hardBreak: true,
+        listItem: mode === 'inline' ? false : true,
+        orderedList: mode === 'inline' ? false : true,
+        bulletList: mode === 'inline' ? false : true,
+        blockquote: mode === 'inline' ? false : true,
       }),
-      TableRow,
-      TableHeader,
-      TableCell,
-      TaskList,
-      TaskItem.configure({
-        nested: true,
+      Placeholder.configure({
+        placeholder: placeholder,
       }),
-      InteractiveImageResize, // Use the new custom extension
-      CodeBlock.configure({
+      Link.configure({
+        openOnClick: false,
         HTMLAttributes: {
-          class: 'bg-gray-100 rounded-lg p-4 my-2',
+          class: 'text-blue-600 hover:text-blue-800 underline',
         },
       }),
-      HorizontalRule,
-      Typography,
-      Focus.configure({
-        className: 'has-focus',
-        mode: 'all',
+      CharacterCount.configure({
+        limit: maxLength,
       }),
-      Dropcursor,
-      Mention.configure({
-        HTMLAttributes: {
-          class: 'mention text-blue-600 font-medium',
-        },
-        suggestion: {
-          char: '@',
-          allowSpaces: false,
-          items: ({ query }) => {
-            // Trigger mention search
-            setMentionQuery(query);
-            setShowMentionDropdown(query.length > 0);
-            return mentionSuggestions;
+      TextStyle,
+      Underline,
+    ];
+
+    // Add full-mode-only extensions
+    if (mode === 'full' && enableAdvancedFeatures) {
+      return [
+        ...baseExtensions,
+        Color.configure({
+          types: ['textStyle'],
+        }),
+        Highlight.configure({
+          multicolor: true,
+        }),
+        TextAlign.configure({
+          types: ['heading', 'paragraph'],
+        }),
+        Subscript,
+        Superscript,
+        Table.configure({
+          resizable: true,
+        }),
+        TableRow,
+        TableHeader,
+        TableCell,
+        TaskList,
+        TaskItem.configure({
+          nested: true,
+        }),
+        InteractiveImageResize,
+        InteractiveAudioResize,
+        InteractiveVideoResize,
+        CodeBlock.configure({
+          HTMLAttributes: {
+            class: 'bg-gray-100 rounded-lg p-4 my-2',
           },
-          render: () => {
-            return {
-              onStart: (props) => {
-                // Store the command function so onClick can use it
+        }),
+        HorizontalRule,
+        Typography,
+        Focus.configure({
+          className: 'has-focus',
+          mode: 'all',
+        }),
+        Dropcursor,
+        Mention.configure({
+          HTMLAttributes: {
+            class: 'mention text-blue-600 font-medium',
+          },
+          suggestion: {
+            char: '@',
+            allowSpaces: false,
+            items: ({ query }) => {
+              // Trigger mention search
+              setMentionQuery(query);
+              setShowMentionDropdown(query.length > 0);
+              return mentionSuggestions;
+            },
+            render: () => {
+              return {
+                onStart: (props) => {
+                  // Store the command function so onClick can use it
                 mentionCommandRef.current = props.command;
 
                 if (!props.clientRect) return;
@@ -1146,8 +1154,13 @@ const RichTextEditor = forwardRef(({
           },
         },
       }),
-    ] : [])
-  ], [
+      ];
+    }
+
+    // Return base extensions for inline mode
+    return baseExtensions;
+  }, [
+    mode,
     placeholder,
     maxLength,
     enableAdvancedFeatures,
@@ -1169,7 +1182,12 @@ const RichTextEditor = forwardRef(({
     },
     editorProps: {
       attributes: {
-        class: `focus:outline-none p-3 ${height} overflow-y-auto rich-text-content`,
+        class: `focus:outline-none p-3 ${
+          mode === 'inline'
+            ? 'overflow-y-auto rich-text-content'
+            : `${height} overflow-y-auto rich-text-content`
+        }`,
+        style: mode === 'inline' ? `min-height: ${minHeight}; max-height: ${maxHeight};` : '',
       },
       handleDrop: (view, event, slice, moved) => {
         // Note: Image repositioning is now handled by smooth drag system
@@ -1430,9 +1448,7 @@ const RichTextEditor = forwardRef(({
           container.removeAttribute('data-is-previewing');
           container.removeAttribute('data-original-attrs');
 
-        } catch (error) {
-          console.warn('Error reverting image preview:', error);
-        }
+        } catch (error) {        }
       }
     });
 
@@ -1551,9 +1567,7 @@ const RichTextEditor = forwardRef(({
             alert(`${kind === 'video' ? 'Video' : 'Audio'} files must be 5 minutes or less. Current duration: ${minutes}:${seconds.toString().padStart(2, '0')}`);
             continue;
           }
-        } catch (error) {
-          console.warn(`Could not validate ${kind} duration:`, error);
-        }
+        } catch (error) {        }
       }
 
       // Insert media placeholder at cursor position
@@ -1712,9 +1726,7 @@ const RichTextEditor = forwardRef(({
             </div>`
           );
         }
-      } catch (error) {
-        console.error(`Error uploading ${type}:`, error);
-        // Replace with error message
+      } catch (error) {        // Replace with error message
         processedContent = processedContent.replace(
           new RegExp(`<div data-media-id="${id}"[^>]*>.*?</div>`, 's'),
           `<div style="border: 2px solid #ef4444; border-radius: 0.5rem; padding: 1rem; margin: 0.5rem 0; color: #dc2626; background-color: #fef2f2;">
@@ -1812,8 +1824,6 @@ const RichTextEditor = forwardRef(({
     input.click();
   }, [addFiles]);
 
-
-
   // Close dropdown when editor loses focus or table is no longer active
   useEffect(() => {
     if (editor && (!editor.isActive('table') || !editor.isFocused)) {
@@ -1898,9 +1908,7 @@ const RichTextEditor = forwardRef(({
               file: attachment.file
             });
           }
-        } catch (error) {
-          console.error('Failed to upload media:', error);
-        }
+        } catch (error) {        }
       }
 
       return { processedContent, mediaFiles };
@@ -2536,9 +2544,278 @@ const RichTextEditor = forwardRef(({
             opacity: 1;
           }
         }
+
+        /* Audio Container Styles */
+        .interactive-audio-container {
+          position: relative !important;
+          display: block !important;
+          max-width: 100% !important;
+          box-sizing: border-box !important;
+          margin: 1rem 0 !important;
+        }
+
+        .interactive-audio-container .audio-wrapper {
+          background: linear-gradient(135deg, #667eea 0%, #764ba2 100%) !important;
+          border-radius: 12px !important;
+          padding: 20px !important;
+          box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1) !important;
+        }
+
+        .interactive-audio-container audio {
+          width: 100% !important;
+          outline: none !important;
+        }
+
+        .interactive-audio-container .audio-info {
+          display: flex !important;
+          align-items: center !important;
+          gap: 8px !important;
+          margin-top: 12px !important;
+          color: white !important;
+          font-size: 0.875rem !important;
+        }
+
+        .interactive-audio-container:hover .resize-overlay {
+          opacity: 1 !important;
+        }
+
+        .interactive-audio-container .resize-overlay {
+          border-color: #667eea !important;
+        }
+
+        .interactive-audio-container .resize-handle {
+          background: #667eea !important;
+        }
+
+        .interactive-audio-container .drag-handle {
+          background: linear-gradient(135deg, #667eea 0%, #764ba2 100%) !important;
+        }
+
+        /* Audio alignment classes */
+        .audio-left {
+          float: left !important;
+          margin-right: 1rem !important;
+        }
+
+        .audio-right {
+          float: right !important;
+          margin-left: 1rem !important;
+        }
+
+        .audio-center {
+          margin: 1rem auto !important;
+          float: none !important;
+        }
+
+        .audio-full {
+          width: 100% !important;
+          max-width: 100% !important;
+        }
+
+        /* Video Container Styles */
+        .interactive-video-container {
+          position: relative !important;
+          display: block !important;
+          max-width: 100% !important;
+          box-sizing: border-box !important;
+          margin: 1rem 0 !important;
+          line-height: 0 !important;
+        }
+
+        .interactive-video-container video {
+          display: block !important;
+          max-width: 100% !important;
+          height: auto !important;
+          border-radius: 0.5rem !important;
+          user-select: none !important;
+        }
+
+        .interactive-video-container:hover .resize-overlay {
+          opacity: 1 !important;
+        }
+
+        .interactive-video-container .resize-overlay {
+          border-color: #ef4444 !important;
+        }
+
+        .interactive-video-container .resize-handle {
+          background: #ef4444 !important;
+        }
+
+        .interactive-video-container .drag-handle {
+          background: rgba(239, 68, 68, 0.95) !important;
+        }
+
+        .interactive-video-container.has-explicit-size video {
+          max-width: none !important;
+          width: auto !important;
+          height: auto !important;
+        }
+
+        /* Video alignment classes */
+        .video-left {
+          display: inline-block !important;
+          margin: 0.75rem auto 0.75rem 0 !important;
+        }
+
+        .video-right {
+          display: inline-block !important;
+          margin: 0.75rem 0 0.75rem auto !important;
+        }
+
+        .video-center {
+          display: block !important;
+          margin: 0.5rem auto !important;
+          text-align: center !important;
+        }
+
+        .video-full {
+          display: block !important;
+          width: 100% !important;
+          max-width: 100% !important;
+        }
       `}</style>
       {/* Toolbar */}
-      {showToolbar && (
+      {showToolbar && mode === 'inline' && (
+        <div className="border-b border-gray-200 px-2 py-1 relative">
+          <div className="flex items-center gap-1">
+            {/* Bold */}
+            <button
+              type="button"
+              onClick={() => editor.chain().focus().toggleBold().run()}
+              disabled={!editor.can().chain().focus().toggleBold().run()}
+              className={`p-1.5 rounded text-gray-600 hover:bg-gray-100 hover:text-gray-900 disabled:opacity-50 disabled:cursor-not-allowed ${
+                editor.isActive('bold') ? 'bg-blue-100 text-blue-600' : ''
+              }`}
+              title="Gras (Ctrl+B)"
+            >
+              <BoldIcon className="w-4 h-4" />
+            </button>
+
+            {/* Italic */}
+            <button
+              type="button"
+              onClick={() => editor.chain().focus().toggleItalic().run()}
+              disabled={!editor.can().chain().focus().toggleItalic().run()}
+              className={`p-1.5 rounded text-gray-600 hover:bg-gray-100 hover:text-gray-900 disabled:opacity-50 disabled:cursor-not-allowed ${
+                editor.isActive('italic') ? 'bg-blue-100 text-blue-600' : ''
+              }`}
+              title="Italique (Ctrl+I)"
+            >
+              <ItalicIcon className="w-4 h-4" />
+            </button>
+
+            {/* Link */}
+            <button
+              type="button"
+              onClick={() => {
+                const url = window.prompt('URL:');
+                if (url) {
+                  editor.chain().focus().setLink({ href: url }).run();
+                }
+              }}
+              className={`p-1.5 rounded text-gray-600 hover:bg-gray-100 hover:text-gray-900 ${
+                editor.isActive('link') ? 'bg-blue-100 text-blue-600' : ''
+              }`}
+              title="Lien (Ctrl+K)"
+            >
+              <LinkIcon className="w-4 h-4" />
+            </button>
+
+            {/* Emoji */}
+            <div className="relative">
+              <button
+                type="button"
+                onClick={() => setShowEmojiPicker(!showEmojiPicker)}
+                className="p-1.5 rounded text-gray-600 hover:bg-gray-100 hover:text-gray-900"
+                title="Emoji"
+              >
+                <FaceSmileIcon className="w-4 h-4" />
+              </button>
+
+              {/* Emoji Picker for Inline Mode */}
+              {showEmojiPicker && (
+                <div
+                  ref={emojiPickerRef}
+                  className="absolute z-50 left-0 top-full mt-2 w-80 max-h-[340px] bg-white border border-gray-200 rounded-xl shadow-xl p-0 text-sm animate-scale-in origin-top-left flex flex-col"
+                  role="dialog"
+                  aria-label="Emoji picker"
+                  onKeyDown={handleEmojiKeyDown}
+                >
+                  {/* Search */}
+                  <div className="px-2 pt-2">
+                    <input
+                      type="text"
+                      value={searchEmoji}
+                      onChange={e => { setSearchEmoji(e.target.value); setFocusedEmojiIndex(0); }}
+                      placeholder="Search emojis..."
+                      className="w-full rounded-md border border-gray-200 px-2 py-1 text-[11px] focus:ring-amber-400 focus:border-amber-400 placeholder-gray-400"
+                    />
+                  </div>
+                  {/* Tabs with window navigation */}
+                  <div className="flex items-center gap-1 px-2 pt-2">
+                    <button
+                      type="button"
+                      onClick={handleTabPrev}
+                      disabled={emojiTabOffset === 0}
+                      className={`h-7 w-7 flex items-center justify-center rounded-md text-xs font-bold ${emojiTabOffset === 0 ? 'text-gray-300' : 'text-gray-600 hover:bg-amber-50'}`}
+                      aria-label="Previous emoji categories"
+                    >‹</button>
+                    <div className="flex items-center gap-1 flex-1" role="tablist">
+                      {visibleTabs.map(tab => (
+                        <button
+                          key={tab}
+                          type="button"
+                          role="tab"
+                          aria-selected={activeEmojiTab === tab}
+                          onClick={() => { setActiveEmojiTab(tab); ensureTabVisible(tab); }}
+                          className={`flex-1 px-2 py-1 rounded-md text-[11px] font-medium whitespace-nowrap transition-colors ${activeEmojiTab === tab ? 'bg-amber-200/70 text-amber-800 shadow-inner' : 'hover:bg-amber-50 text-gray-600'} truncate`}
+                          title={tab}
+                        >{tab}</button>
+                      ))}
+                    </div>
+                    <button
+                      type="button"
+                      onClick={handleTabNext}
+                      disabled={emojiTabOffset >= EMOJI_TABS.length - 4}
+                      className={`h-7 w-7 flex items-center justify-center rounded-md text-xs font-bold ${emojiTabOffset >= EMOJI_TABS.length - 4 ? 'text-gray-300' : 'text-gray-600 hover:bg-amber-50'}`}
+                      aria-label="Next emoji categories"
+                    >›</button>
+                  </div>
+                  <div className="mt-2 px-2 pb-2 overflow-y-auto" role="grid">
+                    {activeEmojiTab !== 'Recent' && !searchEmoji && (
+                      <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide mb-1 px-0.5">{activeEmojiTab}</p>
+                    )}
+                    {currentEmojiSet.length === 0 && (
+                      <div className="text-[11px] text-gray-500 py-6 text-center" role="note">No emojis found.</div>
+                    )}
+                    <div className="flex flex-wrap gap-1" aria-label="Emoji grid">
+                      {currentEmojiSet.map((e, i) => e && (
+                        <button
+                          key={i}
+                          type="button"
+                          role="gridcell"
+                          data-emoji-index={i}
+                          tabIndex={i === focusedEmojiIndex ? 0 : -1}
+                          aria-label={e.name}
+                          title={e.name}
+                          onClick={() => { setFocusedEmojiIndex(i); insertEmoji(e.char); }}
+                          onFocus={() => setFocusedEmojiIndex(i)}
+                          className={`h-7 w-7 flex items-center justify-center rounded-md text-base hover:bg-amber-50 focus:outline-none focus:ring-2 focus:ring-amber-300 transition ${i === focusedEmojiIndex ? 'ring-1 ring-amber-300' : ''}`}
+                        >{e.char}</button>
+                      ))}
+                    </div>
+                    <p className="sr-only">Use arrow keys to navigate. Search by name. Press Enter or Space to select.</p>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Full Toolbar (for full mode) */}
+      {showToolbar && mode === 'full' && (
         <div className="border-b border-gray-200 px-1 py-0.5">
           {/* Compact Single Row Layout */}
           <div className="flex flex-wrap items-center gap-0 justify-start">
@@ -2981,7 +3258,7 @@ const RichTextEditor = forwardRef(({
               {showEmojiPicker && (
                 <div
                   ref={emojiPickerRef}
-                  className="absolute z-30 left-0 top-full mt-2 w-80 max-h-[340px] bg-white border border-gray-200 rounded-xl shadow-xl p-0 text-sm animate-scale-in origin-top-left flex flex-col"
+                  className="absolute z-30 right-0 top-full mt-2 w-80 max-h-[340px] bg-white border border-gray-200 rounded-xl shadow-xl p-0 text-sm animate-scale-in origin-top-right flex flex-col"
                   role="dialog"
                   aria-label="Emoji picker"
                   onKeyDown={handleEmojiKeyDown}
@@ -3216,8 +3493,6 @@ const RichTextEditor = forwardRef(({
           </div>
         </div>
       )}
-
-
 
       {/* Editor Content with drag & drop */}
       <div

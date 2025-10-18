@@ -15,9 +15,7 @@ export const formatTimeAgo = (timestamp) => {
   const date = timestamp instanceof Date ? timestamp : new Date(timestamp);
 
   // Check if the date is valid
-  if (isNaN(date.getTime())) {
-    console.warn('Invalid timestamp:', timestamp);
-    return '';
+  if (isNaN(date.getTime())) {    return '';
   }
 
   const now = new Date();

@@ -35,9 +35,7 @@ const RealtimeVisitorCounter = ({
             const ws = new WebSocket(wsUrl);
             websocketRef.current = ws;
 
-            ws.onopen = () => {
-                console.log('✅ WebSocket connected');
-                setIsConnected(true);
+            ws.onopen = () => {                setIsConnected(true);
 
                 // Request initial count
                 ws.send(JSON.stringify({
@@ -50,28 +48,20 @@ const RealtimeVisitorCounter = ({
                 try {
                     const data = JSON.parse(event.data);
                     handleWebSocketMessage(data);
-                } catch (error) {
-                    console.error('Error parsing WebSocket message:', error);
-                }
+                } catch (error) {                }
             };
 
-            ws.onerror = (error) => {
-                console.error('WebSocket error:', error);
-                setIsConnected(false);
+            ws.onerror = (error) => {                setIsConnected(false);
             };
 
-            ws.onclose = () => {
-                console.log('WebSocket disconnected');
-                setIsConnected(false);
+            ws.onclose = () => {                setIsConnected(false);
 
                 // Attempt to reconnect after 5 seconds
                 setTimeout(() => {
                     connectWebSocket();
                 }, 5000);
             };
-        } catch (error) {
-            console.error('Error creating WebSocket:', error);
-        }
+        } catch (error) {        }
     };
 
     const handleWebSocketMessage = (data) => {

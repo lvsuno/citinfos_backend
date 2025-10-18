@@ -18,18 +18,11 @@ export const useMentionInput = (initialValue = '') => {
 
   // Handle text changes and track cursor
   const handleChange = useCallback((e) => {
-    const newValue = e.target.value;
-    console.log('⌨️ useMentionInput: Text changed', {
-      value: newValue.substring(0, 50), // First 50 chars
-      cursorPos: e.target.selectionStart
-    });
-    setText(newValue);
+    const newValue = e.target.value;    setText(newValue);
     // Use setTimeout to get cursor position after React updates
     setTimeout(() => {
       if (textareaRef.current) {
-        const cursorPos = textareaRef.current.selectionStart;
-        console.log('📍 useMentionInput: Cursor position updated to', cursorPos);
-        setCursorPosition(cursorPos);
+        const cursorPos = textareaRef.current.selectionStart;        setCursorPosition(cursorPos);
       }
     }, 0);
   }, []);

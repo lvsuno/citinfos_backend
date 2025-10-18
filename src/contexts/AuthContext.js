@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
 import apiService from '../services/apiService';
 import { trackLogout } from '../utils/navigationTracker';
 import geolocationService from '../services/geolocationService';
@@ -26,6 +26,11 @@ export const AuthProvider = ({ children }) => {
     const [user, setUser] = useState(null);
     const [loading, setLoading] = useState(true);
     const [anonymousLocation, setAnonymousLocation] = useState(null);
+    const [showVerificationModal, setShowVerificationModal] = useState(false);
+    const [verificationMessage, setVerificationMessage] = useState('');
+
+    // Use ref to track if modal has been shown (survives re-renders and closures)
+    const verificationModalShownRef = useRef(false);
 
     useEffect(() => {
         // Initialize authentication state
@@ -63,9 +68,7 @@ export const AuthProvider = ({ children }) => {
                                         // Silent fail - keep cached user
                                     }
                                 }, 1000);
-                            } catch (parseError) {
-                                console.error('Error parsing saved user:', parseError);
-                                localStorage.removeItem('currentUser');
+                            } catch (parseError) {                                localStorage.removeItem('currentUser');
                                 apiService.clearTokens();
                                 setUser(null);
                             }
@@ -97,9 +100,7 @@ export const AuthProvider = ({ children }) => {
                         setUser(null);
                     }
                 }
-            } catch (error) {
-                console.error('Auth initialization error:', error);
-                // Clear everything on unexpected error
+            } catch (error) {                // Clear everything on unexpected error
                 apiService.clearTokens();
                 setUser(null);
             } finally {
@@ -115,8 +116,22 @@ export const AuthProvider = ({ children }) => {
             apiService.clearTokens();
         };
 
+        // Listen for verification required events
+        const handleVerificationRequired = (event) => {
+            // Only show modal once per session until verified
+            if (verificationModalShownRef.current) {
+                return;
+            }
+
+            const { message } = event.detail || {};
+            setVerificationMessage(message || 'Your account verification has expired. Please verify to continue.');
+            setShowVerificationModal(true);
+            verificationModalShownRef.current = true;
+        };
+
         // Listen for session expired events
         window.addEventListener('sessionExpired', handleSessionExpired);
+        window.addEventListener('verificationRequired', handleVerificationRequired);
 
         // Focus and storage handlers disabled - were causing infinite re-renders
         // The authentication state is already managed by the main initialization above
@@ -127,6 +142,7 @@ export const AuthProvider = ({ children }) => {
 
         return () => {
             window.removeEventListener('sessionExpired', handleSessionExpired);
+            window.removeEventListener('verificationRequired', handleVerificationRequired);
             // window.removeEventListener('focus', handleWindowFocus);
             // window.removeEventListener('storage', handleStorageChange);
         };
@@ -148,9 +164,7 @@ export const AuthProvider = ({ children }) => {
                             setAnonymousLocation(parsed);
                             return;
                         }
-                    } catch (e) {
-                        console.error('Error parsing cached location:', e);
-                    }
+                    } catch (e) {                    }
                 }
 
                 // Detect location via IP
@@ -166,9 +180,7 @@ export const AuthProvider = ({ children }) => {
                         setAnonymousLocation(anonymousData);
                         localStorage.setItem('anonymousLocation', JSON.stringify(anonymousData));
                     }
-                } catch (error) {
-                    console.error('Error detecting anonymous location:', error);
-                }
+                } catch (error) {                }
             } else {
                 // Clear anonymous location when user logs in
                 setAnonymousLocation(null);
@@ -181,20 +193,14 @@ export const AuthProvider = ({ children }) => {
 
     const login = async (usernameOrEmail, password, rememberMe = false) => {
         try {
-            setLoading(true);
-            console.log('🔑 Starting login process...');
-            const result = await apiService.login(usernameOrEmail, password, rememberMe);
+            setLoading(true);            const result = await apiService.login(usernameOrEmail, password, rememberMe);
 
             if (result.success && result.user) {
-                console.log('✅ Login successful for:', result.user.username || result.user.email);
-
                 // Always set the user (session is created on backend)
                 setUser(result.user);
 
                 // Store user in localStorage for persistence
                 localStorage.setItem('currentUser', JSON.stringify(result.user));
-                console.log('💾 User data stored in localStorage');
-
                 // Check if verification is required
                 if (result.verification_required) {
                     // Store verification details for the modal
@@ -223,9 +229,7 @@ export const AuthProvider = ({ children }) => {
             }
 
             return { success: false, error: result.error || 'Connexion échouée' };
-        } catch (error) {
-            console.error('Login error:', error);
-            return { success: false, error: error.message || 'Erreur lors de la connexion' };
+        } catch (error) {            return { success: false, error: error.message || 'Erreur lors de la connexion' };
         } finally {
             setLoading(false);
         }
@@ -266,9 +270,7 @@ export const AuthProvider = ({ children }) => {
             }
 
             return { success: false, error: 'Inscription échouée' };
-        } catch (error) {
-            console.error('Registration error:', error);
-            throw new Error(error.message || 'Erreur lors de l\'inscription');
+        } catch (error) {            throw new Error(error.message || 'Erreur lors de l\'inscription');
         } finally {
             setLoading(false);
         }
@@ -277,19 +279,11 @@ export const AuthProvider = ({ children }) => {
     const logout = async () => {
         try {
             setLoading(true);
-            console.log('🚪 Starting logout process...');
-
             // Track logout time for smart redirect
             trackLogout();
 
-            await apiService.logout();
-            console.log('✅ Backend logout completed');
-        } catch (error) {
-            console.error('❌ Logout error:', error);
-        } finally {
-            // Clear user state and localStorage
-            console.log('🧹 Clearing user state and localStorage');
-            setUser(null);
+            await apiService.logout();        } catch (error) {        } finally {
+            // Clear user state and localStorage            setUser(null);
             localStorage.removeItem('currentUser');
             setLoading(false);
         }
@@ -307,9 +301,7 @@ export const AuthProvider = ({ children }) => {
             }
 
             return { success: false, error: 'Vérification échouée' };
-        } catch (error) {
-            console.error('Email verification error:', error);
-            return { success: false, error: error.message || 'Erreur lors de la vérification' };
+        } catch (error) {            return { success: false, error: error.message || 'Erreur lors de la vérification' };
         } finally {
             setLoading(false);
         }
@@ -319,9 +311,7 @@ export const AuthProvider = ({ children }) => {
         try {
             const result = await apiService.resendVerificationCode(email);
             return { success: true, message: result.message };
-        } catch (error) {
-            console.error('Resend verification error:', error);
-            return { success: false, error: error.message || 'Erreur lors du renvoi du code' };
+        } catch (error) {            return { success: false, error: error.message || 'Erreur lors du renvoi du code' };
         }
     };
 
@@ -336,9 +326,7 @@ export const AuthProvider = ({ children }) => {
                 const userData = await apiService.getCurrentUser();
                 setUser(userData);
                 return userData;
-            } catch (error) {
-                console.error('Failed to refresh user data:', error);
-                // If refresh fails due to auth issues, logout
+            } catch (error) {                // If refresh fails due to auth issues, logout
                 if (error.response?.status === 401) {
                     await logout();
                 }
@@ -370,6 +358,11 @@ export const AuthProvider = ({ children }) => {
         return '/dashboard';
     };
 
+    const resetVerificationModal = useCallback(() => {
+        verificationModalShownRef.current = false;
+        setShowVerificationModal(false);
+    }, []);
+
     const value = {
         user,
         login,
@@ -386,6 +379,11 @@ export const AuthProvider = ({ children }) => {
         getHomeUrl,
         // Anonymous user location data
         anonymousLocation,
+        // Verification modal state
+        showVerificationModal,
+        setShowVerificationModal,
+        verificationMessage,
+        resetVerificationModal,
         // Expose API service for other components
         apiService
     };

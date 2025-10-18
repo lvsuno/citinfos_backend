@@ -105,9 +105,7 @@ const RepostModal = ({
 
       handleClose();
 
-    } catch (error) {
-      console.error('Error creating repost:', error);
-      toast.error(error.message || 'Failed to create repost');
+    } catch (error) {      toast.error(error.message || 'Failed to create repost');
     } finally {
       setIsSubmitting(false);
     }

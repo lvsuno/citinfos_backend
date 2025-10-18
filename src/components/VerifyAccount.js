@@ -13,9 +13,9 @@ import styles from './VerifyAccount.module.css';
 const RESEND_TIMEOUT = 60; // seconds
 const CODE_VALIDITY_MINUTES = 5; // Code expires after 5 minutes
 
-const VerifyAccount = ({ onSuccess, initialEmail, onClose }) => {
+const VerifyAccount = ({ onSuccess, initialEmail, onClose, show, message, userEmail, autoSendCode = false }) => {
   const [formData, setFormData] = useState({
-    email: initialEmail || '',
+    email: initialEmail || userEmail || '',
     code: ''
   });
   const [loading, setLoading] = useState(false);
@@ -25,6 +25,33 @@ const VerifyAccount = ({ onSuccess, initialEmail, onClose }) => {
   const [resendTimer, setResendTimer] = useState(0);
   const [codeExpiryTime, setCodeExpiryTime] = useState(null);
   const [timeRemaining, setTimeRemaining] = useState(0);
+  const [autoSendTriggered, setAutoSendTriggered] = useState(false);
+
+  // Auto-send verification code when modal opens (for expired verification)
+  useEffect(() => {
+    const sendCodeAutomatically = async () => {
+      if (autoSendCode && formData.email && !autoSendTriggered) {
+        setAutoSendTriggered(true);
+
+        try {
+          const { apiService } = await import('../services/apiService');
+          const result = await apiService.resendVerificationCode(formData.email);
+
+          if (result.success) {
+            setSuccess(result.message || 'Un nouveau code de vérification a été envoyé à votre email.');
+            setResendTimer(RESEND_TIMEOUT);
+
+            const newExpiryTime = new Date(Date.now() + CODE_VALIDITY_MINUTES * 60 * 1000);
+            setCodeExpiryTime(newExpiryTime);
+          }
+        } catch (error) {
+          setError(error.message || 'Erreur lors de l\'envoi du code. Veuillez réessayer.');
+        }
+      }
+    };
+
+    sendCodeAutomatically();
+  }, [autoSendCode, formData.email, autoSendTriggered]);
 
   useEffect(() => {
     // Get verification details from localStorage
@@ -38,9 +65,7 @@ const VerifyAccount = ({ onSuccess, initialEmail, onClose }) => {
         if (verificationData.verification_expiry) {
           setCodeExpiryTime(new Date(verificationData.verification_expiry));
         }
-      } catch (error) {
-        console.warn('Invalid pendingVerification data:', error);
-      }
+      } catch (error) {      }
     } else if (!initialEmail) {
       // Fallback to old pendingEmail format
       const savedEmail = localStorage.getItem('pendingEmail');

@@ -23,9 +23,7 @@ export const JWTAuthProvider = ({ children }) => {
             setUser(userData);
             setIsAuthenticated(true);
 
-            // Note: WebSocket connection is now handled by NotificationContext
-            console.log('✅ User authenticated via JWT, WebSocket will be handled by NotificationContext');
-          } else {
+            // Note: WebSocket connection is now handled by NotificationContext          } else {
             setUser(null);
             setIsAuthenticated(false);
           }
@@ -34,12 +32,8 @@ export const JWTAuthProvider = ({ children }) => {
           setIsAuthenticated(false);
         }
       } catch (error) {
-        console.error('Auth initialization error:', error);
-
         // Don't treat 401 as error - just means not authenticated
-        if (error.response?.status === 401) {
-          console.log('👤 User not authenticated (401) - this is normal for logged out users');
-        }
+        if (error.response?.status === 401) {        }
 
         setUser(null);
         setIsAuthenticated(false);
@@ -81,8 +75,6 @@ export const JWTAuthProvider = ({ children }) => {
       setIsAuthenticated(true);
 
       // Note: WebSocket connection is now handled by NotificationContext
-      console.log('✅ Login successful, WebSocket will be handled by NotificationContext');
-
       return {
         success: true,
         user: completeUserData,
@@ -122,12 +114,8 @@ export const JWTAuthProvider = ({ children }) => {
     try {
       // Disconnect WebSocket before logging out
       notificationWebSocket.disconnect();
-      console.log('📡 WebSocket disconnected on logout');
-
       await apiService.logout();
-    } catch (error) {
-      console.error('Logout error:', error);
-    } finally {
+    } catch (error) {    } finally {
       setUser(null);
       setIsAuthenticated(false);
       setIsLoading(false);
@@ -140,9 +128,7 @@ export const JWTAuthProvider = ({ children }) => {
         const userData = await apiService.getCurrentUser();
         setUser(userData);
         setIsAuthenticated(true);
-      } catch (error) {
-        console.error('User refresh error:', error);
-        await logout();
+      } catch (error) {        await logout();
       }
     }
   };

@@ -41,6 +41,31 @@ const RepostCard = ({
   const { user, isAuthenticated } = useAuth();
   const navigate = useNavigate();
 
+  // All hooks must be called before any early returns
+  const [showComments, setShowComments] = useState(false);
+  const [showInlineRepost, setShowInlineRepost] = useState(false);
+  const repostComposerRef = useRef(null);
+
+  // Create a safe repost post object for usePostInteractions (even if repostData is invalid)
+  const repostAsPost = repostData ? {
+    id: repostData.repost_id,
+    author: repostData.reposted_by,
+    content: repostData.repost_comment || '',
+    created_at: repostData.created_at,
+    likes_count: repostData.likes_count || 0,
+    dislikes_count: repostData.dislikes_count || 0,
+    comments_count: repostData.comments_count || 0,
+    shares_count: repostData.shares_count || 0,
+    repost_count: repostData.repost_count || 0,
+    is_liked: repostData.is_liked || false,
+    is_disliked: repostData.is_disliked || false,
+    visibility: repostData.visibility || 'public',
+    type: 'repost'
+  } : null;
+
+  const { postState, toggleReaction, addComment, share, repost, isLoading, error } = usePostInteractions(repostAsPost);
+
+  // Early return after all hooks
   if (!repostData || !repostData.data) {
     return null;
   }
@@ -51,40 +76,8 @@ const RepostCard = ({
     repost_comment,
     created_at,
     data: originalPost,
-    likes_count = 0,
-    dislikes_count = 0,
-    comments_count = 0,
-    shares_count = 0,
-    repost_count = 0,
-    is_liked = false,
-    is_disliked = false,
     visibility = 'public'
   } = repostData;
-
-  const [showComments, setShowComments] = useState(false);
-  const [showInlineRepost, setShowInlineRepost] = useState(false);
-
-  // Ref for auto-scrolling to repost composer
-  const repostComposerRef = useRef(null);
-
-  // Create a repost post object for interactions
-  const repostAsPost = {
-    id: repost_id,
-    author: reposted_by,
-    content: repost_comment || '',
-    created_at: created_at,
-    likes_count,
-    dislikes_count,
-    comments_count,
-    shares_count,
-    repost_count,
-    is_liked,
-    is_disliked,
-    visibility,
-    type: 'repost'
-  };
-
-  const { postState, toggleReaction, addComment, share, repost, isLoading, error } = usePostInteractions(repostAsPost);
 
   // Handle repost button click - show inline composer
   const handleRepost = () => {

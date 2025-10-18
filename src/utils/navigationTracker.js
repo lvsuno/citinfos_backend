@@ -36,19 +36,14 @@ export const trackPageVisit = (url, divisionData = null) => {
             STORAGE_KEYS.LAST_VISITED_DIVISION,
             JSON.stringify(divisionData)
         );
-    }
-
-    console.log('📍 Navigation tracked:', { url, time: new Date(currentTime).toISOString() });
-};
+    }};
 
 /**
  * Track logout event
  */
 export const trackLogout = () => {
     const logoutTime = Date.now();
-    localStorage.setItem(STORAGE_KEYS.LOGOUT_TIME, logoutTime.toString());
-    console.log('🚪 Logout tracked:', new Date(logoutTime).toISOString());
-};
+    localStorage.setItem(STORAGE_KEYS.LOGOUT_TIME, logoutTime.toString());};
 
 /**
  * Get smart redirect URL after login
@@ -74,13 +69,6 @@ export const getSmartRedirectUrl = (userHomeDivisionUrl) => {
 
     // Calculate time since logout (or last visit if no logout tracked)
     const timeSinceLogout = (currentTime - logoutTimestamp) / 1000 / 60; // minutes
-
-    console.log('🧭 Smart redirect calculation:', {
-        lastVisitedUrl,
-        timeSinceLogout: `${timeSinceLogout.toFixed(1)} minutes`,
-        threshold: `${SESSION_TIMEOUT_MINUTES} minutes`
-    });
-
     // Recent session (< 30 minutes) - continue where they left off
     if (timeSinceLogout < SESSION_TIMEOUT_MINUTES) {
         return {
@@ -106,7 +94,6 @@ export const getLastVisitedDivision = () => {
         try {
             return JSON.parse(divisionData);
         } catch (e) {
-            console.error('Failed to parse last visited division:', e);
             return null;
         }
     }
@@ -119,7 +106,6 @@ export const getLastVisitedDivision = () => {
 export const clearNavigationTracking = () => {
     // Don't clear lastVisitedUrl and lastVisitedTime - we need them for smart redirect
     // Only clear if you want to force fresh start
-    console.log('🧹 Navigation tracking data retained for smart redirect');
 };
 
 /**
@@ -129,7 +115,6 @@ export const clearAllNavigationTracking = () => {
     Object.values(STORAGE_KEYS).forEach(key => {
         localStorage.removeItem(key);
     });
-    console.log('🧹 All navigation tracking data cleared');
 };
 
 /**

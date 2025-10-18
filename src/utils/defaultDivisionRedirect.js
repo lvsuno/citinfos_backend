@@ -20,13 +20,9 @@ import geolocationService from '../services/geolocationService';
  * @returns {Promise<string>} - URL to redirect to (e.g., /municipality/sherbrooke/accueil)
  */
 export const getDefaultDivisionUrl = async (user = null, anonymousLocation = null) => {
-    console.log('🔍 Getting default division URL...', { user: user?.email, anonymousLocation: anonymousLocation?.city });
-
     // PRIORITY 1: Check if there's a current division in localStorage
     const currentDivision = getCurrentDivision();
     if (currentDivision?.slug && currentDivision?.country) {
-        console.log('✅ Using current division from localStorage:', currentDivision.name);
-
         // Map country ISO3 to URL path
         const iso3ToUrlPath = {
             'CAN': 'municipality',
@@ -41,8 +37,6 @@ export const getDefaultDivisionUrl = async (user = null, anonymousLocation = nul
 
     // PRIORITY 2: Use user's location if authenticated
     if (user?.location?.city && user?.location?.division_id) {
-        console.log('✅ Using user location:', user.location.city);
-
         // Fetch division data to get slug
         try {
             const result = await geolocationService.getDivisionById(user.location.division_id);
@@ -60,15 +54,11 @@ export const getDefaultDivisionUrl = async (user = null, anonymousLocation = nul
                 const urlPath = iso3ToUrlPath[country] || getAdminDivisionUrlPath();
                 return `/${urlPath}/${slug}/accueil`;
             }
-        } catch (error) {
-            console.error('❌ Error fetching user division:', error);
-        }
+        } catch (error) {        }
     }
 
     // PRIORITY 3: Use anonymous location from IP
     if (anonymousLocation?.location?.division_name && anonymousLocation?.location?.administrative_division_id) {
-        console.log('✅ Using anonymous location:', anonymousLocation.location.division_name);
-
         try {
             const result = await geolocationService.getDivisionById(anonymousLocation.location.administrative_division_id);
             if (result.success && result.division) {
@@ -85,14 +75,10 @@ export const getDefaultDivisionUrl = async (user = null, anonymousLocation = nul
                 const urlPath = iso3ToUrlPath[country] || getAdminDivisionUrlPath();
                 return `/${urlPath}/${slug}/accueil`;
             }
-        } catch (error) {
-            console.error('❌ Error fetching anonymous division:', error);
-        }
+        } catch (error) {        }
     }
 
-    // PRIORITY 4: Default to Sherbrooke, Canada
-    console.log('⚠️ No location found, defaulting to Sherbrooke, Canada');
-    return '/municipality/sherbrooke/accueil';
+    // PRIORITY 4: Default to Sherbrooke, Canada    return '/municipality/sherbrooke/accueil';
 };
 
 /**

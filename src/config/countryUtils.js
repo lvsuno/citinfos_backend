@@ -14,32 +14,21 @@ import { ADMIN_DIVISIONS, setCurrentCountry } from './adminDivisions';
  * @returns {boolean} - Success status
  */
 export const addCountryConfig = (countryCode, config) => {
-  if (!countryCode || !config) {
-    console.error('❌ Country code and config are required');
-    return false;
+  if (!countryCode || !config) {    return false;
   }
 
-  if (!config.adminDivision?.urlPath) {
-    console.error('❌ Admin division urlPath is required');
-    return false;
+  if (!config.adminDivision?.urlPath) {    return false;
   }
 
   // Validate required structure
   const requiredFields = ['country', 'hasData', 'adminDivision'];
   const missingFields = requiredFields.filter(field => !config[field]);
 
-  if (missingFields.length > 0) {
-    console.error(`❌ Missing required fields: ${missingFields.join(', ')}`);
-    return false;
+  if (missingFields.length > 0) {    return false;
   }
 
   // Add to configuration
   ADMIN_DIVISIONS[countryCode] = config;
-
-  console.log(`✅ Added country configuration for ${config.country} (${countryCode})`);
-  console.log(`🚀 New route paths available: /${config.adminDivision.urlPath}/:slug`);
-  console.log(`📊 Data source: ${config.dataSource || 'backend-api'}`);
-
   return true;
 };
 
@@ -151,9 +140,7 @@ export const addCountryWithCommonType = (countryCode, countryName, type = 'commu
     }
   };
 
-  if (!commonTypes[type]) {
-    console.error(`❌ Unknown type '${type}'. Available: ${Object.keys(commonTypes).join(', ')}`);
-    return false;
+  if (!commonTypes[type]) {    return false;
   }
 
   const config = {
@@ -181,18 +168,7 @@ export const addCountryWithCommonType = (countryCode, countryName, type = 'commu
  * Log current routing information - useful for debugging
  */
 export const logCurrentRoutes = () => {
-  const { getAvailableUrlPaths, getAvailableCountries } = require('./adminDivisions');
-
-  console.log('🌍 Available Countries with Data:');
-  getAvailableCountries().forEach(country => {
-    console.log(`  • ${country.name} (${country.code}): /${country.urlPath}/:slug`);
-  });
-
-  console.log('\n🚀 Generated Route Patterns:');
-  getAvailableUrlPaths().forEach(path => {
-    console.log(`  • /${path}/:municipalitySlug`);
-    console.log(`  • /${path}/:municipalitySlug/:section`);
-  });
+  const { getAvailableUrlPaths, getAvailableCountries } = require('./adminDivisions');  getAvailableCountries().forEach(country => {  });  getAvailableUrlPaths().forEach(path => {  });
 };
 
 /**

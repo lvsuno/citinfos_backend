@@ -31,9 +31,6 @@ const UserSettingsPage = () => {
     });
 
     // Debug temporaire
-    console.log('UserSettingsPage - user:', user);
-    console.log('UserSettingsPage - formData.avatar:', formData.avatar);
-
     // Mettre à jour formData quand user change
     useEffect(() => {
         if (user) {
@@ -143,9 +140,7 @@ const UserSettingsPage = () => {
                 confirmPassword: ''
             }));
 
-        } catch (error) {
-            console.error('Erreur lors de la mise à jour:', error);
-            setErrors({ general: 'Une erreur est survenue lors de la mise à jour' });
+        } catch (error) {            setErrors({ general: 'Une erreur est survenue lors de la mise à jour' });
         } finally {
             setIsLoading(false);
         }
@@ -229,9 +224,7 @@ const UserSettingsPage = () => {
                                         src={formData.avatar}
                                         alt="Avatar"
                                         className={styles.avatar}
-                                        onError={(e) => {
-                                            console.log('Erreur chargement avatar dans profil:', formData.avatar);
-                                            e.target.style.display = 'none';
+                                        onError={(e) => {                                            e.target.style.display = 'none';
                                             // Afficher le placeholder quand l'image échoue
                                             const placeholder = e.target.parentElement.querySelector('.avatar-placeholder');
                                             if (placeholder) {

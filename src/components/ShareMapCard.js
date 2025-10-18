@@ -20,8 +20,6 @@ const ShareMapCard = ({ selectedDivision, selectedCountry }) => {
     // Generate QR code when shown
     React.useEffect(() => {
         if (showQR && qrCodeRef.current) {
-            console.log('📱 Generating QR code for URL:', getShareUrl());
-
             import('qrcode').then(QRCode => {
                 QRCode.default.toCanvas(
                     qrCodeRef.current,
@@ -35,16 +33,10 @@ const ShareMapCard = ({ selectedDivision, selectedCountry }) => {
                         }
                     },
                     (error) => {
-                        if (error) {
-                            console.error('❌ QR Code generation error:', error);
-                        } else {
-                            console.log('✅ QR Code generated successfully');
-                        }
+                        if (error) {                        } else {                        }
                     }
                 );
-            }).catch(err => {
-                console.error('❌ Failed to load qrcode library:', err);
-            });
+            }).catch(err => {            });
         }
     }, [showQR]);
 
@@ -80,9 +72,7 @@ const ShareMapCard = ({ selectedDivision, selectedCountry }) => {
             await navigator.clipboard.writeText(shareUrl);
             setCopied(true);
             setTimeout(() => setCopied(false), 2000);
-        } catch (error) {
-            console.error('Failed to copy:', error);
-            // Fallback for older browsers
+        } catch (error) {            // Fallback for older browsers
             const textArea = document.createElement('textarea');
             textArea.value = shareUrl;
             document.body.appendChild(textArea);
@@ -124,9 +114,7 @@ const ShareMapCard = ({ selectedDivision, selectedCountry }) => {
                     text: shareText,
                     url: shareUrl,
                 });
-            } catch (error) {
-                console.error('Error sharing:', error);
-            }
+            } catch (error) {            }
         }
     };
 
