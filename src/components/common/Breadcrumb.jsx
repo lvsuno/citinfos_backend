@@ -5,7 +5,7 @@ import { useNavigate } from 'react-router-dom';
 /**
  * Breadcrumb - Hierarchical navigation component
  *
- * Displays: Home > Division > Community > Thread > Post
+ * Displays: Accueil > Division Name > Rubrique Name > Thread Title
  * Features:
  * - Handles null divisions gracefully
  * - Clickable breadcrumb items for navigation
@@ -20,6 +20,12 @@ const Breadcrumb = ({
   onNavigate = null,  // Optional custom navigation handler
 }) => {
   const navigate = useNavigate();
+  const location = window.location;
+
+  // Extract URL path components (e.g., /municipality/sherbrooke/thread/slug)
+  const pathParts = location.pathname.split('/').filter(Boolean);
+  const currentUrlPath = pathParts[0]; // municipality, commune, city, etc.
+  const municipalitySlug = pathParts[1]; // sherbrooke, ganvie, etc.
 
   // Build breadcrumb items array
   const items = [];
@@ -28,52 +34,51 @@ const Breadcrumb = ({
   items.push({
     label: 'Accueil',
     icon: HomeIcon,
-    path: '/',
+    path: currentUrlPath && municipalitySlug
+      ? `/${currentUrlPath}/${municipalitySlug}/accueil`
+      : '/',
     type: 'home'
   });
 
-  // Add Division (or "All Communities" if null)
+  // Add Division Name (if available)
   if (division) {
     items.push({
       label: division.name || division.code,
-      path: `/division/${division.id}`,
+      path: currentUrlPath && municipalitySlug
+        ? `/${currentUrlPath}/${municipalitySlug}/accueil`
+        : `/division/${division.id}`,
       type: 'division',
       data: division
     });
-  } else if (community && !division) {
-    // If we have a community without a division, show "All Communities"
+  }
+
+  // Add Rubrique Name (if thread has section info)
+  if (thread && thread.section_name) {
     items.push({
-      label: 'Toutes les communautés',
-      path: '/communities',
-      type: 'all-communities'
+      label: thread.section_name,
+      path: currentUrlPath && municipalitySlug && thread.section_slug
+        ? `/${currentUrlPath}/${municipalitySlug}/${thread.section_slug}`
+        : null,
+      type: 'rubrique',
+      data: { name: thread.section_name, slug: thread.section_slug }
     });
   }
 
-  // Add Community
-  if (community) {
-    items.push({
-      label: community.name,
-      path: `/community/${community.slug || community.id}`,
-      type: 'community',
-      data: community
-    });
-  }
-
-  // Add Thread
+  // Add Thread Title
   if (thread) {
     items.push({
       label: thread.title,
-      path: `/community/${community?.slug || community?.id}/thread/${thread.slug || thread.id}`,
+      path: null, // Current page, no link
       type: 'thread',
       data: thread
     });
   }
 
-  // Add Post (usually just indicates we're viewing a specific post)
+  // Add Post (if viewing a specific post within thread)
   if (post) {
     items.push({
       label: post.title || `Post #${post.id}`,
-      path: `/post/${post.id}`,
+      path: null, // Current page
       type: 'post',
       data: post
     });
@@ -81,8 +86,8 @@ const Breadcrumb = ({
 
   // Handle navigation click
   const handleClick = (item, index) => {
-    // Don't navigate if it's the last item (current location)
-    if (index === items.length - 1) return;
+    // Don't navigate if it's the last item (current location) or no path
+    if (index === items.length - 1 || !item.path) return;
 
     if (onNavigate) {
       // Use custom navigation handler if provided
@@ -110,9 +115,9 @@ const Breadcrumb = ({
             <div className="flex items-center flex-shrink-0">
               <button
                 onClick={() => handleClick(item, index)}
-                disabled={isLast}
+                disabled={isLast || !item.path}
                 className={`flex items-center gap-1.5 px-2 py-1 rounded transition-colors ${
-                  isLast
+                  isLast || !item.path
                     ? 'text-gray-900 font-medium cursor-default'
                     : 'text-gray-600 hover:text-blue-600 hover:bg-blue-50 cursor-pointer'
                 }`}
