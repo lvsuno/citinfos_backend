@@ -427,11 +427,25 @@ class AnalyticsTrackingMiddleware(MiddlewareMixin):
 
                         # Try to fetch community
                         try:
-                            community = Community.objects.select_related(
-                                'division'
-                            ).get(
-                                Q(slug=slug_or_id) | Q(id=slug_or_id)
-                            )
+                            # Check if it's a valid UUID first
+                            import uuid
+                            try:
+                                uuid.UUID(slug_or_id)
+                                is_uuid = True
+                            except ValueError:
+                                is_uuid = False
+
+                            # Build query - only check ID if it's a valid UUID
+                            if is_uuid:
+                                community = Community.objects.select_related(
+                                    'division'
+                                ).get(
+                                    Q(slug=slug_or_id) | Q(id=slug_or_id)
+                                )
+                            else:
+                                community = Community.objects.select_related(
+                                    'division'
+                                ).get(slug=slug_or_id)
 
                             return {
                                 'community_id': str(community.id),
@@ -446,11 +460,16 @@ class AnalyticsTrackingMiddleware(MiddlewareMixin):
                             pass
                         except Community.MultipleObjectsReturned:
                             # Use first match if multiple found
-                            community = Community.objects.select_related(
-                                'division'
-                            ).filter(
-                                Q(slug=slug_or_id) | Q(id=slug_or_id)
-                            ).first()
+                            if is_uuid:
+                                community = Community.objects.select_related(
+                                    'division'
+                                ).filter(
+                                    Q(slug=slug_or_id) | Q(id=slug_or_id)
+                                ).first()
+                            else:
+                                community = Community.objects.select_related(
+                                    'division'
+                                ).filter(slug=slug_or_id).first()
 
                             if community:
                                 return {
