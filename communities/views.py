@@ -8,13 +8,13 @@ from django.utils import timezone
 from rest_framework import viewsets, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
-from rest_framework.permissions import IsAuthenticated, IsAuthenticatedOrReadOnly
-from rest_framework.exceptions import PermissionDenied
+from rest_framework.permissions import IsAuthenticated, IsAuthenticatedOrReadOnly, AllowAny
+from rest_framework.exceptions import PermissionDenied, ValidationError
 from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
 from accounts.models import UserProfile
 from accounts.permissions import NotDeletedUserPermission
 from .models import (
-    Community, CommunityMembership, Thread,
+    Community, CommunityMembership, Thread, RubriqueTemplate,
     # CommunityInvitation, CommunityJoinRequest,  # Commented out - not needed for public communities
     CommunityRole, CommunityModeration, CommunityAnnouncement
 )
@@ -27,7 +27,8 @@ from .serializers import (
     CommunityRoleSerializer,
     # CommunityJoinRequestSerializer,  # Commented - public communities
     CommunityAnnouncementSerializer,
-    ThreadSerializer
+    ThreadSerializer, RubriqueTemplateSerializer
+    # SectionSerializer  # Removed - Section model deleted
 )
 
 
@@ -828,6 +829,259 @@ class CommunityViewSet(viewsets.ModelViewSet):
                 'timestamp': timezone.now().isoformat()
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
+    @action(
+        detail=True,
+        methods=['get'],
+        url_path='rubriques',
+        permission_classes=[AllowAny]
+    )
+    def rubriques(self, request, slug=None):
+        """Get enabled rubriques for this community in tree structure.
+
+        This endpoint is public so that unauthenticated users can see
+        which rubriques are available for a community.
+        """
+        community = self.get_object()
+        tree = community.get_rubrique_tree()
+
+        return Response({
+            'community_id': str(community.id),
+            'community_name': community.name,
+            'rubriques': tree,
+            'total_enabled': len(community.enabled_rubriques or [])
+        })
+
+    @action(
+        detail=True,
+        methods=['post'],
+        url_path='rubriques/(?P<rubrique_id>[^/.]+)/enable',
+        permission_classes=[IsAuthenticated, NotDeletedUserPermission]
+    )
+    def enable_rubrique(self, request, slug=None, rubrique_id=None):
+        """Enable a rubrique for this community (admin only)."""
+        community = self.get_object()
+        profile = get_object_or_404(UserProfile, user=request.user)
+
+        # Check if user is admin
+        if community.creator != profile:
+            membership = CommunityMembership.objects.filter(
+                community=community,
+                user=profile,
+                status='active',
+                is_deleted=False
+            ).first()
+
+            has_permission = (
+                membership and membership.role and
+                membership.role.permissions.get('can_manage_community', False)
+            )
+            if not has_permission:
+                raise PermissionDenied("Only admins can manage rubriques")
+
+        # Try to enable the rubrique
+        success = community.add_rubrique(rubrique_id)
+
+        if not success:
+            return Response(
+                {'error': 'Rubrique not found, already enabled, or inactive'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        return Response({
+            'message': 'Rubrique enabled successfully',
+            'enabled_rubriques': community.enabled_rubriques,
+            'total_enabled': len(community.enabled_rubriques)
+        })
+
+    @action(
+        detail=True,
+        methods=['delete'],
+        url_path='rubriques/(?P<rubrique_id>[^/.]+)/disable',
+        permission_classes=[IsAuthenticated, NotDeletedUserPermission]
+    )
+    def disable_rubrique(self, request, slug=None, rubrique_id=None):
+        """Disable a rubrique for this community (admin only)."""
+        community = self.get_object()
+        profile = get_object_or_404(UserProfile, user=request.user)
+
+        # Check if user is admin
+        if community.creator != profile:
+            membership = CommunityMembership.objects.filter(
+                community=community,
+                user=profile,
+                status='active',
+                is_deleted=False
+            ).first()
+
+            has_permission = (
+                membership and membership.role and
+                membership.role.permissions.get('can_manage_community', False)
+            )
+            if not has_permission:
+                raise PermissionDenied("Only admins can manage rubriques")
+
+        # Try to disable the rubrique
+        success = community.remove_rubrique(rubrique_id)
+
+        if not success:
+            return Response(
+                {'error': 'Rubrique not enabled, not found, or is required'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        return Response({
+            'message': 'Rubrique disabled successfully',
+            'enabled_rubriques': community.enabled_rubriques,
+            'total_enabled': len(community.enabled_rubriques)
+        })
+
+    @action(
+        detail=True,
+        methods=['get'],
+        url_path='posts/accueil',
+        permission_classes=[AllowAny]
+    )
+    def accueil_posts(self, request, slug=None):
+        """Get all recent posts for this community (Accueil/Home page).
+
+        Returns all posts from the community ordered by most recent,
+        regardless of rubrique. Includes thread information when applicable.
+
+        Query params:
+        - limit: Number of posts to return (default: 20)
+        - offset: Offset for pagination (default: 0)
+        """
+        from content.models import Post
+        from content.unified_serializers import UnifiedPostSerializer
+
+        community = self.get_object()
+
+        # Get limit and offset from query params
+        limit = int(request.query_params.get('limit', 20))
+        offset = int(request.query_params.get('offset', 0))
+
+        # Fetch all posts from this community, ordered by most recent
+        posts = Post.objects.filter(
+            community=community,
+            is_deleted=False
+        ).select_related(
+            'author__user',
+            'thread',
+            'thread__rubrique_template',
+            'rubrique_template',
+            'community'
+        ).prefetch_related(
+            'media',
+            'polls__options'
+        ).order_by('-created_at')[offset:offset + limit]
+
+        serializer = UnifiedPostSerializer(
+            posts, many=True, context={'request': request}
+        )
+
+        total_posts_count = Post.objects.filter(
+            community=community, is_deleted=False
+        ).count()
+
+        return Response({
+            'community_id': str(community.id),
+            'community_name': community.name,
+            'total_posts': total_posts_count,
+            'posts': serializer.data
+        })
+
+    @action(
+        detail=True,
+        methods=['get'],
+        url_path='rubriques/(?P<rubrique_type>[^/.]+)/posts',
+        permission_classes=[AllowAny]
+    )
+    def rubrique_posts(self, request, slug=None, rubrique_type=None):
+        """Get posts for a specific rubrique.
+
+        Returns posts that either:
+        1. Have rubrique_template matching the requested rubrique
+        2. Belong to a thread with matching rubrique_template
+
+        Query params:
+        - limit: Number of posts to return (default: 20)
+        - offset: Offset for pagination (default: 0)
+        """
+        from content.models import Post
+        from content.unified_serializers import UnifiedPostSerializer
+
+        community = self.get_object()
+
+        # Get the rubrique template by template_type
+        try:
+            rubrique = RubriqueTemplate.objects.get(
+                template_type=rubrique_type,
+                is_active=True
+            )
+        except RubriqueTemplate.DoesNotExist:
+            return Response(
+                {'error': f'Rubrique "{rubrique_type}" not found or inactive'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+
+        # Check if this rubrique is enabled for this community
+        if str(rubrique.id) not in (community.enabled_rubriques or []):
+            error_msg = (
+                f'Rubrique "{rubrique_type}" is not enabled '
+                f'for this community'
+            )
+            return Response(
+                {'error': error_msg},
+                status=status.HTTP_403_FORBIDDEN
+            )
+
+        # Get limit and offset from query params
+        limit = int(request.query_params.get('limit', 20))
+        offset = int(request.query_params.get('offset', 0))
+
+        # Fetch posts that either:
+        # 1. Have this rubrique_template directly (direct posts)
+        # 2. Belong to a thread with this rubrique_template
+        posts = Post.objects.filter(
+            community=community,
+            is_deleted=False
+        ).filter(
+            Q(rubrique_template=rubrique) |  # Direct posts
+            Q(thread__rubrique_template=rubrique)  # Thread posts
+        ).select_related(
+            'author__user',
+            'thread',
+            'thread__rubrique_template',
+            'rubrique_template',
+            'community'
+        ).prefetch_related(
+            'media',
+            'polls__options'
+        ).order_by('-created_at')[offset:offset + limit]
+
+        # Get total count for this rubrique
+        total_count = Post.objects.filter(
+            community=community,
+            is_deleted=False
+        ).filter(
+            Q(rubrique_template=rubrique) |
+            Q(thread__rubrique_template=rubrique)
+        ).count()
+
+        serializer = UnifiedPostSerializer(
+            posts, many=True, context={'request': request}
+        )
+
+        return Response({
+            'community_id': str(community.id),
+            'community_name': community.name,
+            'rubrique_id': str(rubrique.id),
+            'rubrique_name': rubrique.default_name,
+            'rubrique_type': rubrique.template_type,
+            'total_posts': total_count,
+            'posts': serializer.data
+        })
+
 
 class ThreadViewSet(viewsets.ModelViewSet):
     """ViewSet for managing discussion threads within communities."""
@@ -847,7 +1101,7 @@ class ThreadViewSet(viewsets.ModelViewSet):
         queryset = Thread.objects.filter(
             is_deleted=False
         ).select_related(
-            'creator__user', 'community'
+            'creator__user', 'community', 'rubrique_template', 'rubrique_template__parent'
         ).order_by('-is_pinned', '-created_at')
 
         # Filter by community if provided
@@ -871,6 +1125,411 @@ class ThreadViewSet(viewsets.ModelViewSet):
         instance.is_deleted = True
         instance.deleted_at = timezone.now()
         instance.save()
+
+    @action(
+        detail=True,
+        methods=['get'],
+        url_path='posts',
+        permission_classes=[AllowAny]
+    )
+    def posts(self, request, slug=None):
+        """Get all posts in this thread ordered by: pinned → best_post → upvotes → created.
+
+        Returns posts with proper sorting for Stack Overflow style display:
+        - Pinned posts first
+        - Best post (if marked) next
+        - Then by net votes (upvotes - downvotes) descending
+        - Finally by creation date
+        """
+        from content.models import Post
+        from content.serializers import PostSerializer
+        from django.db.models import F, Case, When, IntegerField
+
+        thread = self.get_object()
+
+        # Get posts with calculated net vote score
+        posts = Post.objects.filter(
+            thread=thread,
+            is_deleted=False
+        ).select_related(
+            'author__user', 'community'
+        ).prefetch_related(
+            'media', 'polls'
+        ).annotate(
+            # Calculate net votes (upvotes - downvotes)
+            net_votes=F('upvotes_count') - F('downvotes_count'),
+            # Pinned posts get highest priority (2)
+            pin_priority=Case(
+                When(is_pinned=True, then=2),
+                default=0,
+                output_field=IntegerField()
+            ),
+            # Best post gets second priority (1)
+            best_priority=Case(
+                When(is_best_post=True, then=1),
+                default=0,
+                output_field=IntegerField()
+            )
+        ).order_by(
+            '-pin_priority',      # Pinned first
+            '-best_priority',     # Best post second
+            '-net_votes',         # Highest voted third
+            'created_at'          # Oldest first for same vote count
+        )
+
+        # Paginate results
+        page = self.paginate_queryset(posts)
+        if page is not None:
+            serializer = PostSerializer(
+                page,
+                many=True,
+                context={'request': request}
+            )
+            return self.get_paginated_response(serializer.data)
+
+        serializer = PostSerializer(
+            posts,
+            many=True,
+            context={'request': request}
+        )
+        return Response(serializer.data)
+
+
+class RubriqueTemplateViewSet(viewsets.ReadOnlyModelViewSet):
+    """ViewSet for browsing available rubrique templates.
+
+    Templates are read-only for regular users.
+    Admins can manage templates via Django admin.
+    """
+    serializer_class = RubriqueTemplateSerializer
+    permission_classes = [IsAuthenticatedOrReadOnly]
+    queryset = RubriqueTemplate.objects.filter(is_active=True).order_by(
+        'default_order', 'default_name'
+    )
+
+    def get_queryset(self):
+        """Return all active rubrique templates (no community filtering needed)."""
+        return RubriqueTemplate.objects.filter(is_active=True).order_by(
+            'default_order', 'default_name'
+        )
+
+    @action(detail=True, methods=['post'], permission_classes=[IsAuthenticated])
+    def create_section(self, request, pk=None):
+        """Create a section from this template for a community."""
+        template = self.get_object()
+        community_id = request.data.get('community_id')
+        custom_name = request.data.get('custom_name')
+        parent_section_id = request.data.get('parent_section_id')
+
+        if not community_id:
+            return Response(
+                {'error': 'community_id is required'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # Verify community exists and user has permission
+        from .models import Community, CommunityMembership
+        try:
+            community = Community.objects.get(id=community_id)
+        except Community.DoesNotExist:
+            return Response(
+                {'error': 'Community not found'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+
+        # Check user is member and has permission
+        profile = get_object_or_404(UserProfile, user=request.user)
+        membership = CommunityMembership.objects.filter(
+            community=community,
+            user=profile,
+            status='active',
+            is_deleted=False
+        ).first()
+
+        if not membership:
+            raise PermissionDenied("You must be a member")
+
+        # Verify parent section belongs to same community
+        parent_section = None
+        if parent_section_id:
+            from .models import Section
+            try:
+                parent_section = Section.objects.get(
+                    id=parent_section_id,
+                    community=community
+                )
+            except Section.DoesNotExist:
+                return Response(
+                    {'error': 'Parent section not found in this community'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+
+        # Create section from template
+        section = template.create_section_for_community(
+            community=community,
+            parent_section=parent_section,
+            custom_name=custom_name
+        )
+
+        serializer = SectionSerializer(section)
+        return Response(serializer.data, status=status.HTTP_201_CREATED)
+
+
+# # Section model removed - SectionViewSet disabled
+# # TODO: Remove entire SectionViewSet class (lines 1014-1265)
+# """
+# class SectionViewSet(viewsets.ModelViewSet):
+#     """ViewSet for managing sections within communities."""
+#     serializer_class = SectionSerializer
+#     permission_classes = [IsAuthenticatedOrReadOnly, NotDeletedUserPermission]
+#
+#     def get_queryset(self):
+#         """Get sections, optionally filtered by community."""
+#         queryset = Section.objects.filter(is_deleted=False).select_related(
+#             'community', 'parent_section'
+#         ).prefetch_related('subsections')
+#
+#         # Filter by community if provided
+#         community_id = self.request.query_params.get('community')
+#         if community_id:
+#             queryset = queryset.filter(community_id=community_id)
+#
+#         # Filter by parent section
+#         parent_id = self.request.query_params.get('parent')
+#         if parent_id:
+#             queryset = queryset.filter(parent_section_id=parent_id)
+#         elif (parent_id == 'null' or
+#               self.request.query_params.get('root') == 'true'):
+#             # Get only root sections (no parent)
+#             queryset = queryset.filter(parent_section__isnull=True)
+#
+#         return queryset.order_by('order', 'name')
+#
+#     def perform_create(self, serializer):
+#         """Create a new section."""
+#         # Verify user has permission to create sections in the community
+#         community = serializer.validated_data.get('community')
+#         profile = get_object_or_404(UserProfile, user=self.request.user)
+#
+#         # Check if user is admin or has manage permissions
+#         membership = CommunityMembership.objects.filter(
+#             community=community,
+#             user=profile,
+#             status='active',
+#             is_deleted=False
+#         ).first()
+#
+#         if not membership:
+#             raise PermissionDenied("You must be a member to create sections")
+#
+#         # Check permissions
+#         has_permission = (
+#             community.creator == profile or
+#             (membership.role and
+#              membership.role.permissions.can_manage_community)
+#         )
+#         if not has_permission:
+#             raise PermissionDenied("Only admins can create sections")
+#
+#         serializer.save()
+#
+#     def perform_update(self, serializer):
+#         """Update a section."""
+#         section = self.get_object()
+#         profile = get_object_or_404(UserProfile, user=self.request.user)
+#
+#         # Check if user is admin or has manage permissions
+#         membership = CommunityMembership.objects.filter(
+#             community=section.community,
+#             user=profile,
+#             status='active',
+#             is_deleted=False
+#         ).first()
+#
+#         if not membership:
+#             raise PermissionDenied("You must be a member to edit sections")
+#
+#         has_permission = (
+#             section.community.creator == profile or
+#             (membership.role and
+#              membership.role.permissions.can_manage_community)
+#         )
+#         if not has_permission:
+#             raise PermissionDenied("Only admins can edit sections")
+#
+#         serializer.save()
+#
+#     def perform_destroy(self, instance):
+#         """Soft delete a section."""
+#         profile = get_object_or_404(UserProfile, user=self.request.user)
+#
+#         # Check if user is admin
+#         if instance.community.creator != profile:
+#             membership = CommunityMembership.objects.filter(
+#                 community=instance.community,
+#                 user=profile,
+#                 status='active',
+#                 is_deleted=False
+#             ).first()
+#
+#             has_permission = (
+#                 membership and membership.role and
+#                 membership.role.permissions.can_manage_community
+#             )
+#             if not has_permission:
+#                 raise PermissionDenied("Only admins can delete sections")
+#
+#         # Check if section has threads or subsections
+#         if instance.threads_count > 0:
+#             raise ValidationError(
+#                 "Cannot delete section with existing threads"
+#             )
+#         if instance.subsections_count > 0:
+#             raise ValidationError("Cannot delete section with subsections")
+#
+#         # Soft delete
+#         from django.utils import timezone
+#         instance.is_deleted = True
+#         instance.deleted_at = timezone.now()
+#         instance.save()
+#
+#     @action(detail=True, methods=['get'])
+#     def subsections(self, request, pk=None):
+#         """Get immediate subsections of this section."""
+#         section = self.get_object()
+#         subsections = section.subsections.filter(
+#             is_deleted=False
+#         ).order_by('order', 'name')
+#         serializer = self.get_serializer(subsections, many=True)
+#         return Response(serializer.data)
+#
+#     @action(detail=True, methods=['get'])
+#     def ancestors(self, request, pk=None):
+#         """Get all ancestors from root to parent."""
+#         section = self.get_object()
+#         ancestors = section.get_ancestors()
+#         serializer = self.get_serializer(ancestors, many=True)
+#         return Response(serializer.data)
+#
+#     @action(detail=True, methods=['get'])
+#     def descendants(self, request, pk=None):
+#         """Get all descendants recursively."""
+#         section = self.get_object()
+#         include_self = (
+#             request.query_params.get('include_self', 'false').lower() ==
+#             'true'
+#         )
+#         descendants = section.get_descendants(include_self=include_self)
+#         serializer = self.get_serializer(descendants, many=True)
+#         return Response(serializer.data)
+#
+#     @action(detail=True, methods=['get'])
+#     def threads(self, request, pk=None):
+#         """Get threads in this section."""
+#         section = self.get_object()
+#         threads = section.threads.filter(is_deleted=False).select_related(
+#             'creator__user', 'community', 'best_post'
+#         ).order_by('-is_pinned', '-created_at')
+#
+#         # Pagination
+#         page = self.paginate_queryset(threads)
+#         if page is not None:
+#             serializer = ThreadSerializer(
+#                 page, many=True, context={'request': request}
+#             )
+#             return self.get_paginated_response(serializer.data)
+#
+#         serializer = ThreadSerializer(
+#             threads, many=True, context={'request': request}
+#         )
+#         return Response(serializer.data)
+#
+#     @action(
+#         detail=True, methods=['post'],
+#         permission_classes=[IsAuthenticated, NotDeletedUserPermission]
+#     )
+#     def move(self, request, pk=None):
+#         """Move section to a new parent (admin only)."""
+#         section = self.get_object()
+#         profile = get_object_or_404(UserProfile, user=request.user)
+#
+#         # Check admin permissions
+#         if section.community.creator != profile:
+#             membership = CommunityMembership.objects.filter(
+#                 community=section.community,
+#                 user=profile,
+#                 status='active',
+#                 is_deleted=False
+#             ).first()
+#
+#             has_permission = (
+#                 membership and membership.role and
+#                 membership.role.permissions.can_manage_community
+#             )
+#             if not has_permission:
+#                 raise PermissionDenied("Only admins can move sections")
+#
+#         # Get new parent (can be null for root level)
+#         new_parent_id = request.data.get('parent_section')
+#         new_parent = None
+#
+#         if new_parent_id:
+#             try:
+#                 new_parent = Section.objects.get(
+#                     id=new_parent_id, is_deleted=False
+#                 )
+#
+#                 # Verify new parent is in same community
+#                 if new_parent.community_id != section.community_id:
+#                     raise ValidationError(
+#                         "Parent section must be in the same community"
+#                     )
+#
+#                 # Verify not moving to self or descendant
+#                 if new_parent.id == section.id:
+#                     raise ValidationError("Cannot move section to itself")
+#                 if new_parent.is_ancestor_of(section):
+#                     raise ValidationError(
+#                         "Cannot move section to its own descendant"
+#                     )
+#
+#                 # Check depth constraint
+#                 new_depth = new_parent.depth + 1
+#                 max_descendant_depth = section.get_descendants().aggregate(
+#                     max_depth=models.Max('depth')
+#                 )['max_depth'] or section.depth
+#                 depth_increase = max_descendant_depth - section.depth
+#
+#                 if new_depth + depth_increase > 5:
+#                     raise ValidationError(
+#                         "Moving would exceed maximum depth of 5 levels"
+#                     )
+#
+#             except Section.DoesNotExist:
+#                 raise ValidationError("Parent section not found")
+#
+#         # Update parent
+#         section.parent_section = new_parent
+#         section.save()  # save() will recalculate depth and path
+#
+#         serializer = self.get_serializer(section)
+#         return Response(serializer.data)
+#
+#     @action(detail=False, methods=['get'])
+#     def tree(self, request):
+#         """Get hierarchical tree of sections for a community."""
+#         community_id = request.query_params.get('community')
+#         if not community_id:
+#             raise ValidationError("community parameter is required")
+#
+#         # Get all sections for the community
+#         sections = Section.objects.filter(
+#             community_id=community_id,
+#             is_deleted=False
+#         ).select_related('parent_section').order_by('path', 'order', 'name')
+
+        serializer = self.get_serializer(sections, many=True)
+        return Response(serializer.data)
 
 
 class CommunityMembershipViewSet(viewsets.ModelViewSet):

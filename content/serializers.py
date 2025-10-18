@@ -1,7 +1,8 @@
 from rest_framework import serializers
 from accounts.models import UserProfile
 from .models import (
-    Post, Comment, Like, Dislike, PostSee, PostMedia, Mention,
+    Post, Comment, PostReaction, CommentReaction,
+    PostSee, PostMedia, Mention,
     DirectShare, DirectShareRecipient,
     ContentReport, ModerationQueue, AutoModerationAction,
     ContentModerationRule, BotDetectionEvent, BotDetectionProfile,
@@ -18,13 +19,15 @@ from .models import (
 
 class PostMediaSerializer(serializers.ModelSerializer):
     """Serializer for PostMedia model."""
+    media_url = serializers.ReadOnlyField()
+
     class Meta:
         model = PostMedia
         fields = [
-            'id', 'post', 'media_type', 'file', 'thumbnail',
-            'description', 'order'
+            'id', 'post', 'media_type', 'file', 'external_url',
+            'thumbnail', 'description', 'order', 'media_url'
         ]
-        read_only_fields = ['id']
+        read_only_fields = ['id', 'media_url']
 
 
 class PostSeeSerializer(serializers.ModelSerializer):
@@ -53,6 +56,8 @@ class PostSerializer(serializers.ModelSerializer):
     community_name = serializers.CharField(
         source='community.name', read_only=True
     )
+    section_name = serializers.SerializerMethodField()
+    section_slug = serializers.SerializerMethodField()
     user_has_liked = serializers.SerializerMethodField()
     user_has_disliked = serializers.SerializerMethodField()
     user_has_shared = serializers.SerializerMethodField()
@@ -64,17 +69,22 @@ class PostSerializer(serializers.ModelSerializer):
         model = Post
         fields = [
             'id', 'author', 'author_username', 'author_name', 'community',
-            'community_name', 'content', 'post_type', 'visibility',
-            'link_image', 'is_pinned', 'is_edited', 'likes_count',
-            'dislikes_count', 'comments_count', 'shares_count',
-            'repost_count', 'views_count', 'user_has_liked',
-            'user_has_disliked', 'user_has_shared', 'user_has_reposted',
-            'comments', 'mentions', 'created_at', 'updated_at'
+            'community_name', 'section_name', 'section_slug',
+            'content', 'article_content', 'featured_image',
+            'excerpt', 'is_draft', 'post_type', 'visibility',
+            'link_image', 'is_pinned', 'is_best_post', 'is_edited',
+            'likes_count', 'dislikes_count', 'comments_count', 'shares_count',
+            'repost_count', 'views_count', 'upvotes_count', 'downvotes_count',
+            'user_has_liked', 'user_has_disliked', 'user_has_shared',
+            'user_has_reposted', 'comments', 'mentions', 'created_at',
+            'updated_at', 'thread'
         ]
         read_only_fields = [
             'id', 'author_username', 'author_name', 'community_name',
-            'is_edited', 'likes_count', 'dislikes_count', 'comments_count',
-            'shares_count', 'repost_count', 'views_count', 'user_has_liked',
+            'section_name', 'section_slug',
+            'is_edited', 'is_best_post', 'likes_count', 'dislikes_count',
+            'comments_count', 'shares_count', 'repost_count', 'views_count',
+            'upvotes_count', 'downvotes_count', 'user_has_liked',
             'user_has_disliked', 'user_has_shared', 'user_has_reposted',
             'comments', 'created_at', 'updated_at'
         ]
@@ -94,24 +104,38 @@ class PostSerializer(serializers.ModelSerializer):
             return UserProfile.objects.filter(user=request.user).first()
         return None
 
+    def get_section_name(self, obj):
+        """Get rubrique name from thread if post is in a thread."""
+        if obj.thread and obj.thread.rubrique_template:
+            return obj.thread.rubrique_template.default_name
+        return None
+
+    def get_section_slug(self, obj):
+        """Get rubrique slug from thread if post is in a thread."""
+        if obj.thread and obj.thread.rubrique_template:
+            return obj.thread.rubrique_template.template_type
+        return None
+
     def get_user_has_liked(self, obj):
+        """Check if user has positive reaction (replaces old like check)."""
         profile = self._get_user_profile()
         if not profile:
             return False
-        from django.contrib.contenttypes.models import ContentType
-        ct = ContentType.objects.get_for_model(Post)
-        return Like.objects.filter(
-            user=profile, content_type=ct, object_id=obj.id
+        return PostReaction.objects.filter(
+            user=profile,
+            post=obj,
+            reaction_type__in=PostReaction.POSITIVE_REACTIONS
         ).exists()
 
     def get_user_has_disliked(self, obj):
+        """Check if user has negative reaction (replaces old dislike check)."""
         profile = self._get_user_profile()
         if not profile:
             return False
-        from django.contrib.contenttypes.models import ContentType
-        ct = ContentType.objects.get_for_model(Post)
-        return Dislike.objects.filter(
-            user=profile, content_type=ct, object_id=obj.id
+        return PostReaction.objects.filter(
+            user=profile,
+            post=obj,
+            reaction_type__in=PostReaction.NEGATIVE_REACTIONS
         ).exists()
 
     def get_user_has_shared(self, obj):
@@ -186,23 +210,25 @@ class CommentNestedSerializer(serializers.ModelSerializer):
         return None
 
     def get_user_has_liked(self, obj):
-        from django.contrib.contenttypes.models import ContentType
+        """Check if user has positive reaction (replaces old like check)."""
         profile = self._get_user_profile()
         if not profile:
             return False
-        ct = ContentType.objects.get_for_model(Comment)
-        return Like.objects.filter(
-            user=profile, content_type=ct, object_id=obj.id
+        return CommentReaction.objects.filter(
+            user=profile,
+            comment=obj,
+            reaction_type__in=CommentReaction.POSITIVE_REACTIONS
         ).exists()
 
     def get_user_has_disliked(self, obj):
-        from django.contrib.contenttypes.models import ContentType
+        """Check if user has negative reaction on comment."""
         profile = self._get_user_profile()
         if not profile:
             return False
-        ct = ContentType.objects.get_for_model(Comment)
-        return Dislike.objects.filter(
-            user=profile, content_type=ct, object_id=obj.id
+        return CommentReaction.objects.filter(
+            user=profile,
+            comment=obj,
+            reaction_type__in=CommentReaction.NEGATIVE_REACTIONS
         ).exists()
 
     def get_replies(self, obj):
@@ -278,16 +304,16 @@ class CommentSerializer(serializers.ModelSerializer):
         ]
 
     def get_user_has_liked(self, obj):
-        """Check if the requesting user has liked this comment."""
-        from django.contrib.contenttypes.models import ContentType
+        """Check if the requesting user has positive reaction on comment."""
         request = self.context.get('request')
         if request and request.user.is_authenticated:
             profile = UserProfile.objects.filter(user=request.user).first()
             if not profile:
                 return False
-            ct = ContentType.objects.get_for_model(Comment)
-            return Like.objects.filter(
-                user=profile, content_type=ct, object_id=obj.id
+            return CommentReaction.objects.filter(
+                user=profile,
+                comment=obj,
+                reaction_type__in=CommentReaction.POSITIVE_REACTIONS
             ).exists()
         return False
 
@@ -300,34 +326,52 @@ class CommentCreateUpdateSerializer(serializers.ModelSerializer):
         read_only_fields = ['id']
 
 
-class LikeSerializer(serializers.ModelSerializer):
-    """Serializer for Like model."""
+class PostReactionSerializer(serializers.ModelSerializer):
+    """Serializer for PostReaction model."""
     user_username = serializers.CharField(
         source='user.user.username', read_only=True
     )
-    content_object_str = serializers.CharField(
-        source='content_object', read_only=True
-    )
+    emoji = serializers.SerializerMethodField()
+    sentiment = serializers.CharField(read_only=True)
 
     class Meta:
-        """Serializer for Like model."""
-        model = Like
+        model = PostReaction
         fields = [
-            'id', 'user', 'user_username', 'content_type', 'object_id',
-            'content_object_str', 'created_at'
+            'id', 'user', 'user_username', 'post', 'reaction_type',
+            'emoji', 'sentiment', 'created_at', 'updated_at'
         ]
         read_only_fields = [
-            'id', 'user', 'user_username', 'content_object_str', 'created_at'
+            'id', 'user', 'user_username', 'emoji', 'sentiment',
+            'created_at', 'updated_at'
         ]
 
+    def get_emoji(self, obj):
+        """Get emoji representation for reaction type."""
+        return dict(PostReaction.REACTION_TYPES).get(obj.reaction_type, '')
 
-class DislikeSerializer(serializers.ModelSerializer):
-    """Serializer for Dislike model."""
+
+class CommentReactionSerializer(serializers.ModelSerializer):
+    """Serializer for CommentReaction model."""
+    user_username = serializers.CharField(
+        source='user.user.username', read_only=True
+    )
+    emoji = serializers.SerializerMethodField()
+    sentiment = serializers.CharField(read_only=True)
+
     class Meta:
-        """Serializer for Dislike model."""
-        model = Dislike
-        fields = ['id', 'user', 'content_type', 'object_id', 'created_at']
-        read_only_fields = ['id', 'user', 'created_at']
+        model = CommentReaction
+        fields = [
+            'id', 'user', 'user_username', 'comment', 'reaction_type',
+            'emoji', 'sentiment', 'created_at', 'updated_at'
+        ]
+        read_only_fields = [
+            'id', 'user', 'user_username', 'emoji', 'sentiment',
+            'created_at', 'updated_at'
+        ]
+
+    def get_emoji(self, obj):
+        """Get emoji representation for reaction type."""
+        return dict(CommentReaction.REACTION_TYPES).get(obj.reaction_type, '')
 
 
 class DirectShareRecipientSerializer(serializers.ModelSerializer):
