@@ -317,10 +317,12 @@ class UserProfile(models.Model):
         ).count()
 
     def sync_likes_given_count(self):
-        """Sync likes_given_count with Like model."""
-        from content.models import Like
-        self.likes_given_count = Like.objects.filter(
-            user=self, is_deleted=False
+        """Sync likes_given_count with PostReaction model (positive reactions)."""
+        from content.models import PostReaction
+        self.likes_given_count = PostReaction.objects.filter(
+            user=self,
+            reaction_type__in=PostReaction.POSITIVE_REACTIONS,
+            is_deleted=False
         ).count()
 
     def sync_comments_made_count(self):

@@ -6,6 +6,13 @@ import re
 from django.core.exceptions import ValidationError
 from django.utils.translation import gettext as _
 
+try:
+    import phonenumbers
+    from phonenumbers import NumberParseException
+    PHONENUMBERS_AVAILABLE = True
+except ImportError:
+    PHONENUMBERS_AVAILABLE = False
+
 
 class StrongPasswordValidator:
     """
@@ -89,4 +96,126 @@ class PasswordStrengthValidator:
             "For best security, use a strong password with at least "
             "8 characters, including uppercase letters, numbers, and "
             "special characters (!@#$%^&*)."
+        )
+
+
+def validate_phone_number(phone_number, country_code=None):
+    """
+    Validate a phone number using Google's libphonenumber library.
+
+    Args:
+        phone_number (str): The phone number to validate
+        country_code (str): ISO 3166-1 alpha-2 country code (e.g., 'CA', 'US', 'FR')
+                           If not provided, phone must include country code (e.g., +1...)
+
+    Returns:
+        dict: Dictionary with validation results
+            - valid (bool): Whether the number is valid
+            - formatted (str): Formatted phone number (international format)
+            - national (str): National format
+            - country_code (str): Detected country code
+            - error (str): Error message if invalid
+
+    Raises:
+        ValidationError: If the phone number is invalid
+    """
+    if not PHONENUMBERS_AVAILABLE:
+        # Fallback to basic regex validation if phonenumbers not installed
+        pattern = r'^[+]?[0-9\s\-\(\)]{8,}$'
+        if not re.match(pattern, phone_number):
+            raise ValidationError(
+                _("Invalid phone number format."),
+                code='invalid_phone',
+            )
+        return {
+            'valid': True,
+            'formatted': phone_number,
+            'national': phone_number,
+            'country_code': country_code or 'UNKNOWN',
+            'error': None
+        }
+
+    try:
+        # Parse the phone number
+        parsed = phonenumbers.parse(phone_number, country_code)
+
+        # Validate the number
+        if not phonenumbers.is_valid_number(parsed):
+            raise ValidationError(
+                _("This phone number is not valid for the selected country."),
+                code='invalid_phone',
+            )
+
+        # Get formatted versions
+        international_format = phonenumbers.format_number(
+            parsed,
+            phonenumbers.PhoneNumberFormat.INTERNATIONAL
+        )
+        national_format = phonenumbers.format_number(
+            parsed,
+            phonenumbers.PhoneNumberFormat.NATIONAL
+        )
+        detected_country = phonenumbers.region_code_for_number(parsed)
+
+        return {
+            'valid': True,
+            'formatted': international_format,
+            'national': national_format,
+            'country_code': detected_country,
+            'error': None
+        }
+
+    except NumberParseException as e:
+        error_messages = {
+            NumberParseException.INVALID_COUNTRY_CODE: _(
+                "Invalid country code."
+            ),
+            NumberParseException.NOT_A_NUMBER: _(
+                "This is not a valid phone number."
+            ),
+            NumberParseException.TOO_SHORT_NSN: _(
+                "Phone number is too short."
+            ),
+            NumberParseException.TOO_SHORT_AFTER_IDD: _(
+                "Phone number is too short after international prefix."
+            ),
+            NumberParseException.TOO_LONG: _(
+                "Phone number is too long."
+            ),
+        }
+
+        error_msg = error_messages.get(
+            e.error_type,
+            _("Invalid phone number format.")
+        )
+
+        raise ValidationError(error_msg, code='invalid_phone')
+    except Exception as e:
+        raise ValidationError(
+            _("Error validating phone number: {}").format(str(e)),
+            code='phone_validation_error',
+        )
+
+
+class PhoneNumberValidator:
+    """
+    Django model field validator for phone numbers.
+
+    Usage:
+        phone = models.CharField(
+            max_length=20,
+            validators=[PhoneNumberValidator(country_code='CA')]
+        )
+    """
+
+    def __init__(self, country_code=None):
+        self.country_code = country_code
+
+    def __call__(self, value):
+        validate_phone_number(value, self.country_code)
+
+    def __eq__(self, other):
+        return (
+            isinstance(other, PhoneNumberValidator) and
+            self.country_code == other.country_code
         )

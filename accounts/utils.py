@@ -36,7 +36,7 @@ def get_active_profile(**filters):
 
 def calculate_content_quality_score(user, days=30):
     """Calculate content quality score based on engagement received."""
-    from content.models import Like
+    from content.models import PostReaction, CommentReaction
 
     end_date = timezone.now()
     start_date = end_date - timedelta(days=days)
@@ -57,23 +57,19 @@ def calculate_content_quality_score(user, days=30):
     if not posts.exists() and not comments.exists():
         return 0.0
 
-    # Calculate engagement for posts
+    # Calculate engagement for posts (use cached counts)
     post_engagement = 0
     for post in posts:
-        likes_count = Like.objects.filter(
-            content_type=ContentType.objects.get_for_model(Post),
-            object_id=post.id
-        ).count()
+        # Use cached likes_count (updated by signals)
+        likes_count = post.likes_count
         comments_count = post.comments.count()
         post_engagement += likes_count + comments_count
 
-    # Calculate engagement for comments
+    # Calculate engagement for comments (use cached counts)
     comment_engagement = 0
     for comment in comments:
-        likes_count = Like.objects.filter(
-            content_type=ContentType.objects.get_for_model(Comment),
-            object_id=comment.id
-        ).count()
+        # Use cached likes_count (updated by signals)
+        likes_count = comment.likes_count
         comment_engagement += likes_count
 
     total_engagement = post_engagement + comment_engagement

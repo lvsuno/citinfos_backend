@@ -125,6 +125,14 @@ urlpatterns = [
          geolocation_views.get_division_by_slug,
          name='get_division_by_slug'),
 
+    # Country phone data endpoints (for signup page)
+    path('api/auth/countries/phone-data/',
+         geolocation_views.get_countries_with_phone_data,
+         name='get_countries_phone_data'),
+    path('api/auth/countries/regions/',
+         geolocation_views.get_available_regions,
+         name='get_available_regions'),
+
     # Include router URLs for profiles
     path('api/', include(router.urls)),
     path('api/', include(public_router.urls)),

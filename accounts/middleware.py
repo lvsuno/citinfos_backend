@@ -22,10 +22,27 @@ class UpdateLastActiveMiddleware(MiddlewareMixin):
     def process_response(self, request, response):
         """
         Update last_active field for authenticated users after view processing.
+        Check verification status and add headers if expired.
 
-        This runs after the view has processed, so JWT authentication should
+        This runs after the view has processed, so DRF JWT authentication should
         have already set request.user.
         """
+        # Check verification AFTER view processing (when DRF has authenticated)
+        if hasattr(request, 'user') and request.user.is_authenticated:
+            try:
+                profile = getattr(request.user, 'profile', None)
+                if profile:
+                    # Sync and check verification status
+                    profile.sync_verification_status()
+
+                    if not profile.is_verified:
+                        # Add headers for frontend to detect
+                        response['X-Verification-Required'] = 'true'
+                        response['X-Verification-Message'] = 'Your account verification has expired. Please verify your account to continue.'
+            except AttributeError:
+                pass
+
+        # Original last_active update logic
         if hasattr(request, 'user') and request.user.is_authenticated:
             try:
                 profile = getattr(request.user, 'profile', None)
@@ -59,33 +76,71 @@ class UpdateLastActiveMiddleware(MiddlewareMixin):
     def process_request(self, request):
         """
         Block requests from authenticated users whose UserProfile is soft-deleted.
+        Check verification status on all authenticated requests.
 
         Runs after Django AuthenticationMiddleware (so request.user is set). If a
-        soft-deleted profile is detected, invalidate server session (if any),
-        log the user out and return a 401 JSON response to stop further handling.
+        soft-deleted profile is detected, invalidate server session (if any), log
+        the user out and return appropriate JSON response to stop further handling.
+
+        For verification status, we check on every authenticated request and:
+        - Block write operations (POST, PUT, PATCH, DELETE) with 403 error
+        - Allow read operations (GET, HEAD, OPTIONS) but add a warning header
         """
         try:
-            if hasattr(request, 'user') and request.user.is_authenticated:
+            # Check if user is authenticated (works even for AllowAny endpoints)
+            # The user might be authenticated but endpoint allows anonymous access
+            user_is_authenticated = (
+                hasattr(request, 'user') and
+                request.user.is_authenticated
+            )
+
+            if user_is_authenticated:
                 # support both user.userprofile and user.profile accessors
-                profile = getattr(request.user, 'userprofile', None) or getattr(request.user, 'profile', None)
-                if profile and getattr(profile, 'is_deleted', False):
-                    # Invalidate hybrid session if session manager available
-                    try:
-                        from core.session_manager import session_manager
-                        sid = request.session.session_key if hasattr(request, 'session') else None
-                        if sid:
-                            session_manager.invalidate_session(sid)
-                    except Exception:
-                        # don't fail request handling if session manager isn't available
-                        pass
+                profile = (
+                    getattr(request.user, 'userprofile', None) or
+                    getattr(request.user, 'profile', None)
+                )
 
-                    # Ensure Django logout and block access
-                    try:
-                        logout(request)
-                    except Exception:
-                        pass
+                if profile:
+                    # Check if profile is soft-deleted
+                    if getattr(profile, 'is_deleted', False):
+                        # Invalidate hybrid session if session manager available
+                        try:
+                            from core.session_manager import session_manager
+                            sid = request.session.session_key if hasattr(request, 'session') else None
+                            if sid:
+                                session_manager.invalidate_session(sid)
+                        except Exception:
+                            # don't fail request handling if session manager isn't available
+                            pass
 
-                    return JsonResponse({'detail': 'User profile has been deleted'}, status=401)
+                        # Ensure Django logout and block access
+                        try:
+                            logout(request)
+                        except Exception:
+                            pass
+
+                        return JsonResponse({'detail': 'User profile has been deleted'}, status=401)
+
+                    # Check verification status on ALL authenticated requests
+                    # Sync verification status based on last_verified_at
+                    profile.sync_verification_status()
+
+                    if not profile.is_verified:
+                        # Store verification requirement in request
+                        request._verification_expired = True
+
+                        # Block write operations immediately
+                        if request.method in ['POST', 'PUT', 'PATCH', 'DELETE']:
+                            return JsonResponse({
+                                'detail': 'Verification required',
+                                'error_code': 'VERIFICATION_EXPIRED',
+                                'message': (
+                                    'Your account verification has expired. '
+                                    'Please verify your account to continue.'
+                                ),
+                                'requires_verification': True
+                            }, status=403)
         except Exception:
             # Be defensive: any unexpected error here shouldn't break requests
             pass

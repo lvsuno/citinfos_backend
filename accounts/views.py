@@ -180,12 +180,12 @@ def email_verify(request):
         if vcode.code.upper() != code.upper() or not vcode.is_active:
             return Response({'error': 'Invalid or expired code.'}, status=400)
 
-        # Use the proper use_code() method which handles:
+        # Use the proper mark_as_used() method which handles:
         # 1. Marking code as used
         # 2. Setting is_verified = True
         # 3. Setting last_verified_at timestamp
         # 4. Assigning registration_index (for badges)
-        if not vcode.use_code():
+        if not vcode.mark_as_used():
             return Response(
                 {'error': 'Code already used or expired.'},
                 status=400
@@ -199,7 +199,7 @@ def email_verify(request):
         from analytics.tasks import track_anonymous_conversion
         try:
             # Get device fingerprint from request
-            from core.utils import OptimizedDeviceFingerprint
+            from core.device_fingerprint import OptimizedDeviceFingerprint
             device_fingerprint = (
                 OptimizedDeviceFingerprint.get_fast_fingerprint(request)
             )
@@ -221,15 +221,20 @@ def email_verify(request):
         # Track verification event
         from .models import UserEvent
         try:
+            # Prepare metadata with safe handling of last_verified_at
+            metadata = {
+                'email': user_profile.user.email,
+                'registration_index': user_profile.registration_index,
+            }
+            if user_profile.last_verified_at:
+                verified_time = user_profile.last_verified_at.isoformat()
+                metadata['verified_at'] = verified_time
+
             UserEvent.objects.create(
                 user=user_profile,
                 event_type='email_verify',
                 description=f'Email verified for {user_profile.user.email}',
-                metadata={
-                    'email': user_profile.user.email,
-                    'registration_index': user_profile.registration_index,
-                    'verified_at': user_profile.last_verified_at.isoformat()
-                },
+                metadata=metadata,
                 success=True
             )
         except Exception as e:
@@ -1880,6 +1885,9 @@ def change_password(request):
     """
     Change user password with authentication.
     """
+    from django.contrib.auth.password_validation import validate_password
+    from django.core.exceptions import ValidationError
+
     old_password = request.data.get('old_password')
     new_password = request.data.get('new_password')
     # Accept both parameter names for compatibility
@@ -1901,6 +1909,14 @@ def change_password(request):
     if not request.user.check_password(old_password):
         return Response({
             'error': 'Old password is incorrect'
+        }, status=status.HTTP_400_BAD_REQUEST)
+
+    # Validate new password against Django password validators
+    try:
+        validate_password(new_password, user=request.user)
+    except ValidationError as e:
+        return Response({
+            'error': ' '.join(e.messages)
         }, status=status.HTTP_400_BAD_REQUEST)
 
     # Set new password
@@ -1947,6 +1963,9 @@ def password_reset_confirm(request):
     """
     Confirm password reset with token.
     """
+    from django.contrib.auth.password_validation import validate_password
+    from django.core.exceptions import ValidationError
+
     token = request.data.get('token')
     # Accept both parameter names for compatibility
     password = request.data.get('password') or request.data.get('new_password')
@@ -1970,6 +1989,14 @@ def password_reset_confirm(request):
     if not user:
         return Response({
             'error': 'Invalid or expired token'
+        }, status=status.HTTP_400_BAD_REQUEST)
+
+    # Validate password against Django password validators
+    try:
+        validate_password(password, user=user)
+    except ValidationError as e:
+        return Response({
+            'error': ' '.join(e.messages)
         }, status=status.HTTP_400_BAD_REQUEST)
 
     # Reset the user's password
