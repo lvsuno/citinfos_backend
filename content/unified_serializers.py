@@ -98,6 +98,10 @@ class EnhancedPostMediaSerializer(serializers.ModelSerializer):
     def get_file_url(self, obj):
         """Get the full URL for the file."""
         request = self.context.get('request')
+        # Prioritize external_url if available (for external images/videos)
+        if obj.external_url:
+            return obj.external_url
+        # Otherwise return uploaded file URL
         if obj.file and request:
             return request.build_absolute_uri(obj.file.url)
         return None
@@ -105,8 +109,12 @@ class EnhancedPostMediaSerializer(serializers.ModelSerializer):
     def get_thumbnail_url(self, obj):
         """Get the full URL for the thumbnail."""
         request = self.context.get('request')
+        # If thumbnail exists (uploaded), return its URL
         if obj.thumbnail and request:
             return request.build_absolute_uri(obj.thumbnail.url)
+        # Fallback to external_url for external media thumbnails
+        if obj.external_url:
+            return obj.external_url
         return None
 
     def get_preview(self, obj):
@@ -253,6 +261,16 @@ class UnifiedPostSerializer(serializers.ModelSerializer):
         source='community.community_type', read_only=True
     )
 
+    # Thread information (when post belongs to a thread)
+    thread_id = serializers.UUIDField(source='thread.id', read_only=True)
+    thread_title = serializers.CharField(source='thread.title', read_only=True)
+    thread_slug = serializers.CharField(source='thread.slug', read_only=True)
+
+    # Rubrique information (either from post or thread)
+    rubrique_id = serializers.SerializerMethodField()
+    rubrique_name = serializers.SerializerMethodField()
+    rubrique_type = serializers.SerializerMethodField()
+
     # Unified attachment system
     attachments = EnhancedPostMediaSerializer(
         source='media', many=True, read_only=True
@@ -265,6 +283,10 @@ class UnifiedPostSerializer(serializers.ModelSerializer):
     polls = EnhancedPollSerializer(many=True, read_only=True)
     polls_count = serializers.ReadOnlyField()
     has_polls = serializers.ReadOnlyField()
+
+    # Rich article content support
+    has_embedded_media = serializers.ReadOnlyField()
+    is_article = serializers.ReadOnlyField()
 
     # User interaction status
     user_has_liked = serializers.SerializerMethodField()
@@ -285,7 +307,14 @@ class UnifiedPostSerializer(serializers.ModelSerializer):
             # Basic post fields
             'id', 'author', 'author_username', 'author_name', 'community',
             'community_name', 'community_slug', 'community_type',
-            'content', 'post_type', 'visibility', 'parent_post',
+            'content', 'article_content', 'post_type', 'visibility',
+            'parent_post',
+
+            # Thread information
+            'thread_id', 'thread_title', 'thread_slug',
+
+            # Rubrique information
+            'rubrique_id', 'rubrique_name', 'rubrique_type',
 
             # Link preview
             'link_image',
@@ -296,6 +325,9 @@ class UnifiedPostSerializer(serializers.ModelSerializer):
 
             # Multiple polls
             'polls', 'polls_count', 'has_polls',
+
+            # Rich article content
+            'has_embedded_media', 'is_article',
 
             # Engagement metrics
             'likes_count', 'dislikes_count', 'comments_count', 'shares_count',
@@ -316,6 +348,7 @@ class UnifiedPostSerializer(serializers.ModelSerializer):
             'attachments', 'attachment_count', 'has_attachments',
             'attachments_by_type',
             'polls', 'polls_count', 'has_polls',
+            'has_embedded_media', 'is_article',
             'likes_count', 'dislikes_count', 'comments_count', 'shares_count',
             'repost_count', 'views_count', 'trend_score',
             'user_has_liked', 'user_has_disliked', 'user_has_shared',
@@ -347,24 +380,30 @@ class UnifiedPostSerializer(serializers.ModelSerializer):
         return attachments_by_type
 
     def get_user_has_liked(self, obj):
-        """Check if user has liked this post."""
+        """Check if user has liked this post (positive reaction)."""
         profile = self._get_user_profile()
         if not profile:
             return False
-        from django.contrib.contenttypes.models import ContentType
-        from content.models import Like
-        ct = ContentType.objects.get_for_model(Post)
-        return Like.objects.filter(user=profile, content_type=ct, object_id=obj.id, is_deleted=False).exists()
+        from content.models import PostReaction
+        return PostReaction.objects.filter(
+            user=profile,
+            post=obj,
+            reaction_type__in=PostReaction.POSITIVE_REACTIONS,
+            is_deleted=False
+        ).exists()
 
     def get_user_has_disliked(self, obj):
-        """Check if user has disliked this post."""
+        """Check if user has disliked this post (negative reaction)."""
         profile = self._get_user_profile()
         if not profile:
             return False
-        from django.contrib.contenttypes.models import ContentType
-        from content.models import Dislike
-        ct = ContentType.objects.get_for_model(Post)
-        return Dislike.objects.filter(user=profile, content_type=ct, object_id=obj.id, is_deleted=False).exists()
+        from content.models import PostReaction
+        return PostReaction.objects.filter(
+            user=profile,
+            post=obj,
+            reaction_type__in=PostReaction.NEGATIVE_REACTIONS,
+            is_deleted=False
+        ).exists()
 
     def get_user_has_shared(self, obj):
         """Check if user has shared this post."""
@@ -398,6 +437,30 @@ class UnifiedPostSerializer(serializers.ModelSerializer):
             mentions[mention.mentioned_user.user.username] = str(mention.mentioned_user.id)
         return mentions
 
+    def get_rubrique_id(self, obj):
+        """Get rubrique ID - from thread if in thread, otherwise from post."""
+        if obj.thread and obj.thread.rubrique_template:
+            return str(obj.thread.rubrique_template.id)
+        elif obj.rubrique_template:
+            return str(obj.rubrique_template.id)
+        return None
+
+    def get_rubrique_name(self, obj):
+        """Get rubrique name - from thread or post."""
+        if obj.thread and obj.thread.rubrique_template:
+            return obj.thread.rubrique_template.default_name
+        elif obj.rubrique_template:
+            return obj.rubrique_template.default_name
+        return None
+
+    def get_rubrique_type(self, obj):
+        """Get rubrique type - from thread or post."""
+        if obj.thread and obj.thread.rubrique_template:
+            return obj.thread.rubrique_template.template_type
+        elif obj.rubrique_template:
+            return obj.rubrique_template.template_type
+        return None
+
     def get_parent_post(self, obj):
         """Get the parent post for reposts with full serialization."""
         if obj.parent_post and obj.is_repost:
@@ -430,8 +493,8 @@ class UnifiedPostCreateUpdateSerializer(serializers.ModelSerializer):
         model = Post
         fields = [
             # Basic post fields
-            'id', 'community', 'content', 'post_type', 'visibility',
-            'link_image',  # Link preview only
+            'id', 'community', 'content', 'article_content', 'post_type',
+            'visibility', 'link_image',  # Link preview only
             'attachments', 'polls', 'is_pinned'
         ]
 

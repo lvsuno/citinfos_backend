@@ -43,28 +43,131 @@ class UnifiedPostViewSet(viewsets.ModelViewSet):
     queryset = Post.objects.filter(is_deleted=False)
     permission_classes = [IsAuthenticated]
 
+    def get_permissions(self):
+        """
+        Allow public access for list and retrieve, require auth for modifications
+        """
+        if self.action in ['list', 'retrieve']:
+            return [AllowAny()]
+        return [IsAuthenticated()]
+
     def get_serializer_class(self):
         if self.action in ['create', 'update', 'partial_update']:
             return UnifiedPostCreateUpdateSerializer
         return UnifiedPostSerializer
 
     def get_queryset(self):
-        """Get optimized queryset with all related data."""
-        return Post.objects.select_related(
-            'author__user', 'community'
+        """
+        Get optimized queryset with all related data.
+        Filter by community (which has relationship with division).
+        Handles both direct division->community and child division (arrondissement) cases.
+        """
+        queryset = Post.objects.select_related(
+            'author__user', 'community', 'community__division'
         ).prefetch_related(
             'media',  # PostMedia attachments
             'polls__options',  # Multiple polls with options
             'child_reposts', 'comments'
         ).filter(is_deleted=False)
 
+        # Filter by community ID (preferred method)
+        community_id = self.request.query_params.get('community_id')
+        if community_id:
+            # Try to find community directly by ID
+            from communities.models import Community
+            try:
+                community = Community.objects.get(id=community_id)
+                queryset = queryset.filter(community=community)
+            except Community.DoesNotExist:
+                # If community_id doesn't exist as a community,
+                # it might be a division ID - try to find community by division
+                from core.models import AdministrativeDivision
+                try:
+                    division = AdministrativeDivision.objects.get(id=community_id)
+                    # First try to find community for this division
+                    try:
+                        community = Community.objects.get(division=division)
+                        queryset = queryset.filter(community=community)
+                    except Community.DoesNotExist:
+                        # If no community for this division, try parent division
+                        # (for arrondissements/subdivisions)
+                        if division.parent:
+                            try:
+                                community = Community.objects.get(division=division.parent)
+                                queryset = queryset.filter(community=community)
+                            except Community.DoesNotExist:
+                                # No community found, return empty queryset
+                                queryset = queryset.none()
+                        else:
+                            # No parent and no community, return empty queryset
+                            queryset = queryset.none()
+                except AdministrativeDivision.DoesNotExist:
+                    # Invalid ID altogether
+                    queryset = queryset.none()
+
+        # Filter by community slug
+        community_slug = self.request.query_params.get('community')
+        if community_slug and not community_id:
+            queryset = queryset.filter(community__slug=community_slug)
+
+        # Filter by rubrique template (either ID or template_type)
+        rubrique_id = self.request.query_params.get('rubrique_id')
+        rubrique_slug = (
+            self.request.query_params.get('rubrique') or
+            self.request.query_params.get('rubrique_slug')
+        )
+
+        if rubrique_id:
+            # Filter by rubrique UUID
+            queryset = queryset.filter(rubrique_template_id=rubrique_id)
+        elif rubrique_slug:
+            # Filter by rubrique template_type (slug)
+            # Special case: "accueil" shows ALL posts (no filter)
+            if rubrique_slug.lower() != 'accueil':
+                queryset = queryset.filter(
+                    rubrique_template__template_type=rubrique_slug
+                )
+
+        return queryset
+
+    def list(self, request, *args, **kwargs):
+        """
+        List posts with community filtering.
+        All posts must belong to a community.
+        """
+        queryset = self.filter_queryset(self.get_queryset())
+
+        # Apply ordering
+        ordering = request.query_params.get('ordering', '-created_at')
+        queryset = queryset.order_by(ordering)
+
+        page = self.paginate_queryset(queryset)
+        if page is not None:
+            serializer = self.get_serializer(page, many=True)
+            return self.get_paginated_response(serializer.data)
+
+        serializer = self.get_serializer(queryset, many=True)
+        return Response(serializer.data)
+
     def perform_create(self, serializer):
-        """Set the post author to current user."""
+        """
+        Set the post author to current user.
+        Ensure all posts belong to a community.
+        """
         # Create an author profile if it doesn't exist
         author_profile, created = UserProfile.objects.get_or_create(
             user=self.request.user,
             defaults={'display_name': self.request.user.username}
         )
+
+        # Validate that a community is provided
+        community = serializer.validated_data.get('community')
+        if not community:
+            from rest_framework.exceptions import ValidationError
+            raise ValidationError({
+                'community': 'All posts must belong to a community.'
+            })
+
         serializer.save(author=author_profile)
 
     def update(self, request, *args, **kwargs):
@@ -602,295 +705,571 @@ class UnifiedPostViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_404_NOT_FOUND
             )
 
+    @action(detail=False, methods=['get'],
+            permission_classes=[IsAuthenticated])
+    def drafts(self, request):
+        """
+        Get all draft posts for the current user.
+
+        Query parameters:
+        - page: Page number (default: 1)
+        - page_size: Number of drafts per page (default: 20)
+        """
+        try:
+            current_user_profile = get_active_profile_or_404(user=request.user)
+
+            # Get drafts by the current user, only article type
+            drafts_queryset = self.get_queryset().filter(
+                author=current_user_profile,
+                is_draft=True,
+                post_type='article'
+            ).order_by('-updated_at')
+
+            # Apply pagination
+            page = int(request.query_params.get('page', 1))
+            page_size = int(request.query_params.get('page_size', 20))
+
+            from django.core.paginator import Paginator
+            paginator = Paginator(drafts_queryset, page_size)
+            page_obj = paginator.get_page(page)
+
+            # Serialize the drafts
+            serializer = UnifiedPostSerializer(
+                page_obj.object_list,
+                many=True,
+                context={'request': request}
+            )
+
+            return Response({
+                'results': serializer.data,
+                'count': paginator.count,
+                'page': page,
+                'page_size': page_size,
+                'has_next': page_obj.has_next(),
+                'has_previous': page_obj.has_previous(),
+                'total_pages': paginator.num_pages
+            })
+
+        except UserProfile.DoesNotExist:
+            return Response(
+                {'error': 'User profile not found'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+
     @action(detail=True, methods=['post'],
             permission_classes=[IsAuthenticated])
-    def like(self, request, pk=None):
-        """Like or unlike a post with real-time counter updates.
+    def publish_draft(self, request, pk=None):
+        """
+        Publish a draft post (set is_draft to False).
 
-        Removes dislike if present.
+        Only the author can publish their own drafts.
+        """
+        draft = self.get_object()
+
+        # Check if the current user is the author
+        current_user_profile = get_active_profile_or_404(user=request.user)
+        if draft.author.id != current_user_profile.id:
+            return Response(
+                {'error': 'You can only publish your own drafts'},
+                status=status.HTTP_403_FORBIDDEN
+            )
+
+        # Check if it's actually a draft
+        if not draft.is_draft:
+            return Response(
+                {'error': 'This post is already published'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # Publish the draft
+        draft.is_draft = False
+        draft.save()
+
+        # Return the published post
+        serializer = UnifiedPostSerializer(draft, context={'request': request})
+        return Response(serializer.data, status=status.HTTP_200_OK)
+
+    @action(detail=True, methods=['post'],
+            permission_classes=[IsAuthenticated])
+    def upvote(self, request, pk=None):
+        """
+        Upvote a post in a thread (Stack Overflow style).
+        Users can toggle their upvote.
+        """
+        from django.db.models import F
+        from content.models import PostReaction
+
+        post = self.get_object()
+        user_profile = get_active_profile_or_404(user=request.user)
+
+        # Check if post is in a thread
+        if not post.thread:
+            return Response(
+                {'error': 'Upvoting is only available for posts in threads'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # Check if user already upvoted
+        existing_upvote = PostReaction.objects.filter(
+            post=post,
+            user=user_profile,
+            reaction_type='upvote',
+            is_deleted=False
+        ).first()
+
+        if existing_upvote:
+            # Remove upvote (toggle)
+            existing_upvote.delete()
+            post.upvotes_count = max(0, post.upvotes_count - 1)
+            post.save(update_fields=['upvotes_count'])
+            action = 'removed'
+        else:
+            # Remove any existing downvote first
+            PostReaction.objects.filter(
+                post=post,
+                user=user_profile,
+                reaction_type='downvote',
+                is_deleted=False
+            ).delete()
+
+            # Add upvote
+            PostReaction.objects.create(
+                post=post,
+                user=user_profile,
+                reaction_type='upvote'
+            )
+            post.upvotes_count = F('upvotes_count') + 1
+            if post.downvotes_count > 0:
+                post.downvotes_count = F('downvotes_count') - 1
+            post.save(update_fields=['upvotes_count', 'downvotes_count'])
+            action = 'added'
+
+        post.refresh_from_db()
+        serializer = UnifiedPostSerializer(post, context={'request': request})
+        return Response({
+            'action': action,
+            'upvotes_count': post.upvotes_count,
+            'downvotes_count': post.downvotes_count,
+            'post': serializer.data
+        }, status=status.HTTP_200_OK)
+
+    @action(detail=True, methods=['post'],
+            permission_classes=[IsAuthenticated])
+    def downvote(self, request, pk=None):
+        """
+        Downvote a post in a thread (Stack Overflow style).
+        Users can toggle their downvote.
+        """
+        from django.db.models import F
+        from content.models import PostReaction
+
+        post = self.get_object()
+        user_profile = get_active_profile_or_404(user=request.user)
+
+        # Check if post is in a thread
+        if not post.thread:
+            return Response(
+                {'error': 'Downvoting is only available for posts in threads'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # Check if user already downvoted
+        existing_downvote = PostReaction.objects.filter(
+            post=post,
+            user=user_profile,
+            reaction_type='downvote',
+            is_deleted=False
+        ).first()
+
+        if existing_downvote:
+            # Remove downvote (toggle)
+            existing_downvote.delete()
+            post.downvotes_count = max(0, post.downvotes_count - 1)
+            post.save(update_fields=['downvotes_count'])
+            action = 'removed'
+        else:
+            # Remove any existing upvote first
+            PostReaction.objects.filter(
+                post=post,
+                user=user_profile,
+                reaction_type='upvote',
+                is_deleted=False
+            ).delete()
+
+            # Add downvote
+            PostReaction.objects.create(
+                post=post,
+                user=user_profile,
+                reaction_type='downvote'
+            )
+            post.downvotes_count = F('downvotes_count') + 1
+            if post.upvotes_count > 0:
+                post.upvotes_count = F('upvotes_count') - 1
+            post.save(update_fields=['downvotes_count', 'upvotes_count'])
+            action = 'added'
+
+        post.refresh_from_db()
+        serializer = UnifiedPostSerializer(post, context={'request': request})
+        return Response({
+            'action': action,
+            'upvotes_count': post.upvotes_count,
+            'downvotes_count': post.downvotes_count,
+            'post': serializer.data
+        }, status=status.HTTP_200_OK)
+
+    @action(detail=True, methods=['post'],
+            permission_classes=[IsAuthenticated])
+    def mark_best_post(self, request, pk=None):
+        """
+        Mark a post as the best post in a thread.
+        Only the thread creator can mark best posts.
+        """
+        from communities.models import Thread
+
+        post = self.get_object()
+        user_profile = get_active_profile_or_404(user=request.user)
+
+        # Check if post is in a thread
+        if not post.thread:
+            return Response(
+                {'error': 'Only posts in threads can be marked as best'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        thread = post.thread
+
+        # Check if current user is the thread creator
+        if thread.creator.id != user_profile.id:
+            return Response(
+                {'error': 'Only the thread creator can mark best posts'},
+                status=status.HTTP_403_FORBIDDEN
+            )
+
+        # Toggle best post
+        if post.is_best_post:
+            # Unmark as best post
+            post.is_best_post = False
+            post.save(update_fields=['is_best_post'])
+            thread.best_post = None
+            thread.save(update_fields=['best_post'])
+            action = 'unmarked'
+        else:
+            # Unmark previous best post if exists
+            if thread.best_post:
+                previous_best = thread.best_post
+                previous_best.is_best_post = False
+                previous_best.save(update_fields=['is_best_post'])
+
+            # Mark new best post
+            post.is_best_post = True
+            post.save(update_fields=['is_best_post'])
+            thread.best_post = post
+            thread.save(update_fields=['best_post'])
+            action = 'marked'
+
+        serializer = UnifiedPostSerializer(post, context={'request': request})
+        return Response({
+            'action': action,
+            'is_best_post': post.is_best_post,
+            'post': serializer.data
+        }, status=status.HTTP_200_OK)
+
+    @action(detail=True, methods=['post'],
+            permission_classes=[IsAuthenticated])
+    def toggle_pin(self, request, pk=None):
+        """
+        Pin/unpin a post in a thread.
+        Only the thread creator can pin posts.
+        """
+        post = self.get_object()
+        user_profile = get_active_profile_or_404(user=request.user)
+
+        # Check if post is in a thread
+        if not post.thread:
+            return Response(
+                {'error': 'Only posts in threads can be pinned'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        thread = post.thread
+
+        # Check if current user is the thread creator
+        if thread.creator.id != user_profile.id:
+            return Response(
+                {'error': 'Only the thread creator can pin posts'},
+                status=status.HTTP_403_FORBIDDEN
+            )
+
+        # Toggle pin
+        post.is_pinned = not post.is_pinned
+        post.save(update_fields=['is_pinned'])
+
+        serializer = UnifiedPostSerializer(post, context={'request': request})
+        return Response({
+            'action': 'pinned' if post.is_pinned else 'unpinned',
+            'is_pinned': post.is_pinned,
+            'post': serializer.data
+        }, status=status.HTTP_200_OK)
+
+    @action(detail=True, methods=['post'],
+            permission_classes=[IsAuthenticated])
+    def react(self, request, pk=None):
+        """React to a post with an emoji reaction.
+
+        Updates reaction type if already exists.
         """
         from django.db import transaction
         from django.db.models import F
-        from django.contrib.contenttypes.models import ContentType
-        from content.models import Like, Dislike
+        from content.models import PostReaction
 
         post = self.get_object()
         user_profile = get_object_or_404(UserProfile, user=request.user)
-        content_type = ContentType.objects.get_for_model(post)
+        reaction_type = request.data.get('reaction_type', 'like')
+
+        # Validate reaction type
+        valid_reactions = [r[0] for r in PostReaction.REACTION_TYPES]
+        if reaction_type not in valid_reactions:
+            return Response(
+                {'error': f'Invalid reaction type'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
 
         with transaction.atomic():
-            # First, remove any existing dislike (mutual exclusivity)
-            existing_dislike = Dislike.objects.filter(
+            # Get existing reaction if any
+            existing_reaction = PostReaction.objects.filter(
                 user=user_profile,
-                content_type=content_type,
-                object_id=post.id,
+                post=post,
                 is_deleted=False
             ).first()
 
-            if existing_dislike:
-                existing_dislike.is_deleted = True
-                existing_dislike.save()
-                Post.objects.filter(pk=post.pk, dislikes_count__gt=0).update(
-                    dislikes_count=F('dislikes_count') - 1
-                )
+            # Track old sentiment for counter adjustment
+            old_sentiment = None
+            if existing_reaction:
+                if existing_reaction.reaction_type in PostReaction.POSITIVE_REACTIONS:
+                    old_sentiment = 'positive'
+                elif existing_reaction.reaction_type in PostReaction.NEGATIVE_REACTIONS:
+                    old_sentiment = 'negative'
 
-            # Then handle the like
-            like, created = Like.objects.get_or_create(
+            # Create or update reaction
+            reaction, created = PostReaction.objects.update_or_create(
                 user=user_profile,
-                content_type=content_type,
-                object_id=post.id,
-                defaults={'is_deleted': False}
+                post=post,
+                defaults={'reaction_type': reaction_type, 'is_deleted': False}
             )
 
-            if created:
-                # New like - increment counter atomically
-                Post.objects.filter(pk=post.pk).update(
-                    likes_count=F('likes_count') + 1
-                )
-                post.refresh_from_db(fields=['likes_count', 'dislikes_count'])
-                action = 'liked'
-            else:
-                if like.is_deleted:
-                    # Reactivate like
-                    like.is_deleted = False
-                    like.save()
-                    Post.objects.filter(pk=post.pk).update(
-                        likes_count=F('likes_count') + 1
-                    )
-                    post.refresh_from_db(fields=['likes_count', 'dislikes_count'])
-                    action = 'liked'
-                else:
-                    # Unlike - soft delete and decrement counter
-                    like.is_deleted = True
-                    like.save()
+            # Determine new sentiment
+            new_sentiment = None
+            if reaction_type in PostReaction.POSITIVE_REACTIONS:
+                new_sentiment = 'positive'
+            elif reaction_type in PostReaction.NEGATIVE_REACTIONS:
+                new_sentiment = 'negative'
+
+            # Update counters if sentiment changed
+            if old_sentiment != new_sentiment:
+                if old_sentiment == 'positive':
                     Post.objects.filter(pk=post.pk, likes_count__gt=0).update(
                         likes_count=F('likes_count') - 1
                     )
-                    post.refresh_from_db(fields=['likes_count', 'dislikes_count'])
-                    action = 'unliked'
+                elif old_sentiment == 'negative':
+                    Post.objects.filter(
+                        pk=post.pk, dislikes_count__gt=0
+                    ).update(
+                        dislikes_count=F('dislikes_count') - 1
+                    )
 
-        # Return updated post data
-        serializer = self.get_serializer(post)
-        return Response({
-            'message': f'Post {action}',
-            'action': action,
-            'post': serializer.data
-        }, status=status.HTTP_200_OK)
-
-    @action(detail=True, methods=['post'], permission_classes=[IsAuthenticated])
-    def dislike(self, request, pk=None):
-        """Dislike or undislike a post with real-time counter updates. Removes like if present."""
-        from django.db import transaction
-        from django.db.models import F
-        from django.contrib.contenttypes.models import ContentType
-        from content.models import Like, Dislike
-
-        post = self.get_object()
-        user_profile = get_object_or_404(UserProfile, user=request.user)
-        content_type = ContentType.objects.get_for_model(post)
-
-        with transaction.atomic():
-            # First, remove any existing like (mutual exclusivity)
-            existing_like = Like.objects.filter(
-                user=user_profile,
-                content_type=content_type,
-                object_id=post.id,
-                is_deleted=False
-            ).first()
-
-            if existing_like:
-                existing_like.is_deleted = True
-                existing_like.save()
-                Post.objects.filter(pk=post.pk, likes_count__gt=0).update(
-                    likes_count=F('likes_count') - 1
-                )
-
-            # Then handle the dislike
-            dislike, created = Dislike.objects.get_or_create(
-                user=user_profile,
-                content_type=content_type,
-                object_id=post.id,
-                defaults={'is_deleted': False}
-            )
-
-            if created:
-                # New dislike - increment counter atomically
-                Post.objects.filter(pk=post.pk).update(
-                    dislikes_count=F('dislikes_count') + 1
-                )
-                post.refresh_from_db(fields=['likes_count', 'dislikes_count'])
-                action = 'disliked'
-            else:
-                if dislike.is_deleted:
-                    # Reactivate dislike
-                    dislike.is_deleted = False
-                    dislike.save()
+                if new_sentiment == 'positive':
+                    Post.objects.filter(pk=post.pk).update(
+                        likes_count=F('likes_count') + 1
+                    )
+                elif new_sentiment == 'negative':
                     Post.objects.filter(pk=post.pk).update(
                         dislikes_count=F('dislikes_count') + 1
                     )
-                    post.refresh_from_db(fields=['likes_count', 'dislikes_count'])
-                    action = 'disliked'
-                else:
-                    # Undislike - soft delete and decrement counter
-                    dislike.is_deleted = True
-                    dislike.save()
-                    Post.objects.filter(pk=post.pk, dislikes_count__gt=0).update(
-                        dislikes_count=F('dislikes_count') - 1
-                    )
-                    post.refresh_from_db(fields=['likes_count', 'dislikes_count'])
-                    action = 'undisliked'
+
+                post.refresh_from_db(fields=['likes_count', 'dislikes_count'])
+
+        # Get emoji for response
+        emoji = dict(PostReaction.REACTION_TYPES).get(reaction_type, '')
 
         # Return updated post data
         serializer = self.get_serializer(post)
         return Response({
-            'message': f'Post {action}',
-            'action': action,
+            'message': f'Reacted with {emoji}',
+            'reaction_type': reaction_type,
+            'emoji': emoji,
             'post': serializer.data
         }, status=status.HTTP_200_OK)
 
-    @action(detail=False, methods=['post'], url_path='comments/(?P<comment_id>[^/.]+)/like', permission_classes=[IsAuthenticated])
-    def like_comment(self, request, comment_id=None):
-        """Like or unlike a comment with mutual exclusivity."""
+    @action(detail=True, methods=['delete'], permission_classes=[IsAuthenticated])
+    def unreact(self, request, pk=None):
+        """Remove user's reaction from a post."""
         from django.db import transaction
         from django.db.models import F
-        from django.contrib.contenttypes.models import ContentType
-        from content.models import Like, Dislike, Comment
+        from content.models import PostReaction
 
-        comment = get_object_or_404(Comment, id=comment_id, is_deleted=False)
+        post = self.get_object()
         user_profile = get_object_or_404(UserProfile, user=request.user)
-        content_type = ContentType.objects.get_for_model(comment)
 
         with transaction.atomic():
-            # Remove any existing dislike (mutual exclusivity)
-            existing_dislike = Dislike.objects.filter(
+            reaction = PostReaction.objects.filter(
                 user=user_profile,
-                content_type=content_type,
-                object_id=comment.id,
+                post=post,
                 is_deleted=False
             ).first()
 
-            if existing_dislike:
-                existing_dislike.is_deleted = True
-                existing_dislike.save()
-                Comment.objects.filter(pk=comment.pk, dislikes_count__gt=0).update(
+            if not reaction:
+                return Response(
+                    {'message': 'No reaction to remove'},
+                    status=status.HTTP_404_NOT_FOUND
+                )
+
+            # Update counters based on reaction sentiment
+            if reaction.reaction_type in PostReaction.POSITIVE_REACTIONS:
+                Post.objects.filter(pk=post.pk, likes_count__gt=0).update(
+                    likes_count=F('likes_count') - 1
+                )
+            elif reaction.reaction_type in PostReaction.NEGATIVE_REACTIONS:
+                Post.objects.filter(
+                    pk=post.pk, dislikes_count__gt=0
+                ).update(
                     dislikes_count=F('dislikes_count') - 1
                 )
 
-            # Handle the like
-            like, created = Like.objects.get_or_create(
-                user=user_profile,
-                content_type=content_type,
-                object_id=comment.id,
-                defaults={'is_deleted': False}
-            )
+            reaction.delete()
+            post.refresh_from_db(fields=['likes_count', 'dislikes_count'])
 
-            if created:
-                Comment.objects.filter(pk=comment.pk).update(
-                    likes_count=F('likes_count') + 1
-                )
-                comment.refresh_from_db(fields=['likes_count', 'dislikes_count'])
-                action = 'liked'
-            else:
-                if like.is_deleted:
-                    like.is_deleted = False
-                    like.save()
-                    Comment.objects.filter(pk=comment.pk).update(
-                        likes_count=F('likes_count') + 1
-                    )
-                    comment.refresh_from_db(fields=['likes_count', 'dislikes_count'])
-                    action = 'liked'
-                else:
-                    like.is_deleted = True
-                    like.save()
-                    Comment.objects.filter(pk=comment.pk, likes_count__gt=0).update(
-                        likes_count=F('likes_count') - 1
-                    )
-                    comment.refresh_from_db(fields=['likes_count', 'dislikes_count'])
-                    action = 'unliked'
-
+        serializer = self.get_serializer(post)
         return Response({
-            'message': f'Comment {action}',
-            'action': action,
-            'comment': {
-                'id': str(comment.id),
-                'likes_count': comment.likes_count,
-                'dislikes_count': comment.dislikes_count,
-                'user_has_liked': not like.is_deleted if not created else True,
-                'user_has_disliked': False
-            }
+            'message': 'Reaction removed',
+            'post': serializer.data
         }, status=status.HTTP_200_OK)
 
-    @action(detail=False, methods=['post'], url_path='comments/(?P<comment_id>[^/.]+)/dislike', permission_classes=[IsAuthenticated])
-    def dislike_comment(self, request, comment_id=None):
-        """Dislike or undislike a comment with mutual exclusivity."""
+    # LEGACY: Deprecated - use react() instead
+    # Kept for backward compatibility
+    @action(detail=True, methods=['post'], permission_classes=[IsAuthenticated])
+    def like(self, request, pk=None):
+        """DEPRECATED: Use react endpoint with reaction_type='like'"""
+        request.data['reaction_type'] = 'like'
+        return self.react(request, pk)
+
+    @action(detail=True, methods=['post'], permission_classes=[IsAuthenticated])
+    def dislike(self, request, pk=None):
+        """DEPRECATED: Use react endpoint with reaction_type='sad'"""
+        request.data['reaction_type'] = 'sad'
+        return self.react(request, pk)
+
+    @action(detail=False, methods=['post'], url_path='comments/(?P<comment_id>[^/.]+)/react', permission_classes=[IsAuthenticated])
+    def react_comment(self, request, comment_id=None):
+        """React to a comment with an emoji reaction."""
         from django.db import transaction
         from django.db.models import F
-        from django.contrib.contenttypes.models import ContentType
-        from content.models import Like, Dislike, Comment
+        from content.models import CommentReaction, Comment
 
         comment = get_object_or_404(Comment, id=comment_id, is_deleted=False)
         user_profile = get_object_or_404(UserProfile, user=request.user)
-        content_type = ContentType.objects.get_for_model(comment)
+        reaction_type = request.data.get('reaction_type', 'like')
+
+        # Validate reaction type
+        valid_reactions = [r[0] for r in CommentReaction.REACTION_TYPES]
+        if reaction_type not in valid_reactions:
+            return Response(
+                {'error': 'Invalid reaction type'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
 
         with transaction.atomic():
-            # Remove any existing like (mutual exclusivity)
-            existing_like = Like.objects.filter(
+            # Get existing reaction if any
+            existing_reaction = CommentReaction.objects.filter(
                 user=user_profile,
-                content_type=content_type,
-                object_id=comment.id,
+                comment=comment,
                 is_deleted=False
             ).first()
 
-            if existing_like:
-                existing_like.is_deleted = True
-                existing_like.save()
-                Comment.objects.filter(pk=comment.pk, likes_count__gt=0).update(
-                    likes_count=F('likes_count') - 1
-                )
+            # Track old sentiment for counter adjustment
+            old_sentiment = None
+            if existing_reaction:
+                if existing_reaction.reaction_type in CommentReaction.POSITIVE_REACTIONS:
+                    old_sentiment = 'positive'
+                elif existing_reaction.reaction_type in CommentReaction.NEGATIVE_REACTIONS:
+                    old_sentiment = 'negative'
 
-            # Handle the dislike
-            dislike, created = Dislike.objects.get_or_create(
+            # Create or update reaction
+            reaction, created = CommentReaction.objects.update_or_create(
                 user=user_profile,
-                content_type=content_type,
-                object_id=comment.id,
-                defaults={'is_deleted': False}
+                comment=comment,
+                defaults={'reaction_type': reaction_type, 'is_deleted': False}
             )
 
-            if created:
-                Comment.objects.filter(pk=comment.pk).update(
-                    dislikes_count=F('dislikes_count') + 1
-                )
-                comment.refresh_from_db(fields=['likes_count', 'dislikes_count'])
-                action = 'disliked'
-            else:
-                if dislike.is_deleted:
-                    dislike.is_deleted = False
-                    dislike.save()
-                    Comment.objects.filter(pk=comment.pk).update(
-                        dislikes_count=F('dislikes_count') + 1
-                    )
-                    comment.refresh_from_db(fields=['likes_count', 'dislikes_count'])
-                    action = 'disliked'
-                else:
-                    dislike.is_deleted = True
-                    dislike.save()
-                    Comment.objects.filter(pk=comment.pk, dislikes_count__gt=0).update(
-                        dislikes_count=F('dislikes_count') - 1
-                    )
-                    comment.refresh_from_db(fields=['likes_count', 'dislikes_count'])
-                    action = 'undisliked'
+            # Determine new sentiment
+            new_sentiment = None
+            if reaction_type in CommentReaction.POSITIVE_REACTIONS:
+                new_sentiment = 'positive'
+            elif reaction_type in CommentReaction.NEGATIVE_REACTIONS:
+                new_sentiment = 'negative'
+
+            # Update counters if sentiment changed (signals will handle this)
+            comment.refresh_from_db(fields=['likes_count', 'dislikes_count'])
+
+        # Get emoji for response
+        emoji = dict(CommentReaction.REACTION_TYPES).get(reaction_type, '')
 
         return Response({
-            'message': f'Comment {action}',
-            'action': action,
+            'message': f'Reacted with {emoji}',
+            'reaction_type': reaction_type,
+            'emoji': emoji,
             'comment': {
                 'id': str(comment.id),
                 'likes_count': comment.likes_count,
-                'dislikes_count': comment.dislikes_count,
-                'user_has_liked': False,
-                'user_has_disliked': not dislike.is_deleted if not created else True
+                'dislikes_count': comment.dislikes_count
             }
         }, status=status.HTTP_200_OK)
+
+    @action(detail=False, methods=['delete'], url_path='comments/(?P<comment_id>[^/.]+)/react', permission_classes=[IsAuthenticated])
+    def unreact_comment(self, request, comment_id=None):
+        """Remove user's reaction from a comment."""
+        from django.db import transaction
+        from content.models import CommentReaction, Comment
+
+        comment = get_object_or_404(Comment, id=comment_id, is_deleted=False)
+        user_profile = get_object_or_404(UserProfile, user=request.user)
+
+        with transaction.atomic():
+            reaction = CommentReaction.objects.filter(
+                user=user_profile,
+                comment=comment,
+                is_deleted=False
+            ).first()
+
+            if not reaction:
+                return Response(
+                    {'message': 'No reaction to remove'},
+                    status=status.HTTP_404_NOT_FOUND
+                )
+
+            reaction.delete()
+            comment.refresh_from_db(fields=['likes_count', 'dislikes_count'])
+
+        return Response({
+            'message': 'Reaction removed',
+            'comment': {
+                'id': str(comment.id),
+                'likes_count': comment.likes_count,
+                'dislikes_count': comment.dislikes_count
+            }
+        }, status=status.HTTP_200_OK)
+
+    # LEGACY: Deprecated comment endpoints - use react_comment instead
+    @action(detail=False, methods=['post'], url_path='comments/(?P<comment_id>[^/.]+)/like', permission_classes=[IsAuthenticated])
+    def like_comment(self, request, comment_id=None):
+        """DEPRECATED: Use react_comment with reaction_type='like'"""
+        request.data['reaction_type'] = 'like'
+        return self.react_comment(request, comment_id)
+
+    @action(detail=False, methods=['post'], url_path='comments/(?P<comment_id>[^/.]+)/dislike', permission_classes=[IsAuthenticated])
+    def dislike_comment(self, request, comment_id=None):
+        """DEPRECATED: Use react_comment with reaction_type='sad'"""
+        request.data['reaction_type'] = 'sad'
+        return self.react_comment(request, comment_id)
 
     def _can_user_view_post(self, post, user_profile):
         """Check if user can view a post based on visibility rules."""
