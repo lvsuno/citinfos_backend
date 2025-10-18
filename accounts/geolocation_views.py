@@ -5,13 +5,14 @@ Geolocation views for IP-based user location detection and administrative divisi
 import logging
 from django.contrib.gis.geos import Point
 from django.contrib.gis.db.models.functions import Distance
-from django.db.models import Min
+from django.db.models import Min, Q
 from django.core.cache import cache
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 from rest_framework import status
 from core.models import Country, AdministrativeDivision
+from core.serializers import CountryPhoneDataSerializer
 from core.utils import get_client_ip, get_location_from_ip
 
 logger = logging.getLogger(__name__)
@@ -93,6 +94,178 @@ def get_countries(request):
 
     except Exception as e:
         logger.error(f"Error fetching countries: {e}")
+        return Response({
+            'success': False,
+            'error': str(e)
+        }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+@api_view(['GET'])
+@permission_classes([AllowAny])
+def get_countries_with_phone_data(request):
+    """
+    Get all countries with phone data, with optional filtering.
+
+    Query params:
+    - region (optional): Filter by region (e.g., 'West Africa', 'North America')
+    - search (optional): Search by country name, ISO2, or ISO3 code
+    - iso3 (optional): Get specific country by ISO3 code
+
+    Returns:
+    {
+        "success": true,
+        "countries": [
+            {
+                "iso2": "BJ",
+                "iso3": "BEN",
+                "name": "Benin",
+                "phone_code": "+229",
+                "flag_emoji": "🇧🇯",
+                "region": "West Africa"
+            }
+        ],
+        "count": 17,
+        "region": "West Africa"  // if filtered
+    }
+    """
+    try:
+        # Check cache first
+        region_filter = request.query_params.get('region')
+        search_query = request.query_params.get('search')
+        iso3_filter = request.query_params.get('iso3')
+
+        # Build cache key
+        cache_key = f'countries_phone_data_v1'
+        if region_filter:
+            cache_key += f'_region_{region_filter}'
+        if search_query:
+            cache_key += f'_search_{search_query}'
+        if iso3_filter:
+            cache_key += f'_iso3_{iso3_filter}'
+
+        # Try cache
+        cached_data = cache.get(cache_key)
+        if cached_data:
+            logger.debug(f"Returning countries from cache: {cache_key}")
+            return Response(cached_data)
+
+        # Build query
+        queryset = Country.objects.exclude(
+            phone_code__isnull=True
+        ).exclude(
+            phone_code__exact=''
+        ).order_by('name')
+
+        # Apply filters
+        if iso3_filter:
+            queryset = queryset.filter(iso3__iexact=iso3_filter)
+
+        if region_filter:
+            queryset = queryset.filter(region__iexact=region_filter)
+
+        if search_query:
+            queryset = queryset.filter(
+                Q(name__icontains=search_query) |
+                Q(iso2__iexact=search_query) |
+                Q(iso3__iexact=search_query)
+            )
+
+        # Serialize
+        serializer = CountryPhoneDataSerializer(queryset, many=True)
+
+        response_data = {
+            'success': True,
+            'countries': serializer.data,
+            'count': len(serializer.data)
+        }
+
+        if region_filter:
+            response_data['region'] = region_filter
+
+        if search_query:
+            response_data['search'] = search_query
+
+        # Cache for 1 hour (3600 seconds)
+        cache.set(cache_key, response_data, 3600)
+        logger.info(f"Cached {len(serializer.data)} countries: {cache_key}")
+
+        return Response(response_data)
+
+    except Exception as e:
+        logger.error(f"Error fetching countries with phone data: {e}")
+        return Response({
+            'success': False,
+            'error': str(e)
+        }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+@api_view(['GET'])
+@permission_classes([AllowAny])
+def get_available_regions(request):
+    """
+    Get all unique regions with country counts.
+
+    Returns:
+    {
+        "success": true,
+        "regions": [
+            {
+                "name": "West Africa",
+                "country_count": 17,
+                "sample_countries": ["Benin", "Nigeria", "Ghana"]
+            }
+        ]
+    }
+    """
+    try:
+        cache_key = 'available_regions_v1'
+        cached_data = cache.get(cache_key)
+
+        if cached_data:
+            logger.debug("Returning regions from cache")
+            return Response(cached_data)
+
+        # Get all regions with counts
+        from django.db.models import Count
+
+        regions = Country.objects.exclude(
+            region__isnull=True
+        ).exclude(
+            region__exact=''
+        ).values('region').annotate(
+            country_count=Count('id')
+        ).order_by('-country_count')
+
+        # Get sample countries for each region
+        result = []
+        for region_data in regions:
+            region_name = region_data['region']
+            sample_countries = list(
+                Country.objects.filter(
+                    region=region_name
+                ).values_list('name', flat=True).order_by('name')[:3]
+            )
+
+            result.append({
+                'name': region_name,
+                'country_count': region_data['country_count'],
+                'sample_countries': sample_countries
+            })
+
+        response_data = {
+            'success': True,
+            'regions': result,
+            'count': len(result)
+        }
+
+        # Cache for 24 hours
+        cache.set(cache_key, response_data, 86400)
+        logger.info(f"Cached {len(result)} regions")
+
+        return Response(response_data)
+
+    except Exception as e:
+        logger.error(f"Error fetching regions: {e}")
         return Response({
             'success': False,
             'error': str(e)
@@ -471,17 +644,48 @@ def get_user_location_data(request):
             admin_level=default_level
         ).count()
 
+        # Get detected country with phone data
+        detected_country_data = {
+            'iso3': country_with_point.iso3,
+            'iso2': country_with_point.iso2,
+            'name': country_with_point.name,
+            'phone_code': country_with_point.phone_code,
+            'flag_emoji': country_with_point.flag_emoji,
+            'region': country_with_point.region,
+            'default_admin_level': default_level,
+            'default_division_name': (
+                country_with_point.get_default_division_name()
+            )
+        }
+
+        # Get other countries from the same region (for signup phone selection)
+        regional_countries = []
+        if country_with_point.region:
+            regional_countries_qs = Country.objects.filter(
+                region=country_with_point.region
+            ).exclude(
+                id=country_with_point.id
+            ).exclude(
+                phone_code__isnull=True
+            ).exclude(
+                phone_code__exact=''
+            ).order_by('name')[:10]  # Limit to 10 regional countries
+
+            regional_countries = [
+                {
+                    'iso2': c.iso2,
+                    'iso3': c.iso3,
+                    'name': c.name,
+                    'phone_code': c.phone_code,
+                    'flag_emoji': c.flag_emoji,
+                    'region': c.region
+                }
+                for c in regional_countries_qs
+            ]
+
         return Response({
             'success': True,
-            'country': {
-                'iso3': country_with_point.iso3,
-                'iso2': country_with_point.iso2,
-                'name': country_with_point.name,
-                'default_admin_level': default_level,
-                'default_division_name': (
-                    country_with_point.get_default_division_name()
-                )
-            },
+            'country': detected_country_data,
             'user_location': {
                 'latitude': lat,
                 'longitude': lng,
@@ -497,6 +701,12 @@ def get_user_location_data(request):
                 'total_available': total_divisions,
                 'search_endpoint': '/api/accounts/search-divisions/',
                 'country_filter': country_with_point.iso3
+            },
+            'regional_countries': regional_countries,
+            'country_search_info': {
+                'search_endpoint': '/api/auth/countries/phone-data/',
+                'region_filter': country_with_point.region,
+                'total_in_region': len(regional_countries) + 1
             }
         })
 
@@ -991,6 +1201,16 @@ def get_division_by_slug(request):
             'centroid': None,
             'parent': None
         }
+
+        # Add community_id if a community exists for this division
+        try:
+            from communities.models import Community
+            community = Community.objects.filter(division=division, is_deleted=False).first()
+            if community:
+                division_data['community_id'] = str(community.id)
+                division_data['community_slug'] = community.slug
+        except Exception as e:
+            logger.warning(f"Could not fetch community for division {division.id}: {e}")
 
         # Add centroid if available
         if division.centroid:
