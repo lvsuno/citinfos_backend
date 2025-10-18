@@ -36,6 +36,7 @@ const MunicipalitySelector = ({
   const selectorRef = useRef(null);
   const searchInputRef = useRef(null);
   const countryDropdownRef = useRef(null);
+  const initialMunicipalitySetRef = useRef(false);
   const navigate = useNavigate();
   const { activeMunicipality, switchMunicipality, getMunicipalitySlug, getAdminLabels } = useMunicipality();
   const { user, anonymousLocation } = useAuth();
@@ -111,13 +112,9 @@ const MunicipalitySelector = ({
           const country = result.countries.find(c => c.iso3 === preferredCountryCode);
 
           if (country) {
-            setSelectedCountry(country);
-            console.log('🌍 Initial country set:', country.name, country.iso3);
-          }
+            setSelectedCountry(country);          }
         }
-      } catch (error) {
-        console.error('Error loading countries:', error);
-      } finally {
+      } catch (error) {      } finally {
         setLoadingCountries(false);
       }
     };
@@ -154,17 +151,16 @@ const MunicipalitySelector = ({
 
             setNeighbors([currentDivision, ...neighborsList]);
 
-            // Update selectedMunicipality with fresh API data ONLY if no selection exists yet
-            // Don't override if currentPageDivision already set the selection
-            if (!selectedMunicipality) {
-              console.log('🎯 Setting selectedMunicipality from neighbors fetch:', currentDivision);
+            // Update selectedMunicipality with fresh API data ONLY ONCE on initial load
+            // Use ref to prevent infinite re-renders
+            if (!selectedMunicipality && !initialMunicipalitySetRef.current) {
               setSelectedMunicipality(currentDivision);
+              initialMunicipalitySetRef.current = true;
             }
           } else {
             setNeighbors([]);
           }
         } catch (error) {
-          console.error('Error fetching neighbors:', error);
           setNeighbors([]);
         } finally {
           setIsLoadingNeighbors(false);
@@ -176,7 +172,7 @@ const MunicipalitySelector = ({
 
     fetchNeighbors();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [userDivisionId, activeMunicipality?.id, currentPageDivision?.id]); // Re-fetch when division ID, active municipality, or page division changes
+  }, [userDivisionId]); // Only re-run when userDivisionId changes
 
   // Search divisions via backend API when user types
   useEffect(() => {
@@ -200,9 +196,7 @@ const MunicipalitySelector = ({
           } else {
             setSearchResults([]);
           }
-        } catch (error) {
-          console.error('Error searching divisions:', error);
-          setSearchResults([]);
+        } catch (error) {          setSearchResults([]);
         } finally {
           setIsSearching(false);
         }
@@ -229,8 +223,10 @@ const MunicipalitySelector = ({
         isCurrent: true,
         fromUrl: true
       };
-      console.log('🎯 Setting selectedMunicipality from currentPageDivision:', newSelection);
+
       setSelectedMunicipality(newSelection);
+      // Reset ref so fetchNeighbors can update if needed
+      initialMunicipalitySetRef.current = true;
 
       // Store in localStorage as the current active division
       const slug = getMunicipalitySlug(currentPageDivision.name);
@@ -241,13 +237,16 @@ const MunicipalitySelector = ({
         country: currentPageDivision.country?.iso3 || countryCode,
         parent: currentPageDivision.parent,
         boundary_type: currentPageDivision.boundary_type,
-        admin_level: currentPageDivision.admin_level
+        admin_level: currentPageDivision.admin_level,
+        community_id: currentPageDivision.community_id,  // Include community ID
+        community_slug: currentPageDivision.community_slug  // Include community slug
       });
     }
     // Priority 2: Use activeMunicipality from context if no page division yet
     else if (activeMunicipality && !selectedMunicipality) {
-      console.log('🎯 Setting selectedMunicipality from activeMunicipality:', activeMunicipality);
       setSelectedMunicipality(activeMunicipality);
+      // Mark as set so fetchNeighbors doesn't override
+      initialMunicipalitySetRef.current = true;
 
       // Store in localStorage as well
       const slug = getMunicipalitySlug(activeMunicipality.name || activeMunicipality.nom);
@@ -262,7 +261,8 @@ const MunicipalitySelector = ({
       });
     }
     // Note: If userDivisionId exists, selectedMunicipality will be set by fetchNeighbors
-  }, [currentPageDivision, activeMunicipality]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentPageDivision?.id, activeMunicipality?.id]); // Use IDs instead of objects to avoid reference issues
 
   // Fermer le dropdown quand on clique à l'extérieur
   useEffect(() => {
@@ -326,10 +326,7 @@ const MunicipalitySelector = ({
     setNeighbors([]);
     setSelectedMunicipality(null);
     setIsCountryDropdownOpen(false);
-    setCountrySearchTerm('');
-
-    console.log('🌍 Country changed to:', country.name, country.iso3);
-  };
+    setCountrySearchTerm('');  };
 
   const handleMunicipalitySelect = (municipality) => {
     setSelectedMunicipality(municipality);
@@ -344,7 +341,8 @@ const MunicipalitySelector = ({
         country: countryCode,
         boundary_type: municipality.boundary_type,
         admin_level: municipality.admin_level,
-        region: municipality.region
+        region: municipality.region,
+        community_id: municipality.community_id  // Include community ID
       }
     );
 
@@ -359,22 +357,17 @@ const MunicipalitySelector = ({
       country: countryCode,
       parent: municipality.region ? { name: municipality.region } : null,
       boundary_type: municipality.boundary_type,
-      admin_level: municipality.admin_level
+      admin_level: municipality.admin_level,
+      community_id: municipality.community_id  // Include community ID
     };
-
-    console.log('💾 Storing division in localStorage:', divisionToStore);
     setCurrentDivision(divisionToStore);
 
     // Verify it was stored
     setTimeout(() => {
-      const stored = localStorage.getItem('currentActiveDivision');
-      console.log('✅ Verified localStorage:', stored ? JSON.parse(stored) : 'NOT FOUND');
-    }, 100);
+      const stored = localStorage.getItem('currentActiveDivision');    }, 100);
 
     // Naviguer vers la nouvelle division avec le bon URL path basé sur le pays
-    const urlPath = getUrlPathByISO3(countryCode);
-    console.log('🔗 Navigating to:', `/${urlPath}/${slug}/accueil`, 'for country:', countryCode);
-    navigate(`/${urlPath}/${slug}/accueil`);
+    const urlPath = getUrlPathByISO3(countryCode);    navigate(`/${urlPath}/${slug}/accueil`);
 
     // Appeler onChange seulement si elle est définie
     if (onChange && typeof onChange === 'function') {

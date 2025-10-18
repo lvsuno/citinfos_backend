@@ -11,6 +11,8 @@ import { getDefaultDivisionUrl } from '../utils/defaultDivisionRedirect';
 import Layout from '../components/Layout';
 import PostFeed from '../components/PostFeed';
 import PostCreationModal from '../components/PostCreationModal';
+import InlinePostCreator from '../components/InlinePostCreator';
+import ThreadListCompact from '../components/social/ThreadListCompact';
 import VerifyAccount from '../components/VerifyAccount';
 import apiService from '../services/apiService';
 import contentAPI from '../services/contentAPI';
@@ -32,6 +34,7 @@ const MunicipalityDashboard = () => {
     const [showVerificationModal, setShowVerificationModal] = useState(false);
     const [verificationMessage, setVerificationMessage] = useState('');
     const [showPostCreationModal, setShowPostCreationModal] = useState(false);
+    const [rubriqueTemplates, setRubriqueTemplates] = useState([]); // Store rubrique templates with IDs
 
     // Detect current URL path (municipality, commune, city, etc.)
     const currentUrlPath = location.pathname.split('/')[1];
@@ -42,21 +45,6 @@ const MunicipalityDashboard = () => {
     // Get country configuration for this URL path
     const countryConfig = getCountryByUrlPath(currentUrlPath);
 
-    // TEST: Make an API call to verify middleware is working
-    useEffect(() => {
-        console.log('🧪 [TEST] Municipality page mounted - testing API call');
-        const testApiCall = async () => {
-            try {
-                console.log('🧪 [TEST] Making test API call to /auth/user-info/');
-                const response = await apiService.get('/auth/user-info/');
-                console.log('🧪 [TEST] API call successful:', response.data);
-            } catch (error) {
-                console.log('🧪 [TEST] API call failed (expected if not logged in):', error.response?.status, error.response?.data);
-            }
-        };
-        testApiCall();
-    }, []);
-
     // No redirect for unauthenticated users - allow read-only access
 
     // Validate URL path and redirect if invalid
@@ -64,7 +52,6 @@ const MunicipalityDashboard = () => {
         if (!isCurrentPathValid && currentUrlPath !== 'municipality') {
             // Invalid URL path detected - redirect to proper format
             const defaultUrlPath = getAdminDivisionUrlPath();
-            console.log(`⚠️ Invalid URL path '${currentUrlPath}', redirecting to '${defaultUrlPath}'`);
             navigate(`/${defaultUrlPath}/${municipalitySlug}${section ? `/${section}` : ''}`, { replace: true });
             return;
         }
@@ -88,7 +75,6 @@ const MunicipalityDashboard = () => {
             const countryISO3 = getCountryISO3ByUrlPath(currentUrlPath);
 
             if (!countryISO3) {
-                console.error('❌ Could not determine country from URL path:', currentUrlPath);
                 // Redirect to default division instead of dashboard
                 const defaultUrl = await getDefaultDivisionUrl(user, null);
                 navigate(defaultUrl, { replace: true });
@@ -99,9 +85,9 @@ const MunicipalityDashboard = () => {
             const currentDivision = getCurrentDivision();
             if (currentDivision &&
                 currentDivision.slug === municipalitySlug &&
-                currentDivision.country === countryISO3) {
+                currentDivision.country === countryISO3 &&
+                currentDivision.community_id) { // Only use cache if it has community_id
 
-                console.log('� Division already loaded from single storage:', currentDivision.name);
                 setPageDivision(currentDivision);
                 switchMunicipality(
                     currentDivision.name,
@@ -137,12 +123,6 @@ const MunicipalityDashboard = () => {
             setLoading(true);
 
             try {
-                console.log('🔍 Loading division from URL:', {
-                    slug: municipalitySlug,
-                    urlPath: currentUrlPath,
-                    countryISO3
-                });
-
                 // Fetch division data from API at country's default level
                 const result = await geolocationService.getDivisionBySlug(
                     municipalitySlug,
@@ -150,14 +130,15 @@ const MunicipalityDashboard = () => {
                 );
 
                 if (result.success && result.division) {
-                    console.log('✅ Page division loaded:', result.division.name);
-
                     // Add slug to division data
                     const divisionWithSlug = {
                         ...result.division,
                         slug: municipalitySlug,
                         country: countryISO3
                     };
+
+                    console.log('MunicipalityDashboard - Division data:', divisionWithSlug);
+                    console.log('MunicipalityDashboard - Has community_id?', divisionWithSlug.community_id);
 
                     setPageDivision(divisionWithSlug);
 
@@ -200,13 +181,11 @@ const MunicipalityDashboard = () => {
                         });
                     }
                 } else {
-                    console.error('❌ Division not found:', municipalitySlug);
                     // Division not found - redirect to default division
                     const defaultUrl = await getDefaultDivisionUrl(user, null);
                     navigate(defaultUrl, { replace: true });
                 }
             } catch (error) {
-                console.error('❌ Error loading division:', error);
                 // Error loading - redirect to default division
                 const defaultUrl = await getDefaultDivisionUrl(user, null);
                 navigate(defaultUrl, { replace: true });
@@ -247,6 +226,78 @@ const MunicipalityDashboard = () => {
         navigate(`/${urlPath}/${municipalitySlug}/${newSection}`);
     };
 
+    // Helper function to get rubrique template ID from section name
+    const getRubriqueTemplateId = (sectionName) => {
+        console.log('getRubriqueTemplateId called with:', sectionName);
+        console.log('Available rubrique templates:', rubriqueTemplates);
+
+        if (!sectionName || !rubriqueTemplates.length) {
+            console.log('Early return: no section name or templates');
+            return null;
+        }
+
+        const sectionLower = sectionName.toLowerCase();
+
+        // Find rubrique by template_type (matches section name)
+        // Try exact match first, then check if template_type starts with section name,
+        // or if name matches
+        const rubrique = rubriqueTemplates.find(r => {
+            const templateTypeLower = r.template_type?.toLowerCase() || '';
+            const nameLower = r.name?.toLowerCase() || '';
+            const defaultNameLower = r.default_name?.toLowerCase() || '';
+
+            return templateTypeLower === sectionLower ||
+                   nameLower === sectionLower ||
+                   defaultNameLower === sectionLower ||
+                   templateTypeLower.startsWith(sectionLower + '_') ||
+                   templateTypeLower.endsWith('_' + sectionLower);
+        });
+
+        console.log('Found rubrique:', rubrique);
+        return rubrique?.id || null;
+    };
+
+    // Fetch rubrique templates from community when municipality changes
+    useEffect(() => {
+        const fetchRubriqueTemplates = async () => {
+            if (!municipalitySlug) {
+                return;
+            }
+
+            try {
+                // Fetch rubriques enabled for this community (same as Sidebar does)
+                const communityAPI = (await import('../services/communityAPI')).default;
+                const data = await communityAPI.getEnabledRubriques(municipalitySlug);
+
+                console.log('Rubrique templates from community API:', data);
+
+                if (data.rubriques && Array.isArray(data.rubriques)) {
+                    // Flatten the hierarchy to get all rubriques (parent + children)
+                    const flattenRubriques = (rubriques) => {
+                        let flat = [];
+                        rubriques.forEach(r => {
+                            flat.push(r);
+                            if (r.children && r.children.length > 0) {
+                                flat = flat.concat(flattenRubriques(r.children));
+                            }
+                        });
+                        return flat;
+                    };
+
+                    const allRubriques = flattenRubriques(data.rubriques);
+                    console.log('Flattened rubriques:', allRubriques);
+                    setRubriqueTemplates(allRubriques);
+                } else {
+                    console.warn('No rubriques in response:', data);
+                }
+            } catch (error) {
+                console.error('Error fetching rubrique templates:', error);
+            }
+        };
+
+        fetchRubriqueTemplates();
+    }, [municipalitySlug]); // Fetch when municipality changes
+
     const handlePostCreated = (newPost) => {
         setPosts(prevPosts => [newPost, ...prevPosts]);
     };
@@ -270,7 +321,6 @@ const MunicipalityDashboard = () => {
             // Close the modal
             setShowPostCreationModal(false);
         } catch (error) {
-            console.error('Failed to create post:', error);
             throw error; // Let the modal handle the error display
         }
     };
@@ -330,7 +380,7 @@ const MunicipalityDashboard = () => {
             pageDivision={pageDivision}
         >
             <div className={styles.sectionContent}>
-                {renderSectionContent(activeRubrique, municipality, handlePostCreated, posts, user, navigate, pageDivision, handleOpenPostCreationModal)}
+                {renderSectionContent(activeRubrique, municipality, handlePostCreated, posts, user, navigate, pageDivision, handleOpenPostCreationModal, municipalitySlug, getRubriqueTemplateId)}
             </div>
 
             {/* Post Creation Modal */}
@@ -368,7 +418,7 @@ const getUserInitials = (user) => {
 };
 
 // Fonction pour rendre le contenu spécifique à chaque section
-const renderSectionContent = (section, municipality, onPostCreated, posts, user, navigate, pageDivision, onOpenPostCreationModal) => {
+const renderSectionContent = (section, municipality, onPostCreated, posts, user, navigate, pageDivision, onOpenPostCreationModal, municipalitySlug, getRubriqueTemplateId) => {
     const sectionLower = section.toLowerCase();
 
     // Fonction pour obtenir le nom d'affichage de la section
@@ -427,92 +477,27 @@ const renderSectionContent = (section, municipality, onPostCreated, posts, user,
                     </div>
 
                     <div className={styles.postsSection}>
-                        {user && (
-                            <div
-                                onClick={onOpenPostCreationModal}
-                                style={{
-                                    padding: '16px',
-                                    marginBottom: '20px',
-                                    backgroundColor: 'white',
-                                    borderRadius: '8px',
-                                    border: '1px solid #e1e8ed',
-                                    cursor: 'pointer',
-                                    transition: 'all 0.2s ease',
-                                }}
-                                onMouseEnter={(e) => {
-                                    e.currentTarget.style.borderColor = '#1da1f2';
-                                    e.currentTarget.style.backgroundColor = '#f7f9fa';
-                                }}
-                                onMouseLeave={(e) => {
-                                    e.currentTarget.style.borderColor = '#e1e8ed';
-                                    e.currentTarget.style.backgroundColor = 'white';
-                                }}
-                            >
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                                    <div
-                                        style={{
-                                            width: '40px',
-                                            height: '40px',
-                                            borderRadius: '50%',
-                                            backgroundColor: '#1E293B',
-                                            display: 'flex',
-                                            alignItems: 'center',
-                                            justifyContent: 'center',
-                                            overflow: 'hidden',
-                                            flexShrink: 0
-                                        }}
-                                    >
-                                        {user.profile?.profile_picture || user.avatar ? (
-                                            <img
-                                                src={user.profile?.profile_picture || user.avatar}
-                                                alt="Your avatar"
-                                                style={{
-                                                    width: '100%',
-                                                    height: '100%',
-                                                    objectFit: 'cover'
-                                                }}
-                                                onError={(e) => {
-                                                    e.target.style.display = 'none';
-                                                    const fallback = e.target.parentElement.querySelector('.fallback-initials');
-                                                    if (fallback) fallback.style.display = 'flex';
-                                                }}
-                                            />
-                                        ) : null}
-                                        <span
-                                            className="fallback-initials"
-                                            style={{
-                                                color: 'white',
-                                                fontWeight: 'bold',
-                                                fontSize: '16px',
-                                                display: (user.profile?.profile_picture || user.avatar) ? 'none' : 'flex',
-                                                alignItems: 'center',
-                                                justifyContent: 'center',
-                                                width: '100%',
-                                                height: '100%'
-                                            }}
-                                        >
-                                            {getUserInitials(user)}
-                                        </span>
-                                    </div>
-                                    <div
-                                        style={{
-                                            flex: 1,
-                                            padding: '10px 16px',
-                                            backgroundColor: '#f0f2f5',
-                                            borderRadius: '20px',
-                                            color: '#65676b',
-                                            fontSize: '15px'
-                                        }}
-                                    >
-                                        Quoi de neuf, {user.first_name || user.firstName || user.username} ?
-                                    </div>
-                                </div>
+                        {/* Grid layout: Posts on left, Threads on right (sidebar) */}
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 320px', gap: '20px', alignItems: 'start' }}>
+                            {/* Main feed */}
+                            <div>
+                                <PostFeed
+                                    municipalityName={divisionName}
+                                    municipalityId={pageDivision?.id}
+                                    rubrique="accueil"
+                                    onCreatePostClick={onOpenPostCreationModal}
+                                />
                             </div>
-                        )}
-                        <PostFeed
-                            municipalityName={divisionName}
-                            onCreatePostClick={onOpenPostCreationModal}
-                        />
+
+                            {/* Sidebar: Recent threads */}
+                            <div style={{ position: 'sticky', top: '20px' }}>
+                                <ThreadListCompact
+                                    communityId={pageDivision?.community_id || pageDivision?.id}
+                                    municipalitySlug={municipalitySlug}
+                                    limit={5}
+                                />
+                            </div>
+                        </div>
                     </div>
                 </div>
             );
@@ -531,6 +516,18 @@ const renderSectionContent = (section, municipality, onPostCreated, posts, user,
 
                     <div className={styles.postsSection}>
                         {user && (
+                            <InlinePostCreator
+                                division={pageDivision}
+                                section={sectionLower}
+                                rubriqueTemplateId={getRubriqueTemplateId(sectionLower)}
+                                community={pageDivision?.community_id ? { id: pageDivision.community_id } : pageDivision}
+                                municipalitySlug={municipality?.slug || municipalitySlug}
+                                onPostCreated={onPostCreated}
+                                placeholder={`Quoi de neuf dans ${getSectionDisplayName(sectionLower)} ?`}
+                            />
+                        )}
+                        {/* Old modal post creator - REPLACED WITH INLINE
+                        {user && (
                             <div
                                 onClick={onOpenPostCreationModal}
                                 style={{
@@ -611,10 +608,11 @@ const renderSectionContent = (section, municipality, onPostCreated, posts, user,
                                     </div>
                                 </div>
                             </div>
-                        )}
+                        )} */}
                         <PostFeed
                             municipalityName={municipality.nom}
-                            section={getSectionDisplayName(sectionLower)}
+                            municipalityId={pageDivision?.id}
+                            rubrique={sectionLower}
                             onCreatePostClick={onOpenPostCreationModal}
                         />
                     </div>
