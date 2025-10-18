@@ -111,6 +111,30 @@ class Country(models.Model):
         help_text="Primary admin level (3=communes, 4=municipalities)"
     )
 
+    # Phone number related fields
+    phone_code = models.CharField(
+        max_length=10,
+        null=True,
+        blank=True,
+        help_text="International dialing code (e.g., '+229', '+1', '+33')"
+    )
+    flag_emoji = models.CharField(
+        max_length=10,
+        null=True,
+        blank=True,
+        help_text="Unicode flag emoji (e.g., '🇧🇯', '🇨🇦', '🇫🇷')"
+    )
+    region = models.CharField(
+        max_length=50,
+        null=True,
+        blank=True,
+        db_index=True,
+        help_text=(
+            "Geographic region "
+            "(e.g., 'West Africa', 'North America', 'Western Europe')"
+        )
+    )
+
     # Note: Country geometry is now handled by AdministrativeDivision
     # at admin_level=0. This eliminates redundancy and provides unified
     # geometry management.

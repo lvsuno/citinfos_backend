@@ -122,6 +122,88 @@ def sanitize_basic_html(html_content):
     return sanitized
 
 
+# Define allowed HTML tags for rich article content (TipTap editor)
+ARTICLE_ALLOWED_TAGS = [
+    # Text formatting
+    'p', 'br', 'strong', 'b', 'em', 'i', 'u', 'span', 'div',
+
+    # Headers
+    'h1', 'h2', 'h3', 'h4', 'h5', 'h6',
+
+    # Lists
+    'ul', 'ol', 'li',
+
+    # Links
+    'a',
+
+    # Media (embedded content from TipTap editor)
+    'img', 'video', 'audio', 'source',
+
+    # Tables
+    'table', 'thead', 'tbody', 'tr', 'th', 'td',
+
+    # Quotes and code
+    'blockquote', 'code', 'pre',
+
+    # Figures and captions
+    'figure', 'figcaption',
+
+    # Line breaks and separators
+    'hr',
+]
+
+# Define allowed HTML attributes for article content
+ARTICLE_ALLOWED_ATTRIBUTES = {
+    '*': ['class', 'id', 'style'],
+    'a': ['href', 'title', 'target', 'rel'],
+    'img': ['src', 'alt', 'title', 'width', 'height', 'class'],
+    'video': ['src', 'controls', 'width', 'height', 'poster', 'preload', 'class'],
+    'audio': ['src', 'controls', 'preload', 'class'],
+    'source': ['src', 'type'],
+    'table': ['class', 'border', 'cellpadding', 'cellspacing'],
+    'th': ['colspan', 'rowspan', 'scope'],
+    'td': ['colspan', 'rowspan'],
+    'blockquote': ['cite'],
+}
+
+
+def sanitize_article_content(html_content):
+    """
+    Sanitize rich HTML content for article posts.
+
+    This function allows TipTap editor output including embedded media
+    (images, videos, audio) while removing dangerous HTML/JavaScript.
+
+    Args:
+        html_content (str): Raw HTML content from TipTap editor
+
+    Returns:
+        str: Sanitized HTML content safe for display
+    """
+    if not html_content:
+        return ""
+
+    # Use bleach to sanitize the HTML
+    sanitized = bleach.clean(
+        html_content,
+        tags=ARTICLE_ALLOWED_TAGS,
+        attributes=ARTICLE_ALLOWED_ATTRIBUTES,
+        css_sanitizer=css_sanitizer,
+        strip=True,  # Strip disallowed tags instead of escaping
+        strip_comments=True,  # Remove HTML comments
+    )
+
+    # Additional security: ensure all links open in new window and are nofollow
+    sanitized = bleach.linkify(
+        sanitized,
+        callbacks=[
+            lambda attrs, new=False: attrs.update({'target': '_blank', 'rel': 'nofollow noopener'}) or attrs
+        ]
+    )
+
+    return sanitized
+
+
 def strip_all_html(html_content):
     """
     Strip all HTML tags and return plain text.

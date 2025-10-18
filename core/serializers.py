@@ -1,4 +1,40 @@
 from rest_framework import serializers
+from .models import Country
+
+
+class CountrySerializer(serializers.ModelSerializer):
+    """Serializer for Country model with phone data."""
+
+    class Meta:
+        model = Country
+        fields = [
+            'id',
+            'iso2',
+            'iso3',
+            'name',
+            'code',
+            'phone_code',
+            'flag_emoji',
+            'region',
+            'default_admin_level',
+        ]
+        read_only_fields = fields
+
+
+class CountryPhoneDataSerializer(serializers.ModelSerializer):
+    """Lightweight serializer for country phone data only."""
+
+    class Meta:
+        model = Country
+        fields = [
+            'iso2',
+            'iso3',
+            'name',
+            'phone_code',
+            'flag_emoji',
+            'region',
+        ]
+        read_only_fields = fields
 
 
 class AnnouncementSerializer(serializers.ModelSerializer):
