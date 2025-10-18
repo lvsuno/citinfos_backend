@@ -24,12 +24,12 @@ class CommunityAPITestCase(JWTAuthTestMixin, APITestCase):
         self.user1 = User.objects.create_user(
             username='testuser1',
             email='test1@example.com',
-            password='testpass123'
+            password='TestPass123!'
         )
         self.user2 = User.objects.create_user(
             username='testuser2',
             email='test2@example.com',
-            password='testpass123'
+            password='TestPass123!'
         )
 
         # Create or ensure user profiles (safe pattern to avoid duplicate OneToOne/NOT NULL errors)
@@ -226,7 +226,7 @@ class CommunityMembershipAPITestCase(JWTAuthTestMixin, APITestCase):
         self.user1 = User.objects.create_user(
             username='testuser1',
             email='test1@example.com',
-            password='testpass123'
+            password='TestPass123!'
         )
 
         # Create or ensure user profile (safe pattern)
@@ -296,12 +296,12 @@ class CommunityInvitationAPITestCase(JWTAuthTestMixin, APITestCase):
         self.user1 = User.objects.create_user(
             username='testuser1',
             email='test1@example.com',
-            password='testpass123'
+            password='TestPass123!'
         )
         self.user2 = User.objects.create_user(
             username='testuser2',
             email='test2@example.com',
-            password='testpass123'
+            password='TestPass123!'
         )
 
         # Create or ensure user profiles (safe pattern)
@@ -367,7 +367,7 @@ class CommunityInvitationAPITestCase(JWTAuthTestMixin, APITestCase):
         user3 = User.objects.create_user(
             username='testuser3',
             email='test3@example.com',
-            password='testpass123'
+            password='TestPass123!'
         )
         profile3, _ = UserProfile.objects.get_or_create(user=user3)
         UserProfile.objects.filter(user=user3).update(
@@ -436,7 +436,7 @@ class CommunityRoleAPITestCase(JWTAuthTestMixin, APITestCase):
         self.user1 = User.objects.create_user(
             username='testuser1',
             email='test1@example.com',
-            password='testpass123'
+            password='TestPass123!'
         )
 
         # Create or ensure user profile (safe pattern)
@@ -512,12 +512,12 @@ class CommunityModerationAPITestCase(JWTAuthTestMixin, APITestCase):
         self.user1 = User.objects.create_user(
             username='testuser1',
             email='test1@example.com',
-            password='testpass123'
+            password='TestPass123!'
         )
         self.user2 = User.objects.create_user(
             username='testuser2',
             email='test2@example.com',
-            password='testpass123'
+            password='TestPass123!'
         )
 
         # Create or ensure user profiles (safe pattern)

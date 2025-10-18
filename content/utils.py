@@ -91,21 +91,30 @@ def get_recommendation_reasons(user, post):
 
 def calculate_engagement_score(user, days=30):
     """Weighted user engagement metric for period."""
-    from .models import Post, Comment, Like, Dislike, DirectShare
+    from .models import Post, Comment, PostReaction, DirectShare
     since = timezone.now() - timedelta(days=days)
     posts = Post.objects.filter(author=user, created_at__gte=since).count()
     comments = Comment.objects.filter(
         author=user, created_at__gte=since
     ).count()
-    likes = Like.objects.filter(user=user, created_at__gte=since).count()
-    dislikes = Dislike.objects.filter(user=user, created_at__gte=since).count()
+    # Count positive and negative reactions
+    positive_reactions = PostReaction.objects.filter(
+        user=user,
+        created_at__gte=since,
+        reaction_type__in=PostReaction.POSITIVE_REACTIONS
+    ).count()
+    negative_reactions = PostReaction.objects.filter(
+        user=user,
+        created_at__gte=since,
+        reaction_type__in=PostReaction.NEGATIVE_REACTIONS
+    ).count()
     direct_shares = DirectShare.objects.filter(
         sender=user, created_at__gte=since
     ).count()
     reposts = Post.objects.filter(author=user, post_type='repost', created_at__gte=since).count()
     score = (
-        posts * 5 + comments * 3 + likes * 1 +
-        (direct_shares + reposts) * 4 - dislikes * 1
+        posts * 5 + comments * 3 + positive_reactions * 1 +
+        (direct_shares + reposts) * 4 - negative_reactions * 1
     )
     normalized = score / max(days * 10.0, 1.0)
     return {
@@ -1274,7 +1283,7 @@ def generate_user_recommendations(user, limit=20):
 
 def get_user_content_interactions(user, days=30):
     """Get user's content interaction history."""
-    from content.models import Like, Comment, DirectShare, Post, Dislike
+    from content.models import PostReaction, Comment, DirectShare, Post
     from django.contrib.contenttypes.models import ContentType
 
     end_date = timezone.now()
@@ -1288,13 +1297,12 @@ def get_user_content_interactions(user, days=30):
         'disliked_posts': []
     }
 
-    # Get liked posts
-    post_ct = ContentType.objects.get_for_model(Post)
-    liked_posts = Like.objects.filter(
+    # Get liked posts (positive reactions)
+    liked_posts = PostReaction.objects.filter(
         user=user,
-        content_type=post_ct,
+        reaction_type__in=PostReaction.POSITIVE_REACTIONS,
         created_at__gte=start_date
-    ).values_list('object_id', flat=True)
+    ).values_list('post_id', flat=True)
     interactions['liked_posts'] = list(liked_posts)
 
     # Get commented posts
@@ -1320,12 +1328,12 @@ def get_user_content_interactions(user, days=30):
     interactions['direct_shared_posts'] = list(direct_shared_posts)
     interactions['reposted_posts'] = list(reposted_posts)
 
-    # Get disliked posts
-    disliked_posts = Dislike.objects.filter(
+    # Get disliked posts (negative reactions)
+    disliked_posts = PostReaction.objects.filter(
         user=user,
-        content_type=post_ct,
+        reaction_type__in=PostReaction.NEGATIVE_REACTIONS,
         created_at__gte=start_date
-    ).values_list('object_id', flat=True)
+    ).values_list('post_id', flat=True)
     interactions['disliked_posts'] = list(disliked_posts)
 
     # Get all interacted post IDs
@@ -1398,8 +1406,7 @@ def get_content_based_recommendations(user, limit=10):
 
 def get_collaborative_filtering_recommendations(user, limit=10):
     """Get recommendations using collaborative filtering."""
-    from content.models import Like, Post  # Removed unused Dislike import
-    from django.contrib.contenttypes.models import ContentType
+    from content.models import PostReaction, Post
     from django.db.models import Count
 
     # Get users with similar interests (users who liked similar posts)
@@ -1409,15 +1416,14 @@ def get_collaborative_filtering_recommendations(user, limit=10):
     if not user_liked_posts:
         return []
 
-    # Find users who also liked the same posts
-    post_ct = ContentType.objects.get_for_model(Post)
-    similar_users = Like.objects.filter(
-        content_type=post_ct,
-        object_id__in=user_liked_posts
+    # Find users who also liked the same posts (positive reactions)
+    similar_users = PostReaction.objects.filter(
+        post_id__in=user_liked_posts,
+        reaction_type__in=PostReaction.POSITIVE_REACTIONS
     ).exclude(
         user=user
     ).values('user').annotate(
-        common_likes=Count('object_id')
+        common_likes=Count('post_id')
     ).filter(
         common_likes__gte=2  # At least 2 posts in common
     ).order_by('-common_likes')[:20]  # Top 20 similar users
@@ -1425,10 +1431,10 @@ def get_collaborative_filtering_recommendations(user, limit=10):
     similar_user_ids = [u['user'] for u in similar_users]
 
     # Get posts liked by similar users that current user hasn't seen
-    liked_post_ids = Like.objects.filter(
-        content_type=post_ct,
-        user__in=similar_user_ids
-    ).values_list('object_id', flat=True)
+    liked_post_ids = PostReaction.objects.filter(
+        user__in=similar_user_ids,
+        reaction_type__in=PostReaction.POSITIVE_REACTIONS
+    ).values_list('post_id', flat=True)
 
     # Exclude posts disliked by the user
     user_interactions = get_user_content_interactions(user)
@@ -1524,18 +1530,17 @@ def get_popular_posts_with_scores(limit=10):
 
 def has_user_seen_post(user, post):
     """Check if user has already seen/interacted with a post."""
-    from content.models import Like, Comment, DirectShare, Post, ContentRecommendation, Dislike
+    from content.models import (
+        PostReaction, Comment, DirectShare, Post, ContentRecommendation
+    )
     from django.contrib.contenttypes.models import ContentType
 
     post_ct = ContentType.objects.get_for_model(post)
-    # Like
-    if Like.objects.filter(user=user, content_type=post_ct, object_id=post.id).exists():
+    # Any reaction (positive or negative)
+    if PostReaction.objects.filter(user=user, post=post).exists():
         return True
     # Comment
     if Comment.objects.filter(author=user, post=post).exists():
-        return True
-    # Dislike
-    if Dislike.objects.filter(user=user, content_type=post_ct, object_id=post.id).exists():
         return True
     # Direct share (sender)
     if DirectShare.objects.filter(sender=user, post=post).exists():
@@ -1555,7 +1560,7 @@ def has_user_seen_post(user, post):
 def get_user_interaction_frequency(user, days=7):
     """Return per-type interaction counts and frequencies."""
     from .models import (
-        Post, Comment, Like, Dislike, DirectShare
+        Post, Comment, PostReaction, DirectShare
     )
     since = timezone.now() - timedelta(days=days)
     post_count = Post.objects.filter(
@@ -1564,11 +1569,17 @@ def get_user_interaction_frequency(user, days=7):
     comment_count = Comment.objects.filter(
         author=user, created_at__gte=since
     ).count()
-    like_count = Like.objects.filter(
-        user=user, created_at__gte=since
+    # Count positive reactions (likes)
+    positive_reaction_count = PostReaction.objects.filter(
+        user=user,
+        created_at__gte=since,
+        reaction_type__in=PostReaction.POSITIVE_REACTIONS
     ).count()
-    dislike_count = Dislike.objects.filter(
-        user=user, created_at__gte=since
+    # Count negative reactions (dislikes)
+    negative_reaction_count = PostReaction.objects.filter(
+        user=user,
+        created_at__gte=since,
+        reaction_type__in=PostReaction.NEGATIVE_REACTIONS
     ).count()
     direct_share_count = DirectShare.objects.filter(
         sender=user, created_at__gte=since
@@ -1577,15 +1588,15 @@ def get_user_interaction_frequency(user, days=7):
         author=user, post_type='repost', created_at__gte=since
     ).count()
     total = (
-        post_count + comment_count + like_count + dislike_count +
-        direct_share_count + repost_count
+        post_count + comment_count + positive_reaction_count +
+        negative_reaction_count + direct_share_count + repost_count
     )
     days = max(days, 1)
     return {
         'posts': post_count,
         'comments': comment_count,
-        'likes': like_count,
-        'dislikes': dislike_count,
+        'likes': positive_reaction_count,  # For compatibility
+        'dislikes': negative_reaction_count,  # For compatibility
         'direct_shares': direct_share_count,
         'reposts': repost_count,
         'combined_shares_for_scoring': (
@@ -1596,8 +1607,8 @@ def get_user_interaction_frequency(user, days=7):
         'per_day_breakdown': {
             'posts': post_count / days,
             'comments': comment_count / days,
-            'likes': like_count / days,
-            'dislikes': dislike_count / days,
+            'likes': positive_reaction_count / days,
+            'dislikes': negative_reaction_count / days,
             'direct_shares': direct_share_count / days,
             'reposts': repost_count / days
         }
@@ -1606,15 +1617,13 @@ def get_user_interaction_frequency(user, days=7):
 
 def generate_collaborative_recommendations(user, limit=15):
     """Generate recommendations using advanced collaborative filtering."""
-    from content.models import Like, Post
-    from django.contrib.contenttypes.models import ContentType
+    from content.models import PostReaction, Post
 
-    # Get user's liked posts
-    post_ct = ContentType.objects.get_for_model(Post)
-    user_liked_posts = Like.objects.filter(
+    # Get user's liked posts (positive reactions)
+    user_liked_posts = PostReaction.objects.filter(
         user=user,
-        content_type=post_ct
-    ).values_list('object_id', flat=True)
+        reaction_type__in=PostReaction.POSITIVE_REACTIONS
+    ).values_list('post_id', flat=True)
 
     if len(user_liked_posts) < 3:
         # Not enough data for collaborative filtering
@@ -1624,19 +1633,19 @@ def generate_collaborative_recommendations(user, limit=15):
     similar_users_data = []
 
     # Get all users who liked at least one post that current user liked
-    potential_similar_users = Like.objects.filter(
-        content_type=post_ct,
-        object_id__in=user_liked_posts
+    potential_similar_users = PostReaction.objects.filter(
+        post_id__in=user_liked_posts,
+        reaction_type__in=PostReaction.POSITIVE_REACTIONS
     ).exclude(user=user).values_list('user', flat=True).distinct()
 
     user_liked_set = set(user_liked_posts)
 
     for similar_user_id in potential_similar_users:
         similar_user_likes = set(
-            Like.objects.filter(
+            PostReaction.objects.filter(
                 user_id=similar_user_id,
-                content_type=post_ct
-            ).values_list('object_id', flat=True)
+                reaction_type__in=PostReaction.POSITIVE_REACTIONS
+            ).values_list('post_id', flat=True)
         )
         intersection = user_liked_set.intersection(similar_user_likes)
         union = user_liked_set.union(similar_user_likes)
@@ -1653,12 +1662,13 @@ def generate_collaborative_recommendations(user, limit=15):
         key=lambda x: x['similarity'], reverse=True
     )
     top_similar_users = similar_users_data[:20]
-    from content.models import Dislike
-    post_ct = ContentType.objects.get_for_model(Post)
+    # Get user's disliked posts (negative reactions)
     user_disliked_posts = set(
-        Dislike.objects.filter(
-            user=user, content_type=post_ct, is_deleted=False
-        ).values_list('object_id', flat=True)
+        PostReaction.objects.filter(
+            user=user,
+            reaction_type__in=PostReaction.NEGATIVE_REACTIONS,
+            is_deleted=False
+        ).values_list('post_id', flat=True)
     )
     recommendation_candidates = {}
     for similar_user in top_similar_users:
@@ -1834,30 +1844,24 @@ def refresh_user_recommendations(user):
 
 
 def get_like_status(user_profile, post):
-    """Get like status for a user and post."""
-    from content.models import Like
-    from django.contrib.contenttypes.models import ContentType
+    """Get like status for a user and post (positive reactions)."""
+    from content.models import PostReaction
 
-    post_ct = ContentType.objects.get_for_model(post)
-
-    return Like.objects.filter(
+    return PostReaction.objects.filter(
         user=user_profile,
-        content_type=post_ct,
-        object_id=post.id
+        post=post,
+        reaction_type__in=PostReaction.POSITIVE_REACTIONS
     ).exists()
 
 
 def create_like(user_profile, post):
-    """Create a like for a user and post."""
-    from content.models import Like
-    from django.contrib.contenttypes.models import ContentType
+    """Create a like (default positive reaction) for a user and post."""
+    from content.models import PostReaction
 
-    post_ct = ContentType.objects.get_for_model(post)
-
-    like, created = Like.objects.get_or_create(
+    reaction, created = PostReaction.objects.get_or_create(
         user=user_profile,
-        content_type=post_ct,
-        object_id=post.id
+        post=post,
+        defaults={'reaction_type': 'like'}
     )
 
     if created:
@@ -1865,23 +1869,20 @@ def create_like(user_profile, post):
         post.likes_count += 1
         post.save(update_fields=['likes_count'])
 
-    return like, created
+    return reaction, created
 
 
 def remove_like(user_profile, post):
-    """Remove a like for a user and post."""
-    from content.models import Like
-    from django.contrib.contenttypes.models import ContentType
-
-    post_ct = ContentType.objects.get_for_model(post)
+    """Remove a like (any positive reaction) for a user and post."""
+    from content.models import PostReaction
 
     try:
-        like = Like.objects.get(
+        reaction = PostReaction.objects.get(
             user=user_profile,
-            content_type=post_ct,
-            object_id=post.id
+            post=post,
+            reaction_type__in=PostReaction.POSITIVE_REACTIONS
         )
-        like.delete()
+        reaction.delete()
 
         # Update the post likes count
         if post.likes_count > 0:
@@ -1889,7 +1890,7 @@ def remove_like(user_profile, post):
             post.save(update_fields=['likes_count'])
 
         return True
-    except Like.DoesNotExist:
+    except PostReaction.DoesNotExist:
         return False
 
 

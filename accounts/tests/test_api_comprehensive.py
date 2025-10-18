@@ -11,7 +11,7 @@ class AccountsComprehensiveAPITests(JWTAuthTestMixin, APITestCase):
     def setUp(self):
         self.user = User.objects.create_user(
             username='apitest',
-            password='pass123'
+            password='TestPass123!'
         )
         self.profile, _ = UserProfile.objects.get_or_create(user=self.user)
         UserProfile.objects.filter(user=self.user).update(

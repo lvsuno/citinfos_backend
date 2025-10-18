@@ -11,6 +11,7 @@ from django.contrib.contenttypes.models import ContentType
 from django.contrib.contenttypes.fields import GenericForeignKey
 from accounts.models import UserProfile
 from core.models import PostManager, CommentManager, MentionManager
+from core.html_sanitizer import sanitize_article_content, sanitize_basic_html
 
 
 class PostSee(models.Model):
@@ -378,19 +379,24 @@ class PostSee(models.Model):
 class Post(models.Model):
     """Main post model."""
     POST_TYPES = [
-        ('text', 'Text'),
-        ('image', 'Image'),
-        ('video', 'Video'),
-        ('audio', 'Audio'),
-        ('file', 'File'),
-        ('link', 'Link'),
-        ('poll', 'Poll'),
-        # Enhanced Repost Types
+        # REGULAR POSTS (content + optional attachments/poll)
+        ('text', 'Text Post'),           # Simple text post
+        ('image', 'Image Post'),         # Post with image attachments
+        ('video', 'Video Post'),         # Post with video attachments
+        ('audio', 'Audio Post'),         # Post with audio attachments
+        ('file', 'File Post'),           # Post with file attachments
+        ('link', 'Link Post'),           # Post with link preview
+        ('poll', 'Poll Post'),           # Post with poll
+        ('mixed', 'Mixed Media Post'),   # Post with multiple attachment types
+
+        # RICH ARTICLES (TipTap HTML with embedded media)
+        ('article', 'Rich Article'),     # Rich HTML content from TipTap editor
+
+        # REPOST TYPES
         ('repost', 'Simple Repost'),  # Basic repost with just comment
         ('repost_with_media', 'Repost + Media'),  # With attachments
         ('repost_quote', 'Quote Repost'),  # With substantial commentary
         ('repost_remix', 'Remix Repost'),  # Creative transformed content
-        ('mixed', 'Mixed Media'),
     ]
 
     VISIBILITY_CHOICES = [
@@ -414,15 +420,24 @@ class Post(models.Model):
         related_name='posts'
     )
 
-    # Optional thread reference: posts may belong to a thread inside a community.
-    # Posting to a thread is optional; posts can still be community-level or
-    # user-profile-level (community is nullable).
+    # Optional thread reference: posts may belong to a thread
     thread = models.ForeignKey(
         'communities.Thread',
         on_delete=models.CASCADE,
         null=True,
         blank=True,
         related_name='posts'
+    )
+
+    # Rubrique template: ONLY for posts NOT in a thread (direct posts)
+    # If post.thread exists, rubrique is inherited from thread.rubrique_template
+    rubrique_template = models.ForeignKey(
+        'communities.RubriqueTemplate',
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        related_name='posts',
+        help_text="Rubrique for direct posts (not in thread). Required if thread is null."
     )
 
     # REPOST SUPPORT: Parent post for reposts
@@ -435,12 +450,61 @@ class Post(models.Model):
         help_text="Original post if this is a repost"
     )
 
-    content = models.TextField(max_length=2000, blank=True)
+    # Basic HTML content for ALL posts (captions, descriptions)
+    # Supports: <b>, <i>, <strong>, <em>, <a>, emoji, line breaks
+    # Used by: ALL post types for captions/descriptions
+    content = models.TextField(
+        max_length=2000,
+        blank=True,
+        help_text=(
+            "Basic HTML for post captions/descriptions "
+            "(supports bold, italic, links, emoji)"
+        )
+    )
+
+    # Rich HTML content for ARTICLE posts ONLY
+    # Supports: Full TipTap editor with embedded <img>, <video>, <audio>
+    # Used by: ONLY 'article' post_type when user creates rich articles
+    article_content = models.TextField(
+        blank=True,
+        null=True,
+        help_text=(
+            "Rich HTML content for article posts with embedded media "
+            "(TipTap editor output)"
+        )
+    )
+
+    # Article-specific fields
+    title = models.CharField(
+        max_length=300,
+        blank=True,
+        help_text="Title for article posts (required for post_type='article')"
+    )
+
+    featured_image = models.ImageField(
+        upload_to='post_featured_images/',
+        null=True,
+        blank=True,
+        help_text="Featured/cover image for article posts"
+    )
+
+    excerpt = models.TextField(
+        max_length=500,
+        blank=True,
+        help_text="Short excerpt/summary for article posts (150-300 chars recommended)"
+    )
+
+    is_draft = models.BooleanField(
+        default=False,
+        help_text="True if this is a draft (not published yet)"
+    )
+
     post_type = models.CharField(
         max_length=20,
         choices=POST_TYPES,
         default='text'
     )
+
     visibility = models.CharField(
         max_length=10,
         choices=VISIBILITY_CHOICES,
@@ -461,6 +525,16 @@ class Post(models.Model):
     repost_count = models.PositiveIntegerField(default=0)
     views_count = models.PositiveIntegerField(default=0)
 
+    # Thread voting metrics (for posts inside threads)
+    upvotes_count = models.PositiveIntegerField(
+        default=0,
+        help_text="Upvotes for posts in threads (Stack Overflow style)"
+    )
+    downvotes_count = models.PositiveIntegerField(
+        default=0,
+        help_text="Downvotes for posts in threads"
+    )
+
     trend_score = models.FloatField(
         default=0.0,
         help_text="Score based on engagement and recency"
@@ -468,6 +542,10 @@ class Post(models.Model):
 
     # Flags
     is_pinned = models.BooleanField(default=False)
+    is_best_post = models.BooleanField(
+        default=False,
+        help_text="Marked as best post by thread creator (Q&A, solutions, etc.)"
+    )
     is_edited = models.BooleanField(default=False)
     is_deleted = models.BooleanField(default=False)
     deleted_at = models.DateTimeField(null=True, blank=True)
@@ -525,6 +603,33 @@ class Post(models.Model):
     def can_add_attachment(self, max_attachments=10):
         """Check if more attachments can be added."""
         return self.attachment_count < max_attachments
+
+    # ======================================================================
+    # RICH CONTENT / ARTICLE METHODS
+    # ======================================================================
+
+    @property
+    def is_article(self):
+        """Check if this is a rich article post with embedded media."""
+        return (
+            self.post_type == 'article' and
+            self.article_content and
+            self.article_content.strip()
+        )
+
+    @property
+    def has_embedded_media(self):
+        """Check if article_content has embedded media tags."""
+        if not self.article_content:
+            return False
+        import re
+        return bool(
+            re.search(r'<(img|video|audio)[^>]*>', self.article_content)
+        )
+
+    def get_content_for_display(self):
+        """Get appropriate content for display based on post type."""
+        return self.content
 
     # ======================================================================
     # MULTIPLE POLLS SUPPORT METHODS
@@ -665,15 +770,42 @@ class Post(models.Model):
 
         validate_user_for_interaction(self.author, "create posts")
 
-        # If thread is provided, ensure it's consistent with community
+        # If thread is provided, auto-assign community from thread
         if self.thread:
-            # Auto-assign community from thread when not explicitly set
+            # Auto-assign community from thread
             if not self.community:
                 self.community = self.thread.community
             elif self.community.id != self.thread.community.id:
                 raise ValidationError({
                     'thread': 'Thread community does not match post.community'
                 })
+
+            # Posts in threads should NOT have rubrique_template (inherited)
+            if self.rubrique_template:
+                raise ValidationError({
+                    'rubrique_template': 'Posts in threads inherit rubrique from thread. '
+                                       'Set rubrique_template to null.'
+                })
+
+        # If NOT in thread and posting to community, require rubrique_template
+        elif self.community and not self.thread:
+            if not self.rubrique_template:
+                raise ValidationError({
+                    'rubrique_template': 'Direct community posts require '
+                                        'rubrique_template.'
+                })
+
+            # Validate rubrique is enabled for community
+            if self.rubrique_template:
+                enabled_rubriques = self.community.enabled_rubriques or []
+                rubrique_id = str(self.rubrique_template.id)
+
+                if rubrique_id not in enabled_rubriques:
+                    raise ValidationError({
+                        'rubrique_template':
+                            f"Rubrique '{self.rubrique_template.default_name}' "
+                            f"is not enabled for this community."
+                    })
 
         # Check if user is banned from the community
         if self.community:
@@ -696,10 +828,23 @@ class Post(models.Model):
                     )
                 raise ValidationError({'community': ban_message})
 
+        # Validate article posts have title and content (unless draft)
+        if self.post_type == 'article' and not self.is_draft:
+            if not self.title or not self.title.strip():
+                raise ValidationError({
+                    'title': 'Article posts require a title. Save as draft if incomplete.'
+                })
+            if not self.article_content or not self.article_content.strip():
+                raise ValidationError({
+                    'article_content': 'Article posts require content. Save as draft if incomplete.'
+                })
+
     def save(self, *args, **kwargs):
         """Override save to call full_clean for validation.
 
         Behavior additions:
+        - Sanitize HTML content in both content and article_content fields
+        - Auto-generate excerpt from article_content if needed
         - On create: if `thread` is set increment that thread.posts_count.
         - On update: if `thread` changed, decrement old thread.posts_count and
           increment new thread.posts_count (never allowing negative counts).
@@ -707,6 +852,29 @@ class Post(models.Model):
         from django.apps import apps
         from django.db.models import F, Value
         from django.db.models.functions import Greatest
+        import re
+
+        # Sanitize basic HTML in content field (for ALL posts)
+        if self.content:
+            self.content = sanitize_basic_html(self.content)
+
+        # Sanitize rich HTML in article_content field (for ARTICLE posts only)
+        if self.article_content:
+            self.article_content = sanitize_article_content(
+                self.article_content
+            )
+
+        # Auto-generate excerpt for articles with article_content
+        if (self.post_type == 'article' and self.article_content
+                and not self.content):
+            # Strip HTML tags to get plain text
+            text = re.sub('<[^<]+?>', '', self.article_content)
+            # Take first 200 characters as excerpt
+            self.content = (
+                text[:200].strip() + '...'
+                if len(text) > 200
+                else text.strip()
+            )
 
         self.full_clean()
 
@@ -766,6 +934,7 @@ class Post(models.Model):
             models.Index(fields=['post_type', '-created_at']),
             models.Index(fields=['community', '-created_at']),
         ]
+
     def delete(self, *args, **kwargs):
         """On hard delete, decrement thread.posts_count if applicable, then delete."""
         from django.apps import apps
@@ -936,7 +1105,18 @@ class PostMedia(models.Model):
         ]
     )
 
-    file = models.FileField(upload_to=postmedia_file_upload_to)
+    # Either file OR external_url should be set (not both)
+    file = models.FileField(
+        upload_to=postmedia_file_upload_to,
+        blank=True,
+        null=True
+    )
+    external_url = models.URLField(
+        max_length=500,
+        blank=True,
+        null=True,
+        help_text="External URL for media hosted elsewhere (e.g., CDN, Unsplash)"
+    )
     thumbnail = models.ImageField(
         upload_to=postmedia_thumbnail_upload_to,
         blank=True,
@@ -950,9 +1130,23 @@ class PostMedia(models.Model):
     order = models.PositiveIntegerField(default=0)
 
     def clean(self):
-        """Validate media file duration for videos and audio."""
+        """Validate that either file or external_url is provided (not both)."""
         super().clean()
+        from django.core.exceptions import ValidationError
 
+        # Ensure either file OR external_url is provided
+        if not self.file and not self.external_url:
+            raise ValidationError(
+                'Either file or external_url must be provided.'
+            )
+
+        if self.file and self.external_url:
+            raise ValidationError(
+                'Cannot have both file and external_url. '
+                'Choose one or the other.'
+            )
+
+        # Validate media file duration for uploaded videos and audio
         if self.media_type in ['video', 'audio'] and self.file:
             try:
                 # Check file duration using ffmpeg-python or similar
@@ -1022,6 +1216,96 @@ class PostMedia(models.Model):
             pass
 
         return None
+
+    @property
+    def media_url(self):
+        """Get the media URL (either uploaded file or external URL)."""
+        if self.external_url:
+            return self.external_url
+        elif self.file:
+            return self.file.url
+        return None
+
+    def generate_video_thumbnail(self, at_second=1):
+        """
+        Generate a thumbnail from a video file at a specific timestamp.
+
+        Args:
+            at_second: Second in the video to capture thumbnail (default: 1)
+
+        Returns:
+            bool: True if thumbnail was generated successfully
+
+        Note: Requires ffmpeg/ffprobe to be installed
+        """
+        if self.media_type != 'video' or not self.file:
+            return False
+
+        try:
+            import subprocess
+            import tempfile
+            from django.core.files import File
+            from PIL import Image
+            import io
+
+            # Create temporary file for thumbnail
+            with tempfile.NamedTemporaryFile(
+                suffix='.jpg', delete=False
+            ) as temp_thumb:
+                # Extract frame at specified second using ffmpeg
+                cmd = [
+                    'ffmpeg',
+                    '-i', self.file.path,
+                    '-ss', str(at_second),
+                    '-vframes', '1',
+                    '-q:v', '2',  # High quality
+                    '-y',  # Overwrite output
+                    temp_thumb.name
+                ]
+
+                result = subprocess.run(
+                    cmd,
+                    capture_output=True,
+                    timeout=30,
+                    text=True
+                )
+
+                if result.returncode == 0:
+                    # Open and resize thumbnail
+                    img = Image.open(temp_thumb.name)
+
+                    # Resize to standard thumbnail size (maintaining aspect)
+                    img.thumbnail((400, 300), Image.Resampling.LANCZOS)
+
+                    # Save to BytesIO
+                    thumb_io = io.BytesIO()
+                    img.save(thumb_io, format='JPEG', quality=85)
+                    thumb_io.seek(0)
+
+                    # Save to model
+                    thumb_filename = f"thumb_{self.id}.jpg"
+                    self.thumbnail.save(
+                        thumb_filename,
+                        File(thumb_io),
+                        save=True
+                    )
+
+                    return True
+
+        except (
+            subprocess.TimeoutExpired,
+            subprocess.CalledProcessError,
+            FileNotFoundError,
+            ImportError,
+            Exception
+        ) as e:
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.warning(
+                f"Failed to generate video thumbnail for {self.id}: {e}"
+            )
+
+        return False
 
     def save(self, *args, **kwargs):
         """Override save to call full_clean for validation."""
@@ -1378,51 +1662,451 @@ class Comment(models.Model):
 
 
 
-class Like(models.Model):
-    """Likes on posts and comments."""
+# class Like(models.Model):
+#     """Likes on posts and comments."""
+#     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+#     user = models.ForeignKey(UserProfile, on_delete=models.CASCADE)
+#     content_type = models.ForeignKey(ContentType, on_delete=models.CASCADE)
+#     object_id = models.UUIDField()
+#     content_object = GenericForeignKey('content_type', 'object_id')
+
+#     # Soft delete field
+
+#     is_deleted = models.BooleanField(default=False)
+
+#     deleted_at = models.DateTimeField(null=True, blank=True)
+#     # Restoration tracking fields
+#     is_restored = models.BooleanField(default=False)
+#     restored_at = models.DateTimeField(null=True, blank=True)
+#     last_deletion_at = models.DateTimeField(null=True, blank=True)
+
+#     created_at = models.DateTimeField(auto_now_add=True)
+
+#     class Meta:
+#         """Unique constraint to prevent duplicate likes on the same content."""
+#         unique_together = ('user', 'content_type', 'object_id')
+#         indexes = [
+#             models.Index(fields=['content_type', 'object_id']),
+#             models.Index(fields=['user', '-created_at']),
+#         ]
+
+#     def clean(self):
+#         """Validate that only verified, non-suspended users can like."""
+#         super().clean()
+#         from accounts.permissions import validate_user_for_interaction
+#         validate_user_for_interaction(self.user, "like content")
+
+#     def save(self, *args, **kwargs):
+#         """Override save to call full_clean for validation."""
+#         self.full_clean()
+#         super().save(*args, **kwargs)
+
+#     def __str__(self):
+#         return f"{self.user.user.username} liked {self.content_object}"
+#     def restore_instance(self, cascade=True):
+#         """Restore this soft-deleted instance and optionally cascade to related objects."""
+#         from django.utils import timezone
+
+#         if not self.is_deleted:
+#             return False, f"{self.__class__.__name__} is not deleted"
+
+#         # Store the deletion timestamp before restoring
+#         self.last_deletion_at = self.deleted_at
+
+#         # Restore the instance
+#         self.is_deleted = False
+#         self.deleted_at = None
+#         self.is_restored = True
+#         self.restored_at = timezone.now()
+
+#         self.save(update_fields=[
+#             'is_deleted', 'deleted_at', 'is_restored',
+#             'restored_at', 'last_deletion_at'
+#         ])
+
+#         restored_count = 1
+
+#         if cascade:
+#             # Cascade restore to related objects
+#             related_count = self._cascade_restore_related()
+#             restored_count += related_count
+
+#         return True, f"{self.__class__.__name__} and {restored_count} related objects restored successfully"
+
+#     def _cascade_restore_related(self):
+#         """Cascade restore to related objects."""
+#         restored_count = 0
+
+#         # Get all reverse foreign key relationships
+#         for rel in self._meta.get_fields():
+#             if hasattr(rel, 'related_model') and hasattr(rel, 'remote_field'):
+#                 if rel.remote_field and hasattr(rel.remote_field, 'name'):
+#                     try:
+#                         related_manager = getattr(self, rel.get_accessor_name())
+
+#                         # Find soft-deleted related objects
+#                         if hasattr(related_manager, 'filter'):
+#                             deleted_related = related_manager.filter(is_deleted=True)
+
+#                             for related_obj in deleted_related:
+#                                 if hasattr(related_obj, 'restore_instance'):
+#                                     success, message = related_obj.restore_instance(cascade=False)
+#                                     if success:
+#                                         restored_count += 1
+
+#                     except (AttributeError, Exception):
+#                         # Skip relationships that can't be processed
+#                         continue
+
+#         # Handle ManyToMany relationships
+#         for field in self._meta.many_to_many:
+#             try:
+#                 related_manager = getattr(self, field.name)
+#                 if hasattr(related_manager, 'filter'):
+#                     deleted_related = related_manager.filter(is_deleted=True)
+
+#                     for related_obj in deleted_related:
+#                         if hasattr(related_obj, 'restore_instance'):
+#                             success, message = related_obj.restore_instance(cascade=False)
+#                             if success:
+#                                 restored_count += 1
+
+#             except (AttributeError, Exception):
+#                 continue
+
+#         return restored_count
+
+#     @classmethod
+#     def bulk_restore(cls, queryset=None, cascade=True):
+#         """Bulk restore multiple instances."""
+#         from django.utils import timezone
+
+#         if queryset is None:
+#             queryset = cls.objects.filter(is_deleted=True)
+#         else:
+#             queryset = queryset.filter(is_deleted=True)
+
+#         if not queryset.exists():
+#             return 0, "No deleted objects found to restore"
+
+#         restored_objects = []
+#         total_restored = 0
+
+#         for obj in queryset:
+#             try:
+#                 success, message = obj.restore_instance(cascade=cascade)
+#                 if success:
+#                     restored_objects.append(obj)
+#                     total_restored += 1
+#             except Exception as e:
+#                 print(f"Error restoring {obj}: {e}")
+#                 continue
+
+#         return total_restored, f"Successfully restored {total_restored} {cls.__name__} objects"
+
+#     def get_restoration_history(self):
+#         """Get the restoration history of this object."""
+#         history = {
+#             'is_currently_deleted': self.is_deleted,
+#             'is_restored': self.is_restored,
+#             'last_restoration': self.restored_at,
+#             'last_deletion': self.last_deletion_at,
+#             'deletion_restoration_cycle': None
+#         }
+
+#         if self.last_deletion_at and self.restored_at:
+#             if self.restored_at > self.last_deletion_at:
+#                 history['deletion_restoration_cycle'] = {
+#                     'deleted_at': self.last_deletion_at,
+#                     'restored_at': self.restored_at,
+#                     'cycle_duration': self.restored_at - self.last_deletion_at
+#                 }
+
+#         return history
+
+
+
+# class Dislike(models.Model):
+#     """Dislikes on posts and comments."""
+#     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+#     user = models.ForeignKey(UserProfile, on_delete=models.CASCADE)
+#     content_type = models.ForeignKey(ContentType, on_delete=models.CASCADE)
+#     object_id = models.UUIDField()
+#     content_object = GenericForeignKey('content_type', 'object_id')
+
+#     # Soft delete field
+
+#     is_deleted = models.BooleanField(default=False)
+
+#     deleted_at = models.DateTimeField(null=True, blank=True)
+#     # Restoration tracking fields
+#     is_restored = models.BooleanField(default=False)
+#     restored_at = models.DateTimeField(null=True, blank=True)
+#     last_deletion_at = models.DateTimeField(null=True, blank=True)
+
+#     created_at = models.DateTimeField(auto_now_add=True)
+
+#     class Meta:
+#         unique_together = ('user', 'content_type', 'object_id')
+#         indexes = [
+#             models.Index(fields=['content_type', 'object_id']),
+#             models.Index(fields=['user', '-created_at']),
+#         ]
+
+#     def clean(self):
+#         """Validate that only verified, non-suspended users can dislike."""
+#         super().clean()
+#         from accounts.permissions import validate_user_for_interaction
+#         validate_user_for_interaction(self.user, "dislike content")
+
+#     def save(self, *args, **kwargs):
+#         """Override save to call full_clean for validation."""
+#         self.full_clean()
+#         super().save(*args, **kwargs)
+
+#     def __str__(self):
+#         return f"{self.user.user.username} disliked {self.content_object}"
+
+#     def restore_instance(self, cascade=True):
+#         """Restore this soft-deleted instance and optionally cascade to related objects."""
+#         from django.utils import timezone
+
+#         if not self.is_deleted:
+#             return False, f"{self.__class__.__name__} is not deleted"
+
+#         # Store the deletion timestamp before restoring
+#         self.last_deletion_at = self.deleted_at
+
+#         # Restore the instance
+#         self.is_deleted = False
+#         self.deleted_at = None
+#         self.is_restored = True
+#         self.restored_at = timezone.now()
+
+#         self.save(update_fields=[
+#             'is_deleted', 'deleted_at', 'is_restored',
+#             'restored_at', 'last_deletion_at'
+#         ])
+
+#         restored_count = 1
+
+#         if cascade:
+#             # Cascade restore to related objects
+#             related_count = self._cascade_restore_related()
+#             restored_count += related_count
+
+#         return True, f"{self.__class__.__name__} and {restored_count} related objects restored successfully"
+
+#     def _cascade_restore_related(self):
+#         """Cascade restore to related objects."""
+#         restored_count = 0
+
+#         # Get all reverse foreign key relationships
+#         for rel in self._meta.get_fields():
+#             if hasattr(rel, 'related_model') and hasattr(rel, 'remote_field'):
+#                 if rel.remote_field and hasattr(rel.remote_field, 'name'):
+#                     try:
+#                         related_manager = getattr(self, rel.get_accessor_name())
+
+#                         # Find soft-deleted related objects
+#                         if hasattr(related_manager, 'filter'):
+#                             deleted_related = related_manager.filter(is_deleted=True)
+
+#                             for related_obj in deleted_related:
+#                                 if hasattr(related_obj, 'restore_instance'):
+#                                     success, message = related_obj.restore_instance(cascade=False)
+#                                     if success:
+#                                         restored_count += 1
+
+#                     except (AttributeError, Exception):
+#                         # Skip relationships that can't be processed
+#                         continue
+
+#         # Handle ManyToMany relationships
+#         for field in self._meta.many_to_many:
+#             try:
+#                 related_manager = getattr(self, field.name)
+#                 if hasattr(related_manager, 'filter'):
+#                     deleted_related = related_manager.filter(is_deleted=True)
+
+#                     for related_obj in deleted_related:
+#                         if hasattr(related_obj, 'restore_instance'):
+#                             success, message = related_obj.restore_instance(cascade=False)
+#                             if success:
+#                                 restored_count += 1
+
+#             except (AttributeError, Exception):
+#                 continue
+
+#         return restored_count
+
+#     @classmethod
+#     def bulk_restore(cls, queryset=None, cascade=True):
+#         """Bulk restore multiple instances."""
+#         from django.utils import timezone
+
+#         if queryset is None:
+#             queryset = cls.objects.filter(is_deleted=True)
+#         else:
+#             queryset = queryset.filter(is_deleted=True)
+
+#         if not queryset.exists():
+#             return 0, "No deleted objects found to restore"
+
+#         restored_objects = []
+#         total_restored = 0
+
+#         for obj in queryset:
+#             try:
+#                 success, message = obj.restore_instance(cascade=cascade)
+#                 if success:
+#                     restored_objects.append(obj)
+#                     total_restored += 1
+#             except Exception as e:
+#                 print(f"Error restoring {obj}: {e}")
+#                 continue
+
+#         return total_restored, f"Successfully restored {total_restored} {cls.__name__} objects"
+
+#     def get_restoration_history(self):
+#         """Get the restoration history of this object."""
+#         history = {
+#             'is_currently_deleted': self.is_deleted,
+#             'is_restored': self.is_restored,
+#             'last_restoration': self.restored_at,
+#             'last_deletion': self.last_deletion_at,
+#             'deletion_restoration_cycle': None
+#         }
+
+#         if self.last_deletion_at and self.restored_at:
+#             if self.restored_at > self.last_deletion_at:
+#                 history['deletion_restoration_cycle'] = {
+#                     'deleted_at': self.last_deletion_at,
+#                     'restored_at': self.restored_at,
+#                     'cycle_duration': self.restored_at - self.last_deletion_at
+#                 }
+
+#         return history
+
+
+class PostReaction(models.Model):
+    """
+    Emoji reactions to posts (replaces Like/Dislike binary system)
+    Provides rich emotional expressions for better engagement
+    """
+
+    # Comprehensive emoji reaction types
+    REACTION_TYPES = [
+        # Thread voting (Stack Overflow style)
+        ('upvote', '⬆️ Upvote'),
+        ('downvote', '⬇️ Downvote'),
+
+        # Positive reactions
+        ('like', '👍 Like'),
+        ('love', '❤️ Love'),
+        ('care', '🤗 Care'),
+        ('haha', '😂 Haha'),
+        ('wow', '😮 Wow'),
+        ('yay', '🎉 Yay'),
+        ('clap', '👏 Clap'),
+        ('fire', '🔥 Fire'),
+        ('star', '⭐ Star'),
+        ('party', '🥳 Party'),
+        ('heart_eyes', '😍 Heart Eyes'),
+        ('pray', '🙏 Pray'),
+        ('strong', '💪 Strong'),
+        ('celebrate', '🎊 Celebrate'),
+
+        # Negative reactions
+        ('sad', '😢 Sad'),
+        ('angry', '😡 Angry'),
+        ('worried', '😟 Worried'),
+        ('disappointed', '😞 Disappointed'),
+
+        # Neutral/Informative reactions
+        ('thinking', '🤔 Thinking'),
+        ('curious', '🧐 Curious'),
+        ('shock', '😱 Shock'),
+        ('confused', '😕 Confused'),
+    ]
+
+    # Sentiment classification (for recommendation system integration)
+    POSITIVE_REACTIONS = [
+        'upvote', 'like', 'love', 'care', 'haha', 'wow', 'yay', 'clap',
+        'fire', 'star', 'party', 'heart_eyes', 'pray', 'strong', 'celebrate'
+    ]
+
+    NEGATIVE_REACTIONS = [
+        'downvote', 'sad', 'angry', 'worried', 'disappointed'
+    ]
+
+    NEUTRAL_REACTIONS = [
+        'thinking', 'curious', 'shock', 'confused'
+    ]
+
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    user = models.ForeignKey(UserProfile, on_delete=models.CASCADE)
-    content_type = models.ForeignKey(ContentType, on_delete=models.CASCADE)
-    object_id = models.UUIDField()
-    content_object = GenericForeignKey('content_type', 'object_id')
+    post = models.ForeignKey(
+        'Post',
+        on_delete=models.CASCADE,
+        related_name='reactions'
+    )
+    user = models.ForeignKey(
+        UserProfile,
+        on_delete=models.CASCADE,
+        related_name='post_reactions'
+    )
+    reaction_type = models.CharField(
+        max_length=20,
+        choices=REACTION_TYPES,
+        db_index=True
+    )
+    created_at = models.DateTimeField(auto_now_add=True, db_index=True)
+    updated_at = models.DateTimeField(auto_now=True)
 
-    # Soft delete field
-
+    # Soft delete fields
     is_deleted = models.BooleanField(default=False)
-
     deleted_at = models.DateTimeField(null=True, blank=True)
+
     # Restoration tracking fields
     is_restored = models.BooleanField(default=False)
     restored_at = models.DateTimeField(null=True, blank=True)
     last_deletion_at = models.DateTimeField(null=True, blank=True)
 
-    created_at = models.DateTimeField(auto_now_add=True)
-
     class Meta:
-        """Unique constraint to prevent duplicate likes on the same content."""
-        unique_together = ('user', 'content_type', 'object_id')
+        unique_together = ['post', 'user']
         indexes = [
-            models.Index(fields=['content_type', 'object_id']),
-            models.Index(fields=['user', '-created_at']),
+            models.Index(fields=['post', 'reaction_type']),
+            models.Index(fields=['user', 'created_at']),
         ]
+        ordering = ['-created_at']
+
+    def __str__(self):
+        emoji = dict(self.REACTION_TYPES).get(self.reaction_type, '')
+        return f"{self.user.user.username} {emoji} on post {self.post.id}"
+
+    @property
+    def sentiment(self):
+        """Get sentiment category for recommendation system"""
+        if self.reaction_type in self.POSITIVE_REACTIONS:
+            return 'positive'
+        elif self.reaction_type in self.NEGATIVE_REACTIONS:
+            return 'negative'
+        else:
+            return 'neutral'
 
     def clean(self):
-        """Validate that only verified, non-suspended users can like."""
+        """Validate that only verified, non-suspended users can react."""
         super().clean()
         from accounts.permissions import validate_user_for_interaction
-        validate_user_for_interaction(self.user, "like content")
+        validate_user_for_interaction(self.user, "react to content")
 
     def save(self, *args, **kwargs):
         """Override save to call full_clean for validation."""
         self.full_clean()
         super().save(*args, **kwargs)
 
-    def __str__(self):
-        return f"{self.user.user.username} liked {self.content_object}"
     def restore_instance(self, cascade=True):
-        """Restore this soft-deleted instance and optionally cascade to related objects."""
-        from django.utils import timezone
-
+        """Restore this soft-deleted reaction."""
         if not self.is_deleted:
             return False, f"{self.__class__.__name__} is not deleted"
 
@@ -1447,7 +2131,7 @@ class Like(models.Model):
             related_count = self._cascade_restore_related()
             restored_count += related_count
 
-        return True, f"{self.__class__.__name__} and {restored_count} related objects restored successfully"
+        return True, f"{self.__class__.__name__} and {restored_count} related objects restored"
 
     def _cascade_restore_related(self):
         """Cascade restore to related objects."""
@@ -1471,59 +2155,15 @@ class Like(models.Model):
                                         restored_count += 1
 
                     except (AttributeError, Exception):
-                        # Skip relationships that can't be processed
                         continue
-
-        # Handle ManyToMany relationships
-        for field in self._meta.many_to_many:
-            try:
-                related_manager = getattr(self, field.name)
-                if hasattr(related_manager, 'filter'):
-                    deleted_related = related_manager.filter(is_deleted=True)
-
-                    for related_obj in deleted_related:
-                        if hasattr(related_obj, 'restore_instance'):
-                            success, message = related_obj.restore_instance(cascade=False)
-                            if success:
-                                restored_count += 1
-
-            except (AttributeError, Exception):
-                continue
 
         return restored_count
 
-    @classmethod
-    def bulk_restore(cls, queryset=None, cascade=True):
-        """Bulk restore multiple instances."""
-        from django.utils import timezone
-
-        if queryset is None:
-            queryset = cls.objects.filter(is_deleted=True)
-        else:
-            queryset = queryset.filter(is_deleted=True)
-
-        if not queryset.exists():
-            return 0, "No deleted objects found to restore"
-
-        restored_objects = []
-        total_restored = 0
-
-        for obj in queryset:
-            try:
-                success, message = obj.restore_instance(cascade=cascade)
-                if success:
-                    restored_objects.append(obj)
-                    total_restored += 1
-            except Exception as e:
-                print(f"Error restoring {obj}: {e}")
-                continue
-
-        return total_restored, f"Successfully restored {total_restored} {cls.__name__} objects"
-
-    def get_restoration_history(self):
-        """Get the restoration history of this object."""
+    def get_deletion_history(self):
+        """Get the deletion and restoration history of this reaction."""
         history = {
-            'is_currently_deleted': self.is_deleted,
+            'is_deleted': self.is_deleted,
+            'current_deletion': self.deleted_at,
             'is_restored': self.is_restored,
             'last_restoration': self.restored_at,
             'last_deletion': self.last_deletion_at,
@@ -1541,52 +2181,80 @@ class Like(models.Model):
         return history
 
 
+class CommentReaction(models.Model):
+    """
+    Emoji reactions to comments
+    """
 
-class Dislike(models.Model):
-    """Dislikes on posts and comments."""
+    # Use same reaction types as PostReaction
+    REACTION_TYPES = PostReaction.REACTION_TYPES
+    POSITIVE_REACTIONS = PostReaction.POSITIVE_REACTIONS
+    NEGATIVE_REACTIONS = PostReaction.NEGATIVE_REACTIONS
+    NEUTRAL_REACTIONS = PostReaction.NEUTRAL_REACTIONS
+
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    user = models.ForeignKey(UserProfile, on_delete=models.CASCADE)
-    content_type = models.ForeignKey(ContentType, on_delete=models.CASCADE)
-    object_id = models.UUIDField()
-    content_object = GenericForeignKey('content_type', 'object_id')
+    comment = models.ForeignKey(
+        'Comment',
+        on_delete=models.CASCADE,
+        related_name='reactions'
+    )
+    user = models.ForeignKey(
+        UserProfile,
+        on_delete=models.CASCADE,
+        related_name='comment_reactions'
+    )
+    reaction_type = models.CharField(
+        max_length=20,
+        choices=REACTION_TYPES,
+        db_index=True
+    )
+    created_at = models.DateTimeField(auto_now_add=True, db_index=True)
+    updated_at = models.DateTimeField(auto_now=True)
 
-    # Soft delete field
-
+    # Soft delete fields
     is_deleted = models.BooleanField(default=False)
-
     deleted_at = models.DateTimeField(null=True, blank=True)
+
     # Restoration tracking fields
     is_restored = models.BooleanField(default=False)
     restored_at = models.DateTimeField(null=True, blank=True)
     last_deletion_at = models.DateTimeField(null=True, blank=True)
 
-    created_at = models.DateTimeField(auto_now_add=True)
-
     class Meta:
-        unique_together = ('user', 'content_type', 'object_id')
+        unique_together = ['comment', 'user']
         indexes = [
-            models.Index(fields=['content_type', 'object_id']),
-            models.Index(fields=['user', '-created_at']),
+            models.Index(fields=['comment', 'reaction_type']),
+            models.Index(fields=['user', 'created_at']),
         ]
+        ordering = ['-created_at']
+
+    def __str__(self):
+        emoji = dict(self.REACTION_TYPES).get(self.reaction_type, '')
+        return f"{self.user.user.username} {emoji} on comment {self.comment.id}"
+
+    @property
+    def sentiment(self):
+        """Get sentiment category"""
+        if self.reaction_type in self.POSITIVE_REACTIONS:
+            return 'positive'
+        elif self.reaction_type in self.NEGATIVE_REACTIONS:
+            return 'negative'
+        else:
+            return 'neutral'
 
     def clean(self):
-        """Validate that only verified, non-suspended users can dislike."""
+        """Validate that only verified, non-suspended users can react."""
         super().clean()
         from accounts.permissions import validate_user_for_interaction
-        validate_user_for_interaction(self.user, "dislike content")
+        validate_user_for_interaction(self.user, "react to content")
 
     def save(self, *args, **kwargs):
         """Override save to call full_clean for validation."""
         self.full_clean()
         super().save(*args, **kwargs)
 
-    def __str__(self):
-        return f"{self.user.user.username} disliked {self.content_object}"
-
     def restore_instance(self, cascade=True):
-        """Restore this soft-deleted instance and optionally cascade to related objects."""
-        from django.utils import timezone
-
+        """Restore this soft-deleted reaction."""
         if not self.is_deleted:
             return False, f"{self.__class__.__name__} is not deleted"
 
@@ -1611,7 +2279,7 @@ class Dislike(models.Model):
             related_count = self._cascade_restore_related()
             restored_count += related_count
 
-        return True, f"{self.__class__.__name__} and {restored_count} related objects restored successfully"
+        return True, f"{self.__class__.__name__} and {restored_count} related objects restored"
 
     def _cascade_restore_related(self):
         """Cascade restore to related objects."""
@@ -1635,59 +2303,15 @@ class Dislike(models.Model):
                                         restored_count += 1
 
                     except (AttributeError, Exception):
-                        # Skip relationships that can't be processed
                         continue
-
-        # Handle ManyToMany relationships
-        for field in self._meta.many_to_many:
-            try:
-                related_manager = getattr(self, field.name)
-                if hasattr(related_manager, 'filter'):
-                    deleted_related = related_manager.filter(is_deleted=True)
-
-                    for related_obj in deleted_related:
-                        if hasattr(related_obj, 'restore_instance'):
-                            success, message = related_obj.restore_instance(cascade=False)
-                            if success:
-                                restored_count += 1
-
-            except (AttributeError, Exception):
-                continue
 
         return restored_count
 
-    @classmethod
-    def bulk_restore(cls, queryset=None, cascade=True):
-        """Bulk restore multiple instances."""
-        from django.utils import timezone
-
-        if queryset is None:
-            queryset = cls.objects.filter(is_deleted=True)
-        else:
-            queryset = queryset.filter(is_deleted=True)
-
-        if not queryset.exists():
-            return 0, "No deleted objects found to restore"
-
-        restored_objects = []
-        total_restored = 0
-
-        for obj in queryset:
-            try:
-                success, message = obj.restore_instance(cascade=cascade)
-                if success:
-                    restored_objects.append(obj)
-                    total_restored += 1
-            except Exception as e:
-                print(f"Error restoring {obj}: {e}")
-                continue
-
-        return total_restored, f"Successfully restored {total_restored} {cls.__name__} objects"
-
-    def get_restoration_history(self):
-        """Get the restoration history of this object."""
+    def get_deletion_history(self):
+        """Get the deletion and restoration history of this reaction."""
         history = {
-            'is_currently_deleted': self.is_deleted,
+            'is_deleted': self.is_deleted,
+            'current_deletion': self.deleted_at,
             'is_restored': self.is_restored,
             'last_restoration': self.restored_at,
             'last_deletion': self.last_deletion_at,
@@ -1703,6 +2327,7 @@ class Dislike(models.Model):
                 }
 
         return history
+
 
 
 class DirectShare(models.Model):

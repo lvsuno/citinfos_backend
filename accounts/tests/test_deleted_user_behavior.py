@@ -20,7 +20,7 @@ class DeletedUserBehaviorTests(AccountsAPITestCase):
         self.deleted_user = User.objects.create_user(
             username='deleteduser',
             email='deleted@example.com',
-            password='testpass123',
+            password='TestPass123!',
             first_name='Deleted',
             last_name='User'
         )
@@ -109,7 +109,7 @@ class DeletedUserBehaviorTests(AccountsAPITestCase):
         temp_user = User.objects.create_user(
             username='tempuser',
             email='temp@example.com',
-            password='testpass123'
+            password='TestPass123!'
         )
         temp_profile, _ = UserProfile.objects.get_or_create(user=temp_user)
         UserProfile.objects.filter(user=temp_user).update(

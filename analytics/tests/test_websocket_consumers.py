@@ -58,7 +58,7 @@ class VisitorAnalyticsConsumerTests(TransactionTestCase):
         self.creator_user = User.objects.create_user(
             username='creator',
             email='creator@test.com',
-            password='testpass123'
+            password='TestPass123!'
         )
 
         # Get or update the automatically created profile
@@ -230,7 +230,7 @@ class VisitorDashboardConsumerTests(TransactionTestCase):
         self.creator_user = User.objects.create_user(
             username='creator',
             email='creator@test.com',
-            password='testpass123'
+            password='TestPass123!'
         )
 
         # Get or update the automatically created profile
@@ -277,7 +277,7 @@ class VisitorDashboardConsumerTests(TransactionTestCase):
         admin_user = await database_sync_to_async(User.objects.create_user)(
             username='admin',
             email='admin@test.com',
-            password='testpass123',
+            password='TestPass123!',
             is_staff=True
         )
 
@@ -403,7 +403,7 @@ class WebSocketAuthenticationTests(TransactionTestCase):
         self.creator_user = User.objects.create_user(
             username='creator',
             email='creator@test.com',
-            password='testpass123'
+            password='TestPass123!'
         )
 
         # Get or update the automatically created profile
@@ -457,7 +457,7 @@ class WebSocketAuthenticationTests(TransactionTestCase):
         """Test that authenticated admin users can connect"""
         admin_user = await database_sync_to_async(User.objects.create_user)(
             username='admin',
-            password='test123',
+            password='TestPass123!',
             is_staff=True
         )
 
@@ -496,7 +496,7 @@ class WebSocketBroadcastingTests(TransactionTestCase):
         self.creator_user = User.objects.create_user(
             username='creator',
             email='creator@test.com',
-            password='testpass123'
+            password='TestPass123!'
         )
 
         # Get or update the automatically created profile
@@ -628,7 +628,7 @@ class WebSocketErrorHandlingTests(TransactionTestCase):
         self.creator_user = User.objects.create_user(
             username='creator',
             email='creator@test.com',
-            password='testpass123'
+            password='TestPass123!'
         )
 
         # Get or update the automatically created profile
@@ -741,7 +741,7 @@ class WebSocketMessageFormatTests(TransactionTestCase):
         self.creator_user = User.objects.create_user(
             username='creator',
             email='creator@test.com',
-            password='testpass123'
+            password='TestPass123!'
         )
 
         # Get or update the automatically created profile

@@ -3,7 +3,7 @@ Badge progress calculation utilities for finding nearest achievable badges.
 """
 from django.utils import timezone
 from .models import BadgeDefinition, UserBadge
-from content.models import Post, Comment, DirectShare, Like, Dislike
+from content.models import Post, Comment, DirectShare, PostReaction
 from accounts.models import Follow
 
 
@@ -40,8 +40,18 @@ def get_user_statistics(user_profile):
         'polls_created_count': 0,  # No Poll model found
         'votes_cast_count': 0,     # No Vote model found
         'reposts_count': 0,        # No Repost model found
-        'likes_given_count': 0,    # Would need Like model queries
-        'likes_received_count': 0,  # Would need Like model queries
+        # Reaction stats (positive reactions given)
+        'likes_given_count': PostReaction.objects.filter(
+            user=user_profile,
+            reaction_type__in=PostReaction.POSITIVE_REACTIONS,
+            is_deleted=False
+        ).count(),
+        # Reactions received on user's posts
+        'likes_received_count': PostReaction.objects.filter(
+            post__author=user_profile,
+            reaction_type__in=PostReaction.POSITIVE_REACTIONS,
+            is_deleted=False
+        ).count(),
 
         # Time-based stats
         'days_since_joining': (

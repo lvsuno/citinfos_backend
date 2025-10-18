@@ -20,7 +20,7 @@ class CommunityModelTests(TestCase, JWTAuthTestMixin):
         self.user1 = User.objects.create_user(
             username='testuser1',
             email='test1@example.com',
-            password='testpass123',
+            password='TestPass123!',
             first_name='Test',
             last_name='User1'
         )
@@ -38,7 +38,7 @@ class CommunityModelTests(TestCase, JWTAuthTestMixin):
         self.user2 = User.objects.create_user(
             username='testuser2',
             email='test2@example.com',
-            password='testpass123',
+            password='TestPass123!',
             first_name='Test',
             last_name='User2'
         )
@@ -88,7 +88,7 @@ class CommunityModelTests(TestCase, JWTAuthTestMixin):
         user3 = User.objects.create_user(
             username='banned_user',
             email='banned@example.com',
-            password='testpass123'
+            password='TestPass123!'
         )
         banned_profile, _ = UserProfile.objects.get_or_create(user=user3)
         UserProfile.objects.filter(user=user3).update(
@@ -112,7 +112,7 @@ class CommunityModelTests(TestCase, JWTAuthTestMixin):
         user4 = User.objects.create_user(
             username='deleted_user',
             email='deleted@example.com',
-            password='testpass123'
+            password='TestPass123!'
         )
         deleted_profile, _ = UserProfile.objects.get_or_create(user=user4)
         UserProfile.objects.filter(user=user4).update(
@@ -181,7 +181,7 @@ class CommunityIntegrationTests(TestCase, JWTAuthTestMixin):
         self.user1 = User.objects.create_user(
             username='testuser1',
             email='test1@example.com',
-            password='testpass123',
+            password='TestPass123!',
             first_name='Test',
             last_name='User1'
         )
@@ -199,7 +199,7 @@ class CommunityIntegrationTests(TestCase, JWTAuthTestMixin):
         self.user2 = User.objects.create_user(
             username='testuser2',
             email='test2@example.com',
-            password='testpass123',
+            password='TestPass123!',
             first_name='Test',
             last_name='User2'
         )
@@ -218,7 +218,7 @@ class CommunityIntegrationTests(TestCase, JWTAuthTestMixin):
         self.user3 = User.objects.create_user(
             username='applicant',
             email='applicant@example.com',
-            password='testpass123'
+            password='TestPass123!'
         )
 
         # Create user profile for additional user
@@ -602,7 +602,7 @@ class CommunityModerationTests(TransactionTestCase, JWTAuthTestMixin):
         self.user1 = User.objects.create_user(
             username='testuser1',
             email='test1@example.com',
-            password='testpass123',
+            password='TestPass123!',
             first_name='Test',
             last_name='User1'
         )
@@ -620,7 +620,7 @@ class CommunityModerationTests(TransactionTestCase, JWTAuthTestMixin):
         self.user2 = User.objects.create_user(
             username='testuser2',
             email='test2@example.com',
-            password='testpass123',
+            password='TestPass123!',
             first_name='Test',
             last_name='User2'
         )
@@ -639,7 +639,7 @@ class CommunityModerationTests(TransactionTestCase, JWTAuthTestMixin):
         self.user3 = User.objects.create_user(
             username='target_user',
             email='target@example.com',
-            password='testpass123'
+            password='TestPass123!'
         )
 
         # Create user profile for additional user

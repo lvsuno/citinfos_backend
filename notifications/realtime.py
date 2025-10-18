@@ -173,24 +173,41 @@ def send_content_notification(user_profile, notification_type: str,
 
 
 def send_post_interaction_notification(post_author, actor_profile,
-                                     interaction_type: str, post_id: str):
-    """Send notification for post interactions (likes, comments, shares)."""
-    interaction_messages = {
-        'like': f'@{actor_profile.user.username} liked your post.',
-        'comment': f'@{actor_profile.user.username} commented on your post.',
-        'share': f'@{actor_profile.user.username} shared your post.',
-        'repost': f'@{actor_profile.user.username} reposted your content.'
-    }
+                                     interaction_type: str, post_id: str,
+                                     reaction_type: str = None,
+                                     reaction_emoji: str = None,
+                                     comment_id: str = None):
+    """Send notification for post interactions (likes, comments, shares, reactions)."""
+    # Build interaction message based on type
+    if interaction_type == 'reaction' and reaction_emoji:
+        message = f'@{actor_profile.user.username} reacted {reaction_emoji} to your '
+        message += 'comment.' if comment_id else 'post.'
+    else:
+        interaction_messages = {
+            'like': f'@{actor_profile.user.username} liked your post.',
+            'comment': f'@{actor_profile.user.username} commented on your post.',
+            'share': f'@{actor_profile.user.username} shared your post.',
+            'repost': f'@{actor_profile.user.username} reposted your content.'
+        }
+        message = interaction_messages.get(interaction_type,
+                   f'@{actor_profile.user.username} interacted with your post.')
 
     data = {
         'title': f'New {interaction_type}',
-        'message': interaction_messages.get(interaction_type,
-                   f'@{actor_profile.user.username} interacted with your post.'),
+        'message': message,
         'post_id': post_id,
         'actor_id': str(actor_profile.id),
         'actor_username': actor_profile.user.username,
         'interaction_type': interaction_type
     }
+
+    # Add reaction-specific data if present
+    if reaction_type:
+        data['reaction_type'] = reaction_type
+    if reaction_emoji:
+        data['reaction_emoji'] = reaction_emoji
+    if comment_id:
+        data['comment_id'] = comment_id
 
     return send_content_notification(
         post_author,

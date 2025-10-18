@@ -146,7 +146,6 @@ def update_user_counters():
 @shared_task
 def update_user_engagement_scores():
     """Update engagement scores for all users based on their activity"""
-    from content.models import Like, Comment
     from content.utils import calculate_engagement_score
 
     users = UserProfile.objects.all()

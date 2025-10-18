@@ -254,7 +254,7 @@ DATABASES = {
 # Password validation
 AUTH_PASSWORD_VALIDATORS = [
     {
-        'NAME': 'accounts.validators.PasswordStrengthValidator',
+        'NAME': 'accounts.validators.StrongPasswordValidator',
     },
     {
         'NAME': (
@@ -349,6 +349,7 @@ CORS_ALLOW_HEADERS = [
     'x-csrftoken',
     'x-requested-with',
     'x-session-id',  # Custom session ID header
+    'x-device-fingerprint',  # Device fingerprint header
     'x-new-access-token',  # Token renewal header
     'x-new-refresh-token',  # Refresh token header
 ]
@@ -368,6 +369,9 @@ CORS_EXPOSE_HEADERS = [
     'x-new-access-token',
     'x-new-refresh-token',
     'x-session-id',
+    'x-device-fingerprint',  # Device fingerprint header
+    'x-verification-required',  # Verification status header
+    'x-verification-message',  # Verification message header
 ]
 
 # CSRF settings for Docker/cross-origin requests

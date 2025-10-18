@@ -255,6 +255,14 @@ setup_countries() {
         --overwrite
 
     log_success "Countries setup completed"
+
+    # Populate phone data for all countries
+    log_info "Populating phone data for countries..."
+    if docker compose exec backend python populate_country_phone_data.py 2>&1 | tee /tmp/country_phone_update.log; then
+        log_success "Phone data populated successfully"
+    else
+        log_warning "Phone data population had issues. Check logs for details."
+    fi
 }
 
 # Load geo data

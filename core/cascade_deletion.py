@@ -20,14 +20,13 @@ def cascade_soft_delete_post(post_instance):
     """
     from django.contrib.contenttypes.models import ContentType
     from django.utils import timezone
-    from content.models import Comment, Like, Dislike
+    from content.models import Comment, PostReaction
 
     if post_instance.is_deleted:
         logger.info(f"Post {post_instance.id} is already soft deleted")
         return 0
 
     deleted_count = 0
-    post_content_type = ContentType.objects.get_for_model(post_instance)
     current_time = timezone.now()
 
     with transaction.atomic():
@@ -50,33 +49,19 @@ def cascade_soft_delete_post(post_instance):
             deleted_count += comments_count
             logger.info(f"Soft deleted {comments_count} comments")
 
-        # Soft delete all likes on this post (using GenericForeignKey)
-        likes = Like.objects.filter(
-            content_type=post_content_type,
-            object_id=post_instance.id,
+        # Soft delete all reactions on this post
+        from content.models import PostReaction
+        reactions = PostReaction.objects.filter(
+            post=post_instance,
             is_deleted=False
         )
-        likes_count = likes.update(
+        reactions_count = reactions.update(
             is_deleted=True,
             deleted_at=current_time
         )
-        if likes_count > 0:
-            deleted_count += likes_count
-            logger.info(f"Soft deleted {likes_count} likes")
-
-        # Soft delete all dislikes on this post (using GenericForeignKey)
-        dislikes = Dislike.objects.filter(
-            content_type=post_content_type,
-            object_id=post_instance.id,
-            is_deleted=False
-        )
-        dislikes_count = dislikes.update(
-            is_deleted=True,
-            deleted_at=current_time
-        )
-        if dislikes_count > 0:
-            deleted_count += dislikes_count
-            logger.info(f"Soft deleted {dislikes_count} dislikes")
+        if reactions_count > 0:
+            deleted_count += reactions_count
+            logger.info(f"Soft deleted {reactions_count} reactions")
 
         # Handle complex relationships
         try:
@@ -182,16 +167,14 @@ def cascade_soft_delete_comment(comment_instance):
     Cascade soft deletion for a comment and all its related objects.
     Returns the number of objects that were soft deleted.
     """
-    from django.contrib.contenttypes.models import ContentType
     from django.utils import timezone as django_timezone
-    from content.models import Like, Dislike, Comment
+    from content.models import CommentReaction, Comment
 
     if comment_instance.is_deleted:
         logger.info(f"Comment {comment_instance.id} is already soft deleted")
         return 0
 
     deleted_count = 0
-    comment_content_type = ContentType.objects.get_for_model(comment_instance)
     current_time = django_timezone.now()
 
     with transaction.atomic():
@@ -201,33 +184,18 @@ def cascade_soft_delete_comment(comment_instance):
         deleted_count += 1
         logger.info(f"Soft deleted comment {comment_instance.id}")
 
-        # Soft delete all likes on this comment (using GenericForeignKey)
-        likes = Like.objects.filter(
-            content_type=comment_content_type,
-            object_id=comment_instance.id,
+        # Soft delete all reactions on this comment
+        reactions = CommentReaction.objects.filter(
+            comment=comment_instance,
             is_deleted=False
         )
-        likes_count = likes.update(
+        reactions_count = reactions.update(
             is_deleted=True,
             deleted_at=current_time
         )
-        if likes_count > 0:
-            deleted_count += likes_count
-            logger.info(f"Soft deleted {likes_count} likes on comment")
-
-        # Soft delete all dislikes on this comment (using GenericForeignKey)
-        dislikes = Dislike.objects.filter(
-            content_type=comment_content_type,
-            object_id=comment_instance.id,
-            is_deleted=False
-        )
-        dislikes_count = dislikes.update(
-            is_deleted=True,
-            deleted_at=current_time
-        )
-        if dislikes_count > 0:
-            deleted_count += dislikes_count
-            logger.info(f"Soft deleted {dislikes_count} dislikes on comment")
+        if reactions_count > 0:
+            deleted_count += reactions_count
+            logger.info(f"Soft deleted {reactions_count} reactions on comment")
 
         # Recursively cascade soft delete child comments if they exist
         try:
@@ -261,7 +229,9 @@ def cascade_soft_delete_comment(comment_instance):
 
         # Handle content reports for this comment
         try:
+            from django.contrib.contenttypes.models import ContentType
             from content.models import ContentReport
+            comment_content_type = ContentType.objects.get_for_model(comment_instance)
             reports = ContentReport.objects.filter(
                 content_type=comment_content_type,
                 object_id=comment_instance.id,

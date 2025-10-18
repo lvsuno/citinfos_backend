@@ -25,7 +25,7 @@ class AccountsModelTests(TestCase):
         self.user = User.objects.create_user(
             username='testuser',
             email='test@example.com',
-            password='testpass123',
+            password='TestPass123!',
             first_name='Test',
             last_name='User'
         )
@@ -104,7 +104,7 @@ class AccountsModelTests(TestCase):
         user2 = User.objects.create_user(
             username='testuser2',
             email='test2@example.com',
-            password='testpass123'
+            password='TestPass123!'
         )
         profile1, _ = UserProfile.objects.get_or_create(user=self.user)
         UserProfile.objects.filter(user=self.user).update(date_of_birth='1990-01-01')
@@ -130,7 +130,7 @@ class AccountsModelTests(TestCase):
         user2 = User.objects.create_user(
             username='testuser2',
             email='test2@example.com',
-            password='testpass123'
+            password='TestPass123!'
         )
         profile1, _ = UserProfile.objects.get_or_create(user=self.user)
         UserProfile.objects.filter(user=self.user).update(date_of_birth='1990-01-01')
@@ -175,7 +175,7 @@ class AccountsModelTests(TestCase):
     user_profile.refresh_from_db()
         user2 = User.objects.create_user(
             username='target_user',
-            password='pass123'
+            password='TestPass123!'
         )
     target_profile, _ = UserProfile.objects.get_or_create(user=user2)
     UserProfile.objects.filter(user=user2).update(date_of_birth='1990-01-01')
@@ -203,7 +203,7 @@ class AccountsAPITests(JWTAuthTestMixin, APITestCase):
         self.user = User.objects.create_user(
             username='testuser',
             email='test@example.com',
-            password='testpass123',
+            password='TestPass123!',
             first_name='Test',
             last_name='User'
         )
@@ -348,7 +348,7 @@ class AccountsAPITests(JWTAuthTestMixin, APITestCase):
         # Create another user to follow
         user2 = User.objects.create_user(
             username='user2',
-            password='pass123'
+            password='TestPass123!'
         )
     profile2, _ = UserProfile.objects.get_or_create(user=user2)
     UserProfile.objects.filter(user=user2).update(date_of_birth='1990-01-01')
@@ -378,7 +378,7 @@ class AccountsAPITests(JWTAuthTestMixin, APITestCase):
         # Create another user to block
         user2 = User.objects.create_user(
             username='user2',
-            password='pass123'
+            password='TestPass123!'
         )
     profile2, _ = UserProfile.objects.get_or_create(user=user2)
     UserProfile.objects.filter(user=user2).update(date_of_birth='1990-01-01')
@@ -506,7 +506,7 @@ class AccountsAPITests(JWTAuthTestMixin, APITestCase):
         # Create another user
         user2 = User.objects.create_user(
             username='user2',
-            password='pass123'
+            password='TestPass123!'
         )
     profile2, _ = UserProfile.objects.get_or_create(user=user2)
     UserProfile.objects.filter(user=user2).update(date_of_birth='1990-01-01')
@@ -561,7 +561,7 @@ class AccountsAPITests(JWTAuthTestMixin, APITestCase):
 
     def test_duplicate_follow(self):
         """Test following the same user twice returns error"""
-        user2 = User.objects.create_user(username='user2', password='pass123')
+        user2 = User.objects.create_user(username='user2', password='TestPass123!')
     profile2, _ = UserProfile.objects.get_or_create(user=user2)
     UserProfile.objects.filter(user=user2).update(date_of_birth='1990-01-01')
     profile2.refresh_from_db()
@@ -573,7 +573,7 @@ class AccountsAPITests(JWTAuthTestMixin, APITestCase):
 
     def test_duplicate_block(self):
         """Test blocking the same user twice returns error"""
-        user2 = User.objects.create_user(username='user2', password='pass123')
+        user2 = User.objects.create_user(username='user2', password='TestPass123!')
     profile2, _ = UserProfile.objects.get_or_create(user=user2)
     UserProfile.objects.filter(user=user2).update(date_of_birth='1990-01-01')
     profile2.refresh_from_db()
@@ -593,7 +593,7 @@ class AccountsAPITests(JWTAuthTestMixin, APITestCase):
 
     def test_permission_denied_on_block_delete(self):
         """Test user cannot delete another user's block"""
-        user2 = User.objects.create_user(username='user2', password='pass123')
+        user2 = User.objects.create_user(username='user2', password='TestPass123!')
     profile2, _ = UserProfile.objects.get_or_create(user=user2)
     UserProfile.objects.filter(user=user2).update(date_of_birth='1990-01-01')
     profile2.refresh_from_db()
@@ -603,7 +603,7 @@ class AccountsAPITests(JWTAuthTestMixin, APITestCase):
             reason='spam'
         )
         # Authenticate as another user
-        user3 = User.objects.create_user(username='user3', password='pass123')
+        user3 = User.objects.create_user(username='user3', password='TestPass123!')
     profile3, _ = UserProfile.objects.get_or_create(user=user3)
     UserProfile.objects.filter(user=user3).update(date_of_birth='1990-01-01')
     profile3.refresh_from_db()
@@ -624,11 +624,11 @@ class AccountsTasksTests(TransactionTestCase):
         """Set up test data for tasks."""
         self.user1 = User.objects.create_user(
             username='tasksuser1',
-            password='pass123'
+            password='TestPass123!'
         )
         self.user2 = User.objects.create_user(
             username='tasksuser2',
-            password='pass123'
+            password='TestPass123!'
         )
         self.profile1, _ = UserProfile.objects.get_or_create(user=self.user1)
         self.profile2, _ = UserProfile.objects.get_or_create(user=self.user2)

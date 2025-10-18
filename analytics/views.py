@@ -562,7 +562,7 @@ def admin_overview(request):
     """Get comprehensive overview analytics."""
     try:
         from accounts.models import User
-        from content.models import PostSee, Post, Comment, Like
+        from content.models import PostSee, Post, Comment, PostReaction
         from analytics.models import (
             DailyAnalytics, UserAnalytics, SystemMetric,
             AuthenticationMetric, CommunityAnalytics, ContentAnalytics
@@ -574,7 +574,7 @@ def admin_overview(request):
         total_users = User.objects.count()
         total_posts = Post.objects.count()
         total_comments = Comment.objects.count() if hasattr(Comment.objects, 'count') else 0
-        total_likes = Like.objects.count() if hasattr(Like.objects, 'count') else 0
+        total_reactions = PostReaction.objects.count() if hasattr(PostReaction.objects, 'count') else 0
 
         # Today's data
         today = timezone.now().date()
@@ -681,8 +681,8 @@ def admin_overview(request):
             'summary': {
                 'total_posts': total_posts,
                 'total_comments': total_comments,
-                'total_likes': total_likes,
-                'total_engagement': total_comments + total_likes,
+                'total_reactions': total_reactions,
+                'total_engagement': total_comments + total_reactions,
                 'avg_engagement_rate': round(avg_engagement_rate, 2),
                 'top_performing_posts': min(total_posts, 5)  # Assume top 5 or total if less
             }
@@ -701,7 +701,7 @@ def admin_overview(request):
             'total_users': total_users,
             'total_posts': total_posts,
             'total_comments': total_comments,
-            'total_likes': total_likes,
+            'total_reactions': total_reactions,
 
             # Today's activity
             'active_users_today': active_users_today,

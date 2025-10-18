@@ -28,17 +28,17 @@ class ComprehensiveCommunitiesTestCase(TestCase):
         self.user1 = User.objects.create_user(
             username='creator',
             email='creator@example.com',
-            password='testpass123'
+            password='TestPass123!'
         )
         self.user2 = User.objects.create_user(
             username='member',
             email='member@example.com',
-            password='testpass123'
+            password='TestPass123!'
         )
         self.user3 = User.objects.create_user(
             username='applicant',
             email='applicant@example.com',
-            password='testpass123'
+            password='TestPass123!'
         )
 
         # Create or ensure user profiles (safe pattern)

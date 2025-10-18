@@ -372,6 +372,9 @@ def change_password(request):
     """
     Change user password with JWT authentication.
     """
+    from django.contrib.auth.password_validation import validate_password
+    from django.core.exceptions import ValidationError
+
     old_password = request.data.get('old_password')
     new_password = request.data.get('new_password')
     # Accept both parameter names for compatibility
@@ -395,6 +398,14 @@ def change_password(request):
             'error': 'Old password is incorrect'
         }, status=status.HTTP_400_BAD_REQUEST)
 
+    # Validate new password against Django password validators
+    try:
+        validate_password(new_password, user=request.user)
+    except ValidationError as e:
+        return Response({
+            'error': ' '.join(e.messages)
+        }, status=status.HTTP_400_BAD_REQUEST)
+
     # Set new password
     request.user.set_password(new_password)
     request.user.save()
@@ -411,6 +422,8 @@ def password_reset_confirm(request):
     """
     Confirm password reset with token.
     """
+    from django.contrib.auth.password_validation import validate_password
+    from django.core.exceptions import ValidationError
     from .views import verify_password_reset_token
 
     token = request.data.get('token')
@@ -438,6 +451,14 @@ def password_reset_confirm(request):
             'error': 'Invalid or expired token'
         }, status=status.HTTP_400_BAD_REQUEST)
 
+    # Validate password against Django password validators
+    try:
+        validate_password(password, user=user)
+    except ValidationError as e:
+        return Response({
+            'error': ' '.join(e.messages)
+        }, status=status.HTTP_400_BAD_REQUEST)
+
     # Reset the user's password
     if hasattr(user, 'set_password'):
         user.set_password(password)
@@ -446,6 +467,7 @@ def password_reset_confirm(request):
     return Response({
         'message': 'Password reset successfully'
     }, status=status.HTTP_200_OK)
+
 
 @api_view(['POST'])
 @permission_classes([AllowAny])
@@ -837,14 +859,19 @@ def update_last_visited_url(request):
 @permission_classes([AllowAny])
 def recover_session_by_fingerprint(request):
     """
-    Recover user session using device fingerprint + session ID.
+    Recover user session using server-generated device fingerprint.
 
-    Case 3: User lost token but has active session in Redis.
-    Server validates fingerprint + session_id and returns new JWT.
+    Flow:
+    1. Server generates fast fingerprint from request headers
+    2. Look for existing session with this fingerprint
+    3. If found, return new JWT tokens
+    4. If not found, return the fingerprint for anonymous tracking
+
+    This endpoint should NOT receive fingerprint from client.
+    The server always generates it to ensure consistency.
 
     Request body:
         {
-            "fingerprint": "client-generated-fingerprint",
             "session_id": "optional-session-id"
         }
 
@@ -853,16 +880,21 @@ def recover_session_by_fingerprint(request):
             "success": true,
             "token": "new-jwt-token",
             "refresh": "new-refresh-token",
-            "user": {...}
+            "user": {...},
+            "fingerprint": "server-generated-fingerprint"
         }
     """
-    fingerprint = request.data.get('fingerprint')
+    # Generate server-side fast fingerprint
+    from core.device_fingerprint import OptimizedDeviceFingerprint
+    fingerprint = OptimizedDeviceFingerprint.get_fast_fingerprint(request)
+
     session_id = request.data.get('session_id')
 
     if not fingerprint:
+        logger.error("Failed to generate device fingerprint")
         return Response({
-            'error': 'Fingerprint is required'
-        }, status=status.HTTP_400_BAD_REQUEST)
+            'error': 'Device identification failed'
+        }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
     try:
         import redis
@@ -909,16 +941,29 @@ def recover_session_by_fingerprint(request):
                         break
 
         if not session_key:
+            # No session found - user is anonymous
+            # Return fingerprint for client to use for tracking
+            logger.info(
+                f"No active session found for fingerprint "
+                f"{fingerprint[:8]}... - treating as anonymous user"
+            )
             return Response({
-                'error': 'No active session found for this fingerprint'
-            }, status=status.HTTP_404_NOT_FOUND)
+                'success': False,
+                'is_anonymous': True,
+                'fingerprint': fingerprint,
+                'message': 'No active session found. User is anonymous.'
+            }, status=status.HTTP_200_OK)
 
         # Get user from session
         user_id = session_data.get('user_id')
         if not user_id:
+            # Session exists but not authenticated - return for tracking
             return Response({
-                'error': 'Session is not authenticated'
-            }, status=status.HTTP_401_UNAUTHORIZED)
+                'success': False,
+                'is_anonymous': True,
+                'fingerprint': fingerprint,
+                'message': 'Session is not authenticated'
+            }, status=status.HTTP_200_OK)
 
         try:
             user = User.objects.get(id=user_id)
@@ -953,7 +998,10 @@ def recover_session_by_fingerprint(request):
                 'email': user.email
             }
 
-        logger.info(f"✅ Session recovered for user {user.username} via fingerprint")
+        logger.info(
+            f"✅ Session recovered for user {user.username} "
+            f"via fingerprint"
+        )
 
         return Response({
             'success': True,
@@ -962,6 +1010,7 @@ def recover_session_by_fingerprint(request):
             'token': access_token,  # Backward compatibility
             'user': user_data,
             'session_id': session_key.replace('session:', ''),
+            'fingerprint': fingerprint,  # Always return server fingerprint
             'message': 'Session recovered successfully'
         }, status=status.HTTP_200_OK)
 

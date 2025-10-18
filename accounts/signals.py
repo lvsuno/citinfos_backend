@@ -180,21 +180,28 @@ def poll_vote_deleted(sender, instance, **kwargs):  # noqa: ARG001
         except UserProfile.DoesNotExist:  # noqa: PERF203
             pass
 
-# Likes
-@receiver(post_save, sender='content.Like')
-def like_created(sender, instance, created, **kwargs):  # noqa: ARG001
+# Reactions (replacing Like/Dislike)
+@receiver(post_save, sender='content.PostReaction')
+def post_reaction_created(sender, instance, created, **kwargs):  # noqa: ARG001
     if created and instance.user_id:
-        _inc(instance.user, 'likes_given_count', 1)
-        _log_user_event(instance.user.user, 'LIKE_GIVEN', {
-            'target_type': instance.content_type.model,
-            'target_id': instance.object_id
-        })
-        _trigger_badge_evaluation(instance.user)
+        # Only count positive reactions for likes_given_count
+        from content.models import PostReaction
+        if instance.reaction_type in PostReaction.POSITIVE_REACTIONS:
+            _inc(instance.user, 'likes_given_count', 1)
+            _log_user_event(instance.user.user, 'REACTION_GIVEN', {
+                'target_type': 'post',
+                'target_id': str(instance.post_id),
+                'reaction_type': instance.reaction_type
+            })
+            _trigger_badge_evaluation(instance.user)
 
-@receiver(post_delete, sender='content.Like')
-def like_deleted(sender, instance, **kwargs):  # noqa: ARG001
+@receiver(post_delete, sender='content.PostReaction')
+def post_reaction_deleted(sender, instance, **kwargs):  # noqa: ARG001
     if instance.user_id:
-        _inc(instance.user, 'likes_given_count', -1)
+        # Only decrement for positive reactions
+        from content.models import PostReaction
+        if instance.reaction_type in PostReaction.POSITIVE_REACTIONS:
+            _inc(instance.user, 'likes_given_count', -1)
 
 # Comments
 @receiver(post_save, sender='content.Comment')

@@ -5,7 +5,7 @@ from django.utils.html import format_html
 from django.urls import reverse
 from django.utils.safestring import mark_safe
 from .models import (
-    Post, Comment, Like, ContentReport, MediaMetadata,
+    Post, Comment, PostReaction, CommentReaction, ContentReport, MediaMetadata,
     ContentModerationRule, ContentAnalysis, AutoModerationAction,
     ModerationQueue, Hashtag, PostHashtag, Mention,
     BotDetectionProfile, BotDetectionEvent, UserActivityPattern,
@@ -296,7 +296,8 @@ class HashtagAdmin(admin.ModelAdmin):
     ordering = ['-posts_count']
 
 
-admin.site.register(Like)
+admin.site.register(PostReaction)
+admin.site.register(CommentReaction)
 admin.site.register(DirectShare)
 admin.site.register(MediaMetadata)
 admin.site.register(PostHashtag)

@@ -14,7 +14,7 @@ class DeletedUserResourceAccessTest(APITestCase):
         self.active_user = User.objects.create_user(
             username='activeuser',
             email='active@example.com',
-            password='testpass123'
+            password='TestPass123!'
         )
         self.active_profile, _ = UserProfile.objects.get_or_create(user=self.active_user)
         UserProfile.objects.filter(user=self.active_user).update(
@@ -28,7 +28,7 @@ class DeletedUserResourceAccessTest(APITestCase):
         self.deleted_user = User.objects.create_user(
             username='deleteduser',
             email='deleted@example.com',
-            password='testpass123'
+            password='TestPass123!'
         )
         self.deleted_profile, _ = UserProfile.objects.get_or_create(user=self.deleted_user)
         UserProfile.objects.filter(user=self.deleted_user).update(

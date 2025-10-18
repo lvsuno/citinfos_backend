@@ -2,12 +2,16 @@
 Django signals for automatic content moderation and real-time notifications.
 """
 
-from django.db.models.signals import post_save, pre_save
+from django.db.models.signals import post_save, pre_save, post_delete
 from django.dispatch import receiver
 from django.utils import timezone
 from django.core.exceptions import ValidationError
-from .models import Post, Comment, Like
-from .utils import process_content_for_moderation, process_content_for_bot_detection, is_user_blocked_as_bot
+from .models import Post, Comment, PostReaction, CommentReaction, PostMedia
+from .utils import (
+    process_content_for_moderation,
+    process_content_for_bot_detection,
+    is_user_blocked_as_bot
+)
 
 
 @receiver(pre_save, sender=Post)
@@ -101,27 +105,59 @@ def auto_moderate_comment(sender, instance, created, **kwargs):
 # REAL-TIME NOTIFICATION SIGNALS
 # =============================================================================
 
-@receiver(post_save, sender=Like)
-def send_like_notification(sender, instance, created, **kwargs):
-    """Send real-time notification when someone likes a post."""
+@receiver(post_save, sender=PostReaction)
+def send_post_reaction_notification(sender, instance, created, **kwargs):
+    """Send real-time notification when someone reacts to a post."""
     if created:
         try:
             from notifications.realtime import send_post_interaction_notification
 
             # Get the post author
-            if hasattr(instance.content_object, 'author'):
-                post_author = instance.content_object.author
+            post_author = instance.post.author
 
-                # Don't send notification for self-likes
-                if post_author != instance.user:
-                    send_post_interaction_notification(
-                        post_author=post_author,
-                        actor_profile=instance.user,
-                        interaction_type='like',
-                        post_id=str(instance.content_object.id)
-                    )
+            # Don't send notification for self-reactions
+            if post_author != instance.user:
+                # Get emoji for the reaction type
+                emoji = dict(PostReaction.REACTION_TYPES).get(instance.reaction_type, '')
+
+                send_post_interaction_notification(
+                    post_author=post_author,
+                    actor_profile=instance.user,
+                    interaction_type='reaction',
+                    post_id=str(instance.post.id),
+                    reaction_type=instance.reaction_type,
+                    reaction_emoji=emoji
+                )
         except Exception as e:
-            print(f"Error sending like notification: {str(e)}")
+            print(f"Error sending post reaction notification: {str(e)}")
+
+
+@receiver(post_save, sender=CommentReaction)
+def send_comment_reaction_notification(sender, instance, created, **kwargs):
+    """Send real-time notification when someone reacts to a comment."""
+    if created:
+        try:
+            from notifications.realtime import send_post_interaction_notification
+
+            # Get the comment author
+            comment_author = instance.comment.author
+
+            # Don't send notification for self-reactions
+            if comment_author != instance.user:
+                # Get emoji for the reaction type
+                emoji = dict(CommentReaction.REACTION_TYPES).get(instance.reaction_type, '')
+
+                send_post_interaction_notification(
+                    post_author=comment_author,
+                    actor_profile=instance.user,
+                    interaction_type='comment_reaction',
+                    post_id=str(instance.comment.post.id),
+                    comment_id=str(instance.comment.id),
+                    reaction_type=instance.reaction_type,
+                    reaction_emoji=emoji
+                )
+        except Exception as e:
+            print(f"Error sending comment reaction notification: {str(e)}")
 
 
 @receiver(post_save, sender=Comment)
@@ -168,3 +204,129 @@ def send_repost_notification(sender, instance, created, **kwargs):
                     )
         except Exception as e:
             print(f"Error sending repost notification: {str(e)}")
+
+
+# =============================================================================
+# REACTION COUNTER UPDATE SIGNALS
+# =============================================================================
+
+
+@receiver(post_save, sender=PostReaction)
+def update_post_reaction_counts_on_save(sender, instance, created, **kwargs):
+    """Update post likes_count and dislikes_count when reaction is created or updated."""
+    post = instance.post
+
+    # Recalculate counts based on reaction sentiment
+    positive_count = PostReaction.objects.filter(
+        post=post,
+        reaction_type__in=PostReaction.POSITIVE_REACTIONS,
+        is_deleted=False
+    ).count()
+
+    negative_count = PostReaction.objects.filter(
+        post=post,
+        reaction_type__in=PostReaction.NEGATIVE_REACTIONS,
+        is_deleted=False
+    ).count()
+
+    # Update the cached counts
+    post.likes_count = positive_count
+    post.dislikes_count = negative_count
+    post.save(update_fields=['likes_count', 'dislikes_count'])
+
+
+@receiver(post_delete, sender=PostReaction)
+def update_post_reaction_counts_on_delete(sender, instance, **kwargs):
+    """Update post likes_count and dislikes_count when reaction is deleted."""
+    post = instance.post
+
+    # Recalculate counts
+    positive_count = PostReaction.objects.filter(
+        post=post,
+        reaction_type__in=PostReaction.POSITIVE_REACTIONS,
+        is_deleted=False
+    ).count()
+
+    negative_count = PostReaction.objects.filter(
+        post=post,
+        reaction_type__in=PostReaction.NEGATIVE_REACTIONS,
+        is_deleted=False
+    ).count()
+
+    # Update the cached counts
+    post.likes_count = positive_count
+    post.dislikes_count = negative_count
+    post.save(update_fields=['likes_count', 'dislikes_count'])
+
+
+@receiver(post_save, sender=CommentReaction)
+def update_comment_reaction_counts_on_save(sender, instance, created, **kwargs):
+    """Update comment likes_count and dislikes_count when reaction is created or updated."""
+    comment = instance.comment
+
+    # Recalculate counts based on reaction sentiment
+    positive_count = CommentReaction.objects.filter(
+        comment=comment,
+        reaction_type__in=CommentReaction.POSITIVE_REACTIONS,
+        is_deleted=False
+    ).count()
+
+    negative_count = CommentReaction.objects.filter(
+        comment=comment,
+        reaction_type__in=CommentReaction.NEGATIVE_REACTIONS,
+        is_deleted=False
+    ).count()
+
+    # Update the cached counts
+    comment.likes_count = positive_count
+    comment.dislikes_count = negative_count
+    comment.save(update_fields=['likes_count', 'dislikes_count'])
+
+
+@receiver(post_delete, sender=CommentReaction)
+def update_comment_reaction_counts_on_delete(sender, instance, **kwargs):
+    """Update comment likes_count and dislikes_count when reaction is deleted."""
+    comment = instance.comment
+
+    # Recalculate counts
+    positive_count = CommentReaction.objects.filter(
+        comment=comment,
+        reaction_type__in=CommentReaction.POSITIVE_REACTIONS,
+        is_deleted=False
+    ).count()
+
+    negative_count = CommentReaction.objects.filter(
+        comment=comment,
+        reaction_type__in=CommentReaction.NEGATIVE_REACTIONS,
+        is_deleted=False
+    ).count()
+
+    # Update the cached counts
+    comment.likes_count = positive_count
+    comment.dislikes_count = negative_count
+    comment.save(update_fields=['likes_count', 'dislikes_count'])
+
+
+@receiver(post_save, sender=PostMedia)
+def auto_generate_video_thumbnail(sender, instance, created, **kwargs):
+    """
+    Automatically generate thumbnail for video uploads.
+    Only runs for newly created PostMedia with video type and uploaded file.
+    """
+    if (
+        created and
+        instance.media_type == "video" and
+        instance.file and
+        not instance.thumbnail and
+        not instance.external_url  # Only for uploaded files
+    ):
+        # Generate thumbnail asynchronously to avoid blocking
+        try:
+            instance.generate_video_thumbnail(at_second=1)
+        except Exception as e:
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.warning(
+                f"Failed to auto-generate thumbnail for video {instance.id}: {e}"
+            )
+

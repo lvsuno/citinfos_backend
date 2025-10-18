@@ -33,14 +33,14 @@ class VisitorAnalyticsAPIAuthenticationTests(TestCase):
         self.admin_user = User.objects.create_user(
             username='admin',
             email='admin@test.com',
-            password='testpass123',
+            password='TestPass123!',
             is_staff=True
         )
 
         self.moderator_user = User.objects.create_user(
             username='moderator',
             email='moderator@test.com',
-            password='testpass123'
+            password='TestPass123!'
         )
         # Assuming moderators have is_moderator flag
         if hasattr(self.moderator_user, 'is_moderator'):
@@ -50,7 +50,7 @@ class VisitorAnalyticsAPIAuthenticationTests(TestCase):
         self.regular_user = User.objects.create_user(
             username='regular',
             email='regular@test.com',
-            password='testpass123'
+            password='TestPass123!'
         )
 
         self.endpoints = [
@@ -121,7 +121,7 @@ class VisitorAnalyticsAPIDataTests(TestCase):
         self.admin_user = User.objects.create_user(
             username='admin',
             email='admin@test.com',
-            password='testpass123',
+            password='TestPass123!',
             is_staff=True
         )
         self.client.force_authenticate(user=self.admin_user)
@@ -242,7 +242,7 @@ class VisitorAnalyticsAPIFilteringTests(TestCase):
         self.admin_user = User.objects.create_user(
             username='admin',
             email='admin@test.com',
-            password='testpass123',
+            password='TestPass123!',
             is_staff=True
         )
         self.client.force_authenticate(user=self.admin_user)
@@ -334,7 +334,7 @@ class VisitorAnalyticsAPIExportTests(TestCase):
         self.admin_user = User.objects.create_user(
             username='admin',
             email='admin@test.com',
-            password='testpass123',
+            password='TestPass123!',
             is_staff=True
         )
         self.client.force_authenticate(user=self.admin_user)
@@ -380,7 +380,7 @@ class VisitorAnalyticsAPIConversionTests(TestCase):
         self.admin_user = User.objects.create_user(
             username='admin',
             email='admin@test.com',
-            password='testpass123',
+            password='TestPass123!',
             is_staff=True
         )
         self.client.force_authenticate(user=self.admin_user)
@@ -426,7 +426,7 @@ class VisitorAnalyticsAPIDemographicsTests(TestCase):
         self.admin_user = User.objects.create_user(
             username='admin',
             email='admin@test.com',
-            password='testpass123',
+            password='TestPass123!',
             is_staff=True
         )
         self.client.force_authenticate(user=self.admin_user)
@@ -459,7 +459,7 @@ class VisitorAnalyticsAPIGrowthTests(TestCase):
         self.admin_user = User.objects.create_user(
             username='admin',
             email='admin@test.com',
-            password='testpass123',
+            password='TestPass123!',
             is_staff=True
         )
         self.client.force_authenticate(user=self.admin_user)
@@ -504,7 +504,7 @@ class VisitorAnalyticsAPIErrorHandlingTests(TestCase):
         self.admin_user = User.objects.create_user(
             username='admin',
             email='admin@test.com',
-            password='testpass123',
+            password='TestPass123!',
             is_staff=True
         )
         self.client.force_authenticate(user=self.admin_user)

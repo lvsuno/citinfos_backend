@@ -95,18 +95,30 @@ def restore_instance(instance):
 @receiver(post_save, sender='core.AdministrativeDivision')
 def create_default_community_for_division(sender, instance, created, **kwargs):
     """
-    Automatically create a default community when a new division is created.
+    Automatically create a default community for divisions at default level.
 
-    This ensures every division has at least one community for posts.
+    Only creates communities for divisions at their country's default_admin_level.
+    This ensures we don't create unnecessary communities for higher-level divisions
+    (provinces, regions, etc.) or lower-level divisions (neighborhoods, etc.).
     """
     # pylint: disable=unused-argument
     if created:
         try:
+            # Only create community if division is at the default level for its country
+            if instance.admin_level != instance.country.default_admin_level:
+                logger.info(
+                    f"Skipping community creation for '{instance.name}' "
+                    f"(level {instance.admin_level}, country default is "
+                    f"{instance.country.default_admin_level})"
+                )
+                return
+
             from communities.utils import get_or_create_default_community
             community = get_or_create_default_community(instance)
             logger.info(
                 f"Auto-created community '{community.slug}' "
-                f"for new division '{instance.name}'"
+                f"for new division '{instance.name}' at default level "
+                f"{instance.admin_level}"
             )
         except Exception as e:
             logger.error(

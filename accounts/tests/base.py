@@ -16,7 +16,7 @@ class AccountsAPITestCase(JWTAuthTestMixin, APITestCase):
         self.user1 = User.objects.create_user(
             username='testuser1',
             email='test1@example.com',
-            password='testpass123',
+            password='TestPass123!',
             first_name='Test',
             last_name='User1'
         )
@@ -34,7 +34,7 @@ class AccountsAPITestCase(JWTAuthTestMixin, APITestCase):
         self.user2 = User.objects.create_user(
             username='testuser2',
             email='test2@example.com',
-            password='testpass123',
+            password='TestPass123!',
             first_name='Test',
             last_name='User2'
         )

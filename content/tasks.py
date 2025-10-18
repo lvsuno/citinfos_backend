@@ -4,7 +4,7 @@ from django.db.models import Count, F
 from django.conf import settings
 from datetime import timedelta
 from content.models import (
-    Post, Comment, Like, Dislike, Hashtag, Mention,
+    Post, Comment, PostReaction, CommentReaction, Hashtag, Mention,
     BotDetectionEvent, UserActivityPattern,
     ContentAnalysis, AutoModerationAction, ModerationQueue, DirectShare
 )
@@ -234,7 +234,7 @@ def update_moderation_analytics():
 
 @shared_task
 def update_content_counters():
-    """Update like, comment, share counts for posts."""
+    """Update reaction, comment, share counts for posts."""
     try:
         posts = Post.objects.filter(
             updated_at__gte=timezone.now() - timedelta(hours=1)
@@ -243,24 +243,31 @@ def update_content_counters():
         updated_count = 0
         for post in posts:
             try:
-                from django.contrib.contenttypes.models import ContentType
-                post_ct = ContentType.objects.get_for_model(post)
-                likes_count = Like.objects.filter(
-                    content_type=post_ct,
-                    object_id=post.id,
-                    is_deleted=False
+                # Count positive reactions (likes)
+                likes_count = PostReaction.objects.filter(
+                    post=post,
+                    is_deleted=False,
+                    reaction_type__in=PostReaction.POSITIVE_REACTIONS
                 ).count()
-                dislikes_count = Dislike.objects.filter(
-                    content_type=post_ct,
-                    object_id=post.id,
-                    is_deleted=False
+
+                # Count negative reactions (dislikes)
+                dislikes_count = PostReaction.objects.filter(
+                    post=post,
+                    is_deleted=False,
+                    reaction_type__in=PostReaction.NEGATIVE_REACTIONS
                 ).count()
+
                 comments_count = Comment.objects.filter(
                     post=post, is_deleted=False
                 ).count()
                 # Independent counters
-                direct_shares_count = DirectShare.objects.filter(post=post).count()
-                reposts_count = Post.objects.filter(parent_post=post, post_type='repost').count()
+                direct_shares_count = DirectShare.objects.filter(
+                    post=post
+                ).count()
+                reposts_count = Post.objects.filter(
+                    parent_post=post,
+                    post_type='repost'
+                ).count()
 
                 if (post.likes_count != likes_count or
                         post.dislikes_count != dislikes_count or
@@ -759,63 +766,70 @@ def cleanup_old_content():
     """
     try:
         cleanup_stats = {
-            'old_likes': 0,
-            'old_dislikes': 0,
+            'old_post_reactions': 0,
+            'old_comment_reactions': 0,
             'old_analysis': 0,
-            'orphaned_likes': 0,
-            'orphaned_dislikes': 0
+            'orphaned_post_reactions': 0,
+            'orphaned_comment_reactions': 0
         }
 
         # Since we have cascading soft deletion, we should only clean up:
         # 1. Records older than 30 days that are already soft deleted
-        # 2. Truly orphaned records where content_object no longer exists
+        # 2. Truly orphaned records where content no longer exists
 
-        # Remove old like records that are already soft deleted (30+ days)
-        old_soft_deleted_likes = Like.objects.filter(
+        # Remove old post reaction records that are soft deleted (30+ days)
+        old_soft_deleted_post_reactions = PostReaction.objects.filter(
             is_deleted=True,
             deleted_at__lt=timezone.now() - timedelta(days=30)
         )
-        cleanup_stats['old_likes'] = old_soft_deleted_likes.count()
-        old_soft_deleted_likes.delete()  # Hard delete soft-deleted records
+        cleanup_stats['old_post_reactions'] = (
+            old_soft_deleted_post_reactions.count()
+        )
+        old_soft_deleted_post_reactions.delete()
 
-        # Remove old dislike records that are already soft deleted (30+ days)
-        old_soft_deleted_dislikes = Dislike.objects.filter(
+        # Remove old comment reaction records that are soft deleted (30+ days)
+        old_soft_deleted_comment_reactions = CommentReaction.objects.filter(
             is_deleted=True,
             deleted_at__lt=timezone.now() - timedelta(days=30)
         )
-        cleanup_stats['old_dislikes'] = old_soft_deleted_dislikes.count()
-        old_soft_deleted_dislikes.delete()  # Hard delete soft-deleted records
+        cleanup_stats['old_comment_reactions'] = (
+            old_soft_deleted_comment_reactions.count()
+        )
+        old_soft_deleted_comment_reactions.delete()
 
-        # Check for orphaned likes (where content_object is None due to hard deletion)
-        # This should be rare with our soft deletion system, but can happen
-        orphaned_likes_count = 0
-        for like in Like.objects.filter(is_deleted=False):
+        # Check for orphaned post reactions (where post was hard deleted)
+        orphaned_post_reactions_count = 0
+        for reaction in PostReaction.objects.filter(is_deleted=False):
             try:
-                if like.content_object is None:
-                    # Content object was hard deleted - clean up the like
-                    like.delete()
-                    orphaned_likes_count += 1
+                if reaction.post is None:
+                    # Post was hard deleted - clean up the reaction
+                    reaction.delete()
+                    orphaned_post_reactions_count += 1
             except Exception:
-                # Content object doesn't exist or is inaccessible
-                like.delete()
-                orphaned_likes_count += 1
+                # Post doesn't exist or is inaccessible
+                reaction.delete()
+                orphaned_post_reactions_count += 1
 
-        cleanup_stats['orphaned_likes'] = orphaned_likes_count
+        cleanup_stats['orphaned_post_reactions'] = (
+            orphaned_post_reactions_count
+        )
 
-        # Check for orphaned dislikes
-        orphaned_dislikes_count = 0
-        for dislike in Dislike.objects.filter(is_deleted=False):
+        # Check for orphaned comment reactions
+        orphaned_comment_reactions_count = 0
+        for reaction in CommentReaction.objects.filter(is_deleted=False):
             try:
-                if dislike.content_object is None:
-                    # Content object was hard deleted - clean up the dislike
-                    dislike.delete()
-                    orphaned_dislikes_count += 1
+                if reaction.comment is None:
+                    # Comment was hard deleted - clean up the reaction
+                    reaction.delete()
+                    orphaned_comment_reactions_count += 1
             except Exception:
-                # Content object doesn't exist or is inaccessible
-                dislike.delete()
-                orphaned_dislikes_count += 1
+                # Comment doesn't exist or is inaccessible
+                reaction.delete()
+                orphaned_comment_reactions_count += 1
 
-        cleanup_stats['orphaned_dislikes'] = orphaned_dislikes_count
+        cleanup_stats['orphaned_comment_reactions'] = (
+            orphaned_comment_reactions_count
+        )
 
         # Remove old content analysis records (keep 6 months, regardless of soft deletion)
         old_analysis = ContentAnalysis.objects.filter(
@@ -842,12 +856,14 @@ def send_content_notification_emails():
         from notifications.utils import NotificationService
 
         # Get recent content activity that needs notifications
-        recent_likes = Like.objects.filter(
+        recent_post_reactions = PostReaction.objects.filter(
             created_at__gte=timezone.now() - timedelta(hours=1)
-        ).select_related('user', 'content_type')
-        recent_dislikes = Dislike.objects.filter(
+        ).select_related('user', 'post')
+
+        recent_comment_reactions = CommentReaction.objects.filter(
             created_at__gte=timezone.now() - timedelta(hours=1)
-        ).select_related('user', 'content_type')
+        ).select_related('user', 'comment')
+
         recent_comments = Comment.objects.filter(
             created_at__gte=timezone.now() - timedelta(hours=1),
             is_deleted=False
@@ -856,144 +872,161 @@ def send_content_notification_emails():
         push_notifications_sent = 0
         email_notifications_sent = 0
 
-        # Create notifications for likes
-        for like in recent_likes:
+        # Create notifications for post reactions
+        for reaction in recent_post_reactions:
             try:
-                if hasattr(like, 'content_object') and like.content_object:
-                    content_author = getattr(like.content_object, 'author', None)
-                    if content_author and content_author != like.user:
-                        user_settings = getattr(content_author, 'settings', None)
+                if reaction.post and reaction.post.author != reaction.user:
+                    content_author = reaction.post.author
+                    user_settings = getattr(content_author, 'settings', None)
 
-                        # Skip if user has disabled notifications
-                        if (not user_settings or
-                                user_settings.notification_frequency == 'never'):
-                            continue
+                    # Skip if user has disabled notifications
+                    if (not user_settings or
+                            user_settings.notification_frequency == 'never'):
+                        continue
 
-                        # Determine content type for message
-                        content_type = 'post' if hasattr(like.content_object, 'content') else 'comment'
-                        title = f"New like on your {content_type}"
-                        message = f"{like.user.username} liked your {content_type}"
+                    # Determine sentiment for message
+                    emoji = reaction.get_reaction_type_display()
+                    title = f"New reaction on your post"
+                    message = (
+                        f"{reaction.user.username} reacted {emoji} "
+                        f"to your post"
+                    )
 
-                        # Create push notification if enabled
-                        if user_settings.push_notifications:
-                            push_notification = NotificationService.create_notification(
+                    # Create push notification if enabled
+                    if user_settings.push_notifications:
+                        push_notification = (
+                            NotificationService.create_notification(
                                 recipient=content_author,
                                 title=title,
                                 message=message,
-                                notification_type='like',
-                                related_object=like.content_object,
+                                notification_type='reaction',
+                                related_object=reaction.post,
                                 app_context='content',
                                 extra_data={
-                                    'like_id': str(like.id),
-                                    'liker_id': str(like.user.id),
-                                    'liker_username': like.user.username,
-                                    'content_type': content_type
+                                    'reaction_id': str(reaction.id),
+                                    'reactor_id': str(reaction.user.id),
+                                    'reactor_username': reaction.user.username,
+                                    'reaction_type': reaction.reaction_type,
+                                    'content_type': 'post'
                                 }
                             )
-
-                            if push_notification:
-                                push_notifications_sent += 1
-
-                        # Send email based on frequency preferences
-                        should_email = (
-                            user_settings.email_notifications and
-                            user_settings.notification_frequency in
-                            ['real_time', 'hourly']
                         )
 
-                        if should_email:
-                            email_sent = NotificationService.send_email_notification(
+                        if push_notification:
+                            push_notifications_sent += 1
+
+                    # Send email based on frequency preferences
+                    should_email = (
+                        user_settings.email_notifications and
+                        user_settings.notification_frequency in
+                        ['real_time', 'hourly']
+                    )
+
+                    if should_email:
+                        email_sent = (
+                            NotificationService.send_email_notification(
                                 recipient=content_author,
-                                subject=f'👍 {title}',
-                                template='content/email/like_notification.html',
+                                subject=f'{emoji} {title}',
+                                template='content/email/reaction_notification.html',
                                 context={
                                     'recipient': content_author,
-                                    'liker': like.user,
-                                    'content': like.content_object,
-                                    'content_type': content_type
+                                    'reactor': reaction.user,
+                                    'content': reaction.post,
+                                    'reaction_emoji': emoji,
+                                    'content_type': 'post'
                                 }
                             )
+                        )
 
-                            if email_sent:
-                                email_notifications_sent += 1
+                        if email_sent:
+                            email_notifications_sent += 1
 
             except Exception as e:
                 ErrorLog.objects.create(
                     level='warning',
-                    message=f'Error creating like notification: {str(e)}',
+                    message=f'Error creating reaction notification: {str(e)}',
                     extra_data={
-                        'like_id': str(like.id),
+                        'reaction_id': str(reaction.id),
                         'task': 'send_content_notification_emails'
                     }
                 )
 
-        # Create notifications for dislikes
-        for dislike in recent_dislikes:
+        # Create notifications for comment reactions
+        for reaction in recent_comment_reactions:
             try:
-                if hasattr(dislike, 'content_object') and dislike.content_object:
-                    content_author = getattr(dislike.content_object, 'author', None)
-                    if content_author and content_author != dislike.user:
-                        user_settings = getattr(content_author, 'settings', None)
+                if (reaction.comment and
+                        reaction.comment.author != reaction.user):
+                    content_author = reaction.comment.author
+                    user_settings = getattr(content_author, 'settings', None)
 
-                        # Skip if user has disabled notifications
-                        if (not user_settings or
-                                user_settings.notification_frequency == 'never'):
-                            continue
+                    # Skip if user has disabled notifications
+                    if (not user_settings or
+                            user_settings.notification_frequency == 'never'):
+                        continue
 
-                        # Determine content type for message
-                        content_type = 'post' if hasattr(dislike.content_object, 'content') else 'comment'
-                        title = f"New dislike on your {content_type}"
-                        message = f"{dislike.user.username} disliked your {content_type}"
+                    # Determine sentiment for message
+                    emoji = reaction.get_reaction_type_display()
+                    title = f"New reaction on your comment"
+                    message = (
+                        f"{reaction.user.username} reacted {emoji} "
+                        f"to your comment"
+                    )
 
-                        # Create push notification if enabled
-                        if user_settings.push_notifications:
-                            push_notification = NotificationService.create_notification(
+                    # Create push notification if enabled
+                    if user_settings.push_notifications:
+                        push_notification = (
+                            NotificationService.create_notification(
                                 recipient=content_author,
                                 title=title,
                                 message=message,
-                                notification_type='dislike',
-                                related_object=dislike.content_object,
+                                notification_type='reaction',
+                                related_object=reaction.comment,
                                 app_context='content',
                                 extra_data={
-                                    'dislike_id': str(dislike.id),
-                                    'disliker_id': str(dislike.user.id),
-                                    'disliker_username': dislike.user.username,
-                                    'content_type': content_type
+                                    'reaction_id': str(reaction.id),
+                                    'reactor_id': str(reaction.user.id),
+                                    'reactor_username': reaction.user.username,
+                                    'reaction_type': reaction.reaction_type,
+                                    'content_type': 'comment'
                                 }
                             )
-
-                            if push_notification:
-                                push_notifications_sent += 1
-
-                        # Send email based on frequency preferences
-                        should_email = (
-                            user_settings.email_notifications and
-                            user_settings.notification_frequency in
-                            ['real_time', 'hourly']
                         )
 
-                        if should_email:
-                            email_sent = NotificationService.send_email_notification(
+                        if push_notification:
+                            push_notifications_sent += 1
+
+                    # Send email based on frequency preferences
+                    should_email = (
+                        user_settings.email_notifications and
+                        user_settings.notification_frequency in
+                        ['real_time', 'hourly']
+                    )
+
+                    if should_email:
+                        email_sent = (
+                            NotificationService.send_email_notification(
                                 recipient=content_author,
-                                subject=f'👎 {title}',
-                                template='content/email/dislike_notification.html',
+                                subject=f'{emoji} {title}',
+                                template='content/email/reaction_notification.html',
                                 context={
                                     'recipient': content_author,
-                                    'disliker': dislike.user,
-                                    'content': dislike.content_object,
-                                    'content_type': content_type
+                                    'reactor': reaction.user,
+                                    'content': reaction.comment,
+                                    'reaction_emoji': emoji,
+                                    'content_type': 'comment'
                                 }
                             )
+                        )
 
-                            if email_sent:
-                                email_notifications_sent += 1
+                        if email_sent:
+                            email_notifications_sent += 1
 
             except Exception as e:
                 ErrorLog.objects.create(
                     level='warning',
-                    message=f'Error creating dislike notification: {str(e)}',
+                    message=f'Error creating reaction notification: {str(e)}',
                     extra_data={
-                        'dislike_id': str(dislike.id),
+                        'reaction_id': str(reaction.id),
                         'task': 'send_content_notification_emails'
                     }
                 )

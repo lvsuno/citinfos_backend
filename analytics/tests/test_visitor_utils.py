@@ -41,7 +41,7 @@ class VisitorUtilsTestCase(TestCase):
         self.user = User.objects.create_user(
             username='testuser',
             email='test@example.com',
-            password='testpass123'
+            password='TestPass123!'
         )
         # Get the automatically created UserProfile and update it
         self.user_profile = self.user.profile
@@ -108,7 +108,7 @@ class VisitorUtilsTestCase(TestCase):
             user = User.objects.create_user(
                 username=f'user{i}',
                 email=f'user{i}@example.com',
-                password='testpass'
+                password='TestPass123!'
             )
             user_profile = user.profile
             user_profile.bio = f'User {i} profile'

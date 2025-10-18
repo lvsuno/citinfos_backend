@@ -21,7 +21,7 @@ class ConversionTrackingTestCase(TestCase):
         self.user = User.objects.create_user(
             username='testuser',
             email='test@example.com',
-            password='testpass123'
+            password='TestPass123!'
         )
         self.user_profile = self.user.profile
 
@@ -224,7 +224,7 @@ class FingerprintMatchingTestCase(TestCase):
         self.user = User.objects.create_user(
             username='converter',
             email='converter@example.com',
-            password='testpass123'
+            password='TestPass123!'
         )
         self.user_profile = self.user.profile
         self.fingerprint = 'fp_unique_abc123'
@@ -357,12 +357,12 @@ class ConversionRateCalculationTestCase(TestCase):
         self.user1 = User.objects.create_user(
             username='user1',
             email='user1@example.com',
-            password='pass123'
+            password='TestPass123!'
         )
         self.user2 = User.objects.create_user(
             username='user2',
             email='user2@example.com',
-            password='pass123'
+            password='TestPass123!'
         )
 
     def tearDown(self):
@@ -514,7 +514,7 @@ class ConversionTimeAnalysisTestCase(TestCase):
         self.user = User.objects.create_user(
             username='timetest',
             email='time@example.com',
-            password='pass123'
+            password='TestPass123!'
         )
         self.user_profile = self.user.profile
 

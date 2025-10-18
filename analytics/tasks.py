@@ -14,7 +14,7 @@ from analytics.utils import (
     clean_expired_analytics_data, calculate_content_quality_score
 )
 from content.utils import calculate_engagement_score
-from content.models import PostSee, Post, Comment, Like
+from content.models import PostSee, Post, Comment, PostReaction
 from accounts.models import UserProfile
 from communities.models import Community, CommunityMembership
 from analytics.services import online_tracker
@@ -111,14 +111,17 @@ def process_daily_analytics():
             # Count content
             total_posts = Post.objects.filter(created_at__date=today).count()
             total_comments = Comment.objects.filter(created_at__date=today).count()
-            total_likes = Like.objects.filter(created_at__date=today).count()
+            # Count reactions (replaces likes)
+            total_reactions = PostReaction.objects.filter(
+                created_at__date=today
+            ).count()
 
             # Update analytics
             daily_analytics.active_users = active_users
             daily_analytics.new_users = new_users
             daily_analytics.total_posts = total_posts
             daily_analytics.total_comments = total_comments
-            daily_analytics.total_likes = total_likes
+            daily_analytics.total_likes = total_reactions  # Now counts reactions
             daily_analytics.save()
 
         return f"Processed daily analytics for {today}"
@@ -2251,8 +2254,8 @@ def sync_community_analytics_from_redis():
     This task should run every 30 seconds via Celery Beat.
     """
     try:
-        from django.core.cache import cache
         from django.utils import timezone
+        from django_redis import get_redis_connection
         import re
 
         # Get all Redis keys for anonymous community visitors
@@ -2262,8 +2265,13 @@ def sync_community_analytics_from_redis():
         # Group visitor fingerprints by community
         community_visitors = {}
 
-        # Scan Redis keys
-        redis_client = cache.client.get_client()
+        # Get Redis connection properly
+        try:
+            redis_client = get_redis_connection('default')
+        except Exception as e:
+            print(f"Could not get Redis connection: {e}")
+            return {'success': False, 'error': str(e)}
+
         cursor = 0
         while True:
             cursor, keys = redis_client.scan(

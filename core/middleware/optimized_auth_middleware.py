@@ -61,6 +61,12 @@ class OptimizedAuthenticationMiddleware(MiddlewareMixin):
             '/api/public/profiles/',
             '/api/public/users/',
 
+            # Public content endpoints (read-only access for browsing)
+            '/api/content/posts/',  # Public post browsing for municipalities
+
+            # Public community endpoints (for browsing rubriques)
+            '/api/communities/',  # Community list and detail (read-only)
+
             # Debug endpoints (no authentication required)
             '/api/debug/',
 

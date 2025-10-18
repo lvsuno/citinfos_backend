@@ -14,6 +14,7 @@ from django.contrib.gis.gdal import DataSource
 from django.contrib.gis.geos import GEOSGeometry
 from django.db import transaction
 from core.models import Country, AdministrativeDivision
+from core.country_data import get_country_info
 
 
 class Command(BaseCommand):
@@ -104,12 +105,23 @@ class Command(BaseCommand):
                 f"Country {iso3} already exists. Use --overwrite to update."
             )
 
+        # Get country info from lookup table
+        country_info = get_country_info(iso3)
+
         # Create or update country
         defaults_dict = {
             'iso2': iso2,
             'name': name,
             'code': code,
         }
+
+        # Add phone data from country_data if available
+        if country_info:
+            if not iso2:
+                defaults_dict['iso2'] = country_info.get('iso2')
+            defaults_dict['phone_code'] = country_info.get('phone_code')
+            defaults_dict['flag_emoji'] = country_info.get('flag_emoji')
+            defaults_dict['region'] = country_info.get('region')
 
         if default_admin_level is not None:
             defaults_dict['default_admin_level'] = default_admin_level
@@ -120,9 +132,15 @@ class Command(BaseCommand):
         )
 
         action = "Created" if created else "Updated"
+        phone_info = (
+            f"{country.flag_emoji} {country.phone_code}"
+            if country.flag_emoji and country.phone_code
+            else ""
+        )
         self.stdout.write(
             self.style.SUCCESS(
-                f"{action} country: {country.name} ({country.iso3})"
+                f"{action} country: {country.name} ({country.iso3}) "
+                f"{phone_info}"
             )
         )
 

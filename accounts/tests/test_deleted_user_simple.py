@@ -17,7 +17,7 @@ class SimpleDeletedUserLoginTest(APITestCase):
         self.user = User.objects.create_user(
             username='testuser',
             email='test@example.com',
-            password='testpass123'
+            password='TestPass123!'
         )
 
         # Create or ensure profile exists and populate required fields

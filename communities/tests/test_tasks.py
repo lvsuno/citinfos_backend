@@ -95,7 +95,7 @@ class CommunityTasksTests(TestCase):
     def test_reactivate_expired_bans_multiple(self):
         """Test that multiple banned users are reactivated if their ban_expires_at is reached."""
         from communities.tasks import reactivate_expired_bans
-        user4 = User.objects.create_user(username='other', email='other@example.com', password='testpass123')
+        user4 = User.objects.create_user(username='other', email='other@example.com', password='TestPass123!')
         other_profile, _ = UserProfile.objects.get_or_create(user=user4)
         UserProfile.objects.filter(user=user4).update(
             bio='Other member',
@@ -168,18 +168,18 @@ class CommunityTasksTests(TestCase):
         self.user1 = User.objects.create_user(
             username='creator',
             email='creator@example.com',
-            password='testpass123'
+            password='TestPass123!'
         )
         self.user2 = User.objects.create_user(
             username='member',
             email='member@example.com',
-            password='testpass123'
+            password='TestPass123!'
         )
 
         self.user3 = User.objects.create_user(
             username='applicant',
             email='applicant@example.com',
-            password='testpass123'
+            password='TestPass123!'
         )
 
         # Create or ensure user profiles

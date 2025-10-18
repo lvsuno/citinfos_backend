@@ -14,7 +14,7 @@ class RefreshTokenDeletedUserTest(APITestCase):
         self.user = User.objects.create_user(
             username='testuser',
             email='test@example.com',
-            password='testpass123'
+            password='TestPass123!'
         )
 
         self.profile, _ = UserProfile.objects.get_or_create(user=self.user)

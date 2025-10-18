@@ -9,19 +9,14 @@ from django.shortcuts import get_object_or_404
 from django.db.models import Q
 from accounts.models import UserProfile, Follow
 from accounts.permissions import NotDeletedUserPermission
-from .models import Post, Comment, Like, PostMedia, Dislike, PostSee, Mention  # removed Share
 from .models import (
-    ContentReport,
-    ModerationQueue,
-    AutoModerationAction,
-    ContentModerationRule,
-    BotDetectionEvent,
-    BotDetectionProfile,
-    ContentRecommendation,
-    ContentSimilarity,
-    UserContentPreferences,
-    RecommendationFeedback,
-    DirectShare, DirectShareRecipient  # new models
+    Post, Comment, PostReaction, CommentReaction,
+    PostMedia, PostSee, Mention,
+    ContentReport, ModerationQueue, AutoModerationAction,
+    ContentModerationRule, BotDetectionEvent, BotDetectionProfile,
+    ContentRecommendation, ContentSimilarity,
+    UserContentPreferences, RecommendationFeedback,
+    DirectShare, DirectShareRecipient
 )
 
 from .permissions import IsAuthenticatedOrPublicContent  # , IsOwnerOrReadOnly
@@ -171,24 +166,57 @@ class CommentViewSet(viewsets.ModelViewSet):
         cascade_soft_delete_comment(instance)
 
     @action(detail=True, methods=['post'], permission_classes=[IsAuthenticated])
-    def like(self, request, pk=None):
-        """Like or unlike a comment."""
-        from django.contrib.contenttypes.models import ContentType
+    def react(self, request, pk=None):
+        """Add or update reaction to a comment."""
         comment = self.get_object()
         user_profile = get_object_or_404(UserProfile, user=request.user)
-        comment_content_type = ContentType.objects.get_for_model(Comment)
+        reaction_type = request.data.get('reaction_type', 'like')
 
-        like, created = Like.objects.get_or_create(
+        # Validate reaction type
+        valid_types = [r[0] for r in CommentReaction.REACTION_TYPES]
+        if reaction_type not in valid_types:
+            return Response(
+                {'error': f'Invalid reaction type. Choose from: {valid_types}'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # Create or update reaction
+        reaction, created = CommentReaction.objects.update_or_create(
+            comment=comment,
             user=user_profile,
-            content_type=comment_content_type,
-            object_id=comment.id
+            defaults={'reaction_type': reaction_type}
         )
 
-        if not created:
-            like.delete()
-            return Response({'message': 'Comment unliked'}, status=status.HTTP_200_OK)
+        action_msg = 'added' if created else 'updated'
+        emoji = dict(CommentReaction.REACTION_TYPES).get(reaction_type, '')
 
-        return Response({'message': 'Comment liked'}, status=status.HTTP_201_CREATED)
+        return Response({
+            'message': f'Reaction {action_msg}',
+            'reaction_type': reaction_type,
+            'emoji': emoji
+        }, status=status.HTTP_201_CREATED if created else status.HTTP_200_OK)
+
+    @action(detail=True, methods=['delete'], permission_classes=[IsAuthenticated])
+    def unreact(self, request, pk=None):
+        """Remove reaction from a comment."""
+        comment = self.get_object()
+        user_profile = get_object_or_404(UserProfile, user=request.user)
+
+        try:
+            reaction = CommentReaction.objects.get(
+                comment=comment,
+                user=user_profile
+            )
+            reaction.delete()
+            return Response(
+                {'message': 'Reaction removed'},
+                status=status.HTTP_200_OK
+            )
+        except CommentReaction.DoesNotExist:
+            return Response(
+                {'message': 'No reaction found'},
+                status=status.HTTP_404_NOT_FOUND
+            )
 
     @action(detail=True, methods=['get'])
     def replies(self, request, pk=None):

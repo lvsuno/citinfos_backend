@@ -136,7 +136,7 @@ class ProfessionalProfileAPITests(AccountsAPITestCase):
         user3 = User.objects.create_user(
             username='testuser3',
             email='test3@example.com',
-            password='testpass123'
+            password='TestPass123!'
         )
         # Safely get or create the profile (a post_save signal may auto-create it)
         user3_profile, _ = UserProfile.objects.get_or_create(user=user3)

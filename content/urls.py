@@ -92,6 +92,28 @@ urlpatterns = [
          UnifiedPostViewSet.as_view({'get': 'user_posts'}),
          name='content-post-user-posts'),
 
+    # Draft management endpoints
+    path('api/content/posts/drafts/',
+         UnifiedPostViewSet.as_view({'get': 'drafts'}),
+         name='content-post-drafts'),
+    path('api/content/posts/<uuid:pk>/publish_draft/',
+         UnifiedPostViewSet.as_view({'post': 'publish_draft'}),
+         name='content-post-publish-draft'),
+
+    # Thread voting and management endpoints
+    path('api/content/posts/<uuid:pk>/upvote/',
+         UnifiedPostViewSet.as_view({'post': 'upvote'}),
+         name='content-post-upvote'),
+    path('api/content/posts/<uuid:pk>/downvote/',
+         UnifiedPostViewSet.as_view({'post': 'downvote'}),
+         name='content-post-downvote'),
+    path('api/content/posts/<uuid:pk>/mark_best_post/',
+         UnifiedPostViewSet.as_view({'post': 'mark_best_post'}),
+         name='content-post-mark-best'),
+    path('api/content/posts/<uuid:pk>/toggle_pin/',
+         UnifiedPostViewSet.as_view({'post': 'toggle_pin'}),
+         name='content-post-toggle-pin'),
+
     # Comment interactions
     path('api/content/comments/<uuid:comment_id>/like/',
          UnifiedPostViewSet.as_view({'post': 'like_comment'}),
