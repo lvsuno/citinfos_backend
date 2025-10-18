@@ -45,6 +45,9 @@ requests>=2.28.0  # For public IP detection in development mode
 bleach>=6.0.0  # HTML sanitization for user content
 tinycss2>=1.2.0  # CSS parsing for bleach sanitization
 
+# Phone Number Validation
+phonenumbers>=8.13.0  # Google's libphonenumber for international phone validation
+
 # WebSocket and Real-time Communication
 channels>=4.0.0
 channels-redis>=4.1.0
